@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings version="2.0"
+	xmlns="http://java.sun.com/xml/ns/persistence/orm"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd">
+
+	<!-- CalculatedDataEntity -->
+	<named-query name="CalculatedDataEntity.getLatestDateByCollectorid">
+		<query>
+			<![CDATA[
+				SELECT a FROM CalculatedDataEntity a
+				WHERE a.id.collectorid = :collectorid
+				ORDER BY a.id.dateTime DESC
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CalculatedDataEntity.getOldestDateByCollectorid">
+		<query>
+			<![CDATA[
+				SELECT a FROM CalculatedDataEntity a
+				WHERE a.id.collectorid = :collectorid
+				ORDER BY a.id.dateTime ASC
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CalculatedDataEntity.getCollectorItemParentListByCollectorItemCode">
+		<query>
+			<![CDATA[
+				SELECT DISTINCT b.parentItemCode, a.id.itemCode, a.id.displayName, a.id.collectorid
+				FROM CalculatedDataEntity a, CollectorItemCodeMstEntity b
+				WHERE a.id.collectorid = :collectorid
+				AND a.id.itemCode = b.itemCode
+				ORDER BY a.id.itemCode, a.id.displayName
+
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CalculatedDataEntity.getCollectorItemParentListByHttpScenario">
+		<query>
+			<![CDATA[
+				SELECT DISTINCT CASE WHEN a.id.itemCode = '0' THEN null ELSE '0' END AS parentItemCode, a.id.itemCode, a.id.displayName, a.id.collectorid
+				FROM CalculatedDataEntity a, MonitorInfoEntity b
+				WHERE a.id.collectorid = :collectorid
+				ORDER BY a.id.itemCode, a.id.displayName
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CalculatedDataEntity.getCollectorItemParentListByMonitorInfo">
+		<query>
+			<![CDATA[
+				SELECT DISTINCT null AS parentItemCode, a.id.itemCode, a.id.displayName, a.id.collectorid
+				FROM CalculatedDataEntity a, MonitorInfoEntity b
+				WHERE a.id.collectorid = :collectorid
+				AND a.id.itemCode = b.monitorId
+				ORDER BY a.id.itemCode, a.id.displayName
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CalculatedDataEntity.deleteByCollectorid">
+		<query>
+			<![CDATA[
+				DELETE FROM CalculatedDataEntity a
+				WHERE a.id.collectorid = :collectorid
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CalculatedDataEntity.findByCollectoridFacilityidDateTime">
+		<query>
+			<![CDATA[
+				SELECT a FROM CalculatedDataEntity a
+				WHERE a.id.collectorid = :collectorid
+				AND a.id.facilityid = :facilityid
+				AND a.id.dateTime <= :dateTime
+				ORDER BY a.id.dateTime, a.id.itemCode, a.id.displayName, a.value
+			]]>
+		</query>
+	</named-query>
+	<!-- CollectorCalcMethodMstEntity -->
+	<named-query name="CollectorCalcMethodMstEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorCalcMethodMstEntity a
+				ORDER BY a.calcMethod
+			]]>
+		</query>
+	</named-query>
+	<!-- CollectorCategoryCollectMstEntity -->
+	<named-query name="CollectorCategoryCollectMstEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorCategoryCollectMstEntity a
+				ORDER BY a.id.platformId, a.id.subPlatformId, a.id.categoryCode
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CollectorCategoryCollectMstEntity.findByPlatformIdAndSubPlatformId">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorCategoryCollectMstEntity a
+				WHERE a.id.platformId = :platformId
+				AND a.id.subPlatformId = :subPlatformId
+				ORDER BY a.id.platformId, a.id.subPlatformId, a.id.categoryCode
+			]]>
+		</query>
+	</named-query>
+	<!-- CollectorCategoryMstEntity -->
+	<named-query name="CollectorCategoryMstEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorCategoryMstEntity a
+				ORDER BY a.categoryCode
+			]]>
+		</query>
+	</named-query>
+	<!-- CollectorItemCodeMstEntity -->
+	<named-query name="CollectorItemCodeMstEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorItemCodeMstEntity a
+				ORDER BY a.itemCode
+			]]>
+		</query>
+	</named-query>
+	<!-- CollectorItemCalcMethodMstEntity -->
+	<named-query name="CollectorItemCalcMethodMstEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorItemCalcMethodMstEntity a
+				ORDER BY a.id.collectMethod, a.id.platformId, a.id.subPlatformId, a.id.itemCode
+			]]>
+		</query>
+	</named-query>
+	<named-query name="CollectorItemCalcMethodMstEntity.findByPlatformIdAndSubPlatformId">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorItemCalcMethodMstEntity a
+				WHERE a.id.platformId = :platformId
+				AND a.id.subPlatformId = :subPlatformId
+				ORDER BY a.id.collectMethod, a.id.platformId, a.id.subPlatformId, a.id.itemCode
+			]]>
+		</query>
+	</named-query>
+	<!-- CollectorPollingMstEntity -->
+	<named-query name="CollectorPollingMstEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorPollingMstEntity a
+				ORDER BY a.id.collectMethod, a.id.platformId, a.id.subPlatformId, a.id.itemCode, a.id.variableId
+			]]>
+		</query>
+	</named-query>
+	<!-- CollectorPollingMstEntity -->
+	<named-query name="CollectorPollingMstEntity.findVariableId">
+		<query>
+			<![CDATA[
+				SELECT a FROM CollectorPollingMstEntity a
+				WHERE a.id.collectMethod = :collectMethod
+				AND a.id.platformId = :platformId
+				AND a.id.subPlatformId = :subPlatformId
+				AND a.id.itemCode = :itemCode
+				ORDER BY a.id.collectMethod, a.id.platformId, a.id.subPlatformId, a.id.itemCode, a.id.variableId
+			]]>
+		</query>
+	</named-query>
+</entity-mappings>

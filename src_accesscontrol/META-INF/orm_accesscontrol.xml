@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings version="2.0"
+	xmlns="http://java.sun.com/xml/ns/persistence/orm"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd">
+
+	<!-- User -->
+	<named-query name="UserEntity.findAllLoginSystemUser">
+		<query>
+			<![CDATA[
+				SELECT a FROM UserEntity a
+				WHERE a.userType IN (:userType_login, :userType_system)
+				ORDER BY a.userId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="UserEntity.findAllUser">
+		<query>
+			<![CDATA[
+				SELECT a FROM UserEntity a
+				ORDER BY a.userId
+			]]>
+		</query>
+	</named-query>
+
+	<!-- Role -->
+	<named-query name="RoleEntity.findAllLoginSystemRole">
+		<query>
+			<![CDATA[
+				SELECT a FROM RoleEntity a
+				WHERE a.roleType IN (:roleType_user, :roleType_system)
+				ORDER BY a.roleType DESC, a.roleId ASC
+			]]>
+		</query>
+	</named-query>
+	<named-query name="RoleEntity.findAllRole">
+		<query>
+			<![CDATA[
+				SELECT a FROM RoleEntity a
+				ORDER BY a.roleId
+			]]>
+		</query>
+	</named-query>
+
+	<!-- SystemPrivilegeEntity -->
+	<named-query name="SystemPrivilegeEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM SystemPrivilegeEntity a
+				ORDER BY a.id.roleId, a.id.systemFunction, a.id.systemPrivilege
+			]]>
+		</query>
+	</named-query>
+	<named-query name="SystemPrivilegeEntity.findByRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM SystemPrivilegeEntity a
+				WHERE a.id.roleId = :roleId
+				ORDER BY a.id.roleId, a.id.systemFunction, a.id.systemPrivilege
+			]]>
+		</query>
+	</named-query>
+	<named-query name="SystemPrivilegeEntity.findByUserId">
+		<query>
+			<![CDATA[
+				SELECT DISTINCT  a.id.systemFunction, a.id.systemPrivilege FROM SystemPrivilegeEntity a JOIN a.roleEntity b JOIN b.userEntities c
+				WHERE c.userId = :userId
+				ORDER BY a.id.roleId, a.id.systemFunction, a.id.systemPrivilege
+			]]>
+		</query>
+	</named-query>
+	<named-query name="ObjectPrivilegeEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM ObjectPrivilegeEntity a
+				ORDER BY a.id.objectType, a.id.objectId, a.id.roleId, a.id.objectPrivilege
+			]]>
+		</query>
+	</named-query>
+	<named-query name="ObjectPrivilegeEntity.deleteByObjectTypeObjectId">
+		<query>
+			<![CDATA[
+				DELETE FROM ObjectPrivilegeEntity a
+				WHERE a.id.objectType = :objectType
+				AND a.id.objectId = :objectId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="ObjectPrivilegeEntity.findByObjectIdTypeRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM ObjectPrivilegeEntity a
+				WHERE a.id.objectType = :objectType
+				AND a.id.objectId = :objectId
+				AND a.id.roleId = :roleId
+				ORDER BY a.id.objectType, a.id.objectId, a.id.roleId, a.id.objectPrivilege
+			]]>
+		</query>
+	</named-query>
+	<!-- Check for Object Privilege -->
+	<!-- Repository -->
+	<named-query name="MonitorInfoEntity.findByFacilityIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM MonitorInfoEntity a
+				WHERE a.facilityId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.monitorId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="JobMstEntity.findByFacilityIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobMstEntity a
+				WHERE a.facilityId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.id.jobunitId, a.id.jobId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="JobFileCheckEntity.findByFacilityIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobFileCheckEntity a
+				WHERE a.facilityId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.scheduleId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="NotifyInfoEntity.findByEscalateFacilityIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM NotifyInfoEntity a
+					JOIN a.notifyLogEscalateInfoEntity b
+				WHERE b.escalateFacilityId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.notifyId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="NotifyInfoEntity.findByExecFacilityIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM NotifyInfoEntity a
+					JOIN a.notifyJobInfoEntity b
+				WHERE b.jobExecFacilityId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.notifyId
+			]]>
+		</query>
+	</named-query>
+
+	<!-- Job -->
+	<named-query name="JobFileCheckEntity.findByJobUnitIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobFileCheckEntity a
+				WHERE a.jobunitId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.scheduleId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="JobScheduleEntity.findByJobUnitIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobScheduleEntity a
+				WHERE a.jobunitId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.scheduleId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="NotifyInfoEntity.findByJobUnitIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM NotifyInfoEntity a
+					JOIN a.notifyJobInfoEntity b
+				WHERE (b.infoJobunitId = :objectId OR b.warnJobunitId = :objectId OR b.criticalJobunitId = :objectId OR b.unknownJobunitId = :objectId)
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.notifyId
+			]]>
+		</query>
+	</named-query>
+
+	<!-- Calendar -->
+	<named-query name="MonitorInfoEntity.findByCalendarIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM MonitorInfoEntity a
+				WHERE a.calendarId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.monitorId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="JobMstEntity.findByCalendarIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobMstEntity a
+				WHERE a.calendarId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.id.jobunitId, a.id.jobId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="JobFileCheckEntity.findByCalendarIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobFileCheckEntity a
+				WHERE a.calendarId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.scheduleId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="JobScheduleEntity.findByCalendarIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobScheduleEntity a
+				WHERE a.calendarId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.scheduleId
+			]]>
+		</query>
+	</named-query>
+
+	<!-- Calendar(Pattern) -->
+	<named-query name="CalInfoEntity.findByCalendarPatternIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM CalInfoEntity a
+					JOIN a.calDetailInfoEntities b
+				WHERE b.calPatternId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.calendarId
+			]]>
+		</query>
+	</named-query>
+
+	<!-- Notify(MailTemplate) -->
+	<named-query name="NotifyInfoEntity.findByMailTemplateIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM NotifyInfoEntity a
+					JOIN a.notifyMailInfoEntity b
+					JOIN b.mailTemplateInfoEntity c
+				WHERE c.mailTemplateId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.notifyId
+			]]>
+		</query>
+	</named-query>
+
+	<!-- Notify -->
+	<named-query name="MonitorInfoEntity.findByNotifyIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM MonitorInfoEntity a, NotifyRelationInfoEntity b, NotifyInfoEntity c
+				WHERE a.notifyGroupId = b.id.notifyGroupId
+				AND b.id.notifyId = c.notifyId
+				AND c.notifyId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.monitorId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="JobMstEntity.findByNotifyIdOwnerRoleId">
+		<query>
+			<![CDATA[
+				SELECT a FROM JobMstEntity a, NotifyRelationInfoEntity b, NotifyInfoEntity c
+				WHERE a.notifyGroupId = b.id.notifyGroupId
+				AND b.id.notifyId = c.notifyId
+				AND c.notifyId = :objectId
+				AND a.ownerRoleId = :ownerRoleId
+				ORDER BY a.id.jobunitId, a.id.jobId
+			]]>
+		</query>
+	</named-query>
+</entity-mappings>
