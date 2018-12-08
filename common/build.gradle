@@ -16,7 +16,7 @@ dependencies{
 	// According to the release-notes, Java 11 removed the Java EE modules
 	// @see http://jdk.java.net/11/release-notes#JDK-8190378
 	// @see http://openjdk.java.net/jeps/320#Java-EE-modules
-	implementation group:'javax.xml.bind', name:'jaxb-api', version:'2.3.1'
+	implementation group:'javax.xml.bind', name:'jaxb-api', version:'2.2.12'
 
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
 	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.3.1'
