@@ -1,0 +1,2 @@
+rootProject.name = 'hinemos-manager-all'
+include 'common', 'manager'

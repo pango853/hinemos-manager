@@ -1,15 +1,22 @@
 plugins {
-	id "org.sonarqube" version "2.6"
+	id 'org.sonarqube' version '2.6'
 }
 
 sourceCompatibility = theSourceCompatibility
 targetCompatibility = theSourceCompatibility
+
+ext.isRunnable  = false
 
 dependencies{
 	implementation group: 'commons-logging', name: 'commons-logging', version: '1.2'
 	implementation group: 'log4j', name: 'log4j', version: '1.2.17'
 	implementation group: 'commons-codec', name: 'commons-codec', version: '1.10'
 	implementation group: 'org.codehaus.plexus', name: 'plexus-utils', version: '3.1.0'
+
+	// According to the release-notes, Java 11 removed the Java EE modules
+	// @see http://jdk.java.net/11/release-notes#JDK-8190378
+	// @see http://openjdk.java.net/jeps/320#Java-EE-modules
+	implementation group:'javax.xml.bind', name:'jaxb-api', version:'2.3.1'
 
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
 	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.3.1'
