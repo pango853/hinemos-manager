@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2012 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.poller.impl;
@@ -327,7 +320,7 @@ public class UdpTransportMappingImpl extends UdpTransportMapping {
 								+ socketCopy.getReceiveBufferSize());
 					}
 				} catch (SocketException ex) {
-					logger.error(ex);
+					logger.warn("run() : SocketException1 " + ex.getMessage() + ", " + udpAddress);
 					setSocketTimeout(0);
 				}
 			}
@@ -383,7 +376,7 @@ public class UdpTransportMappingImpl extends UdpTransportMapping {
 					synchronized (UdpTransportMappingImpl.this) {
 						listener = null;
 					}
-					logger.error(purex);
+					logger.warn("run() : PortUnreachableException " + purex.getMessage() + ", " + udpAddress);
 					if (logger.isDebugEnabled()) {
 						purex.printStackTrace();
 					}
@@ -395,7 +388,7 @@ public class UdpTransportMappingImpl extends UdpTransportMapping {
 					logger.debug("SocketException " + soex.getMessage());
 					if (!stop) {
 						logger.warn("Socket for transport mapping "
-								+ toString() + " error: " + soex.getMessage());
+								+ toString() + ", message=" + soex.getMessage());
 					}
 					if (SNMP4JSettings.isForwardRuntimeExceptions()) {
 						stop = true;
@@ -411,7 +404,7 @@ public class UdpTransportMappingImpl extends UdpTransportMapping {
 						} catch (SocketException e) {
 							stop = true;
 							socket = null;
-							logger.error(
+							logger.warn(
 									"Socket renewal for transport mapping "
 											+ toString() + " failed with: "
 											+ e.getMessage(), e);
@@ -419,7 +412,7 @@ public class UdpTransportMappingImpl extends UdpTransportMapping {
 						}
 					}
 				} catch (IOException iox) {
-					logger.warn(iox);
+					logger.warn("run() : IOException2 : " + iox.getMessage() + ", " + udpAddress);
 					if (logger.isDebugEnabled()) {
 						iox.printStackTrace();
 					}

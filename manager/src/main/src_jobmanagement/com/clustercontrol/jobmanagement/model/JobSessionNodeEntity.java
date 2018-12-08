@@ -1,7 +1,14 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.jobmanagement.model;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -15,9 +22,6 @@ import javax.persistence.JoinColumns;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
-
 
 /**
  * The persistent class for the cc_job_session_node database table.
@@ -30,26 +34,28 @@ public class JobSessionNodeEntity implements Serializable {
 	private JobSessionNodeEntityPK id;
 	private String nodeName				=	null;
 	private Integer status				=	null;
-	private Timestamp startDate			=	null;
-	private Timestamp endDate			=	null;
+	private Long startDate			=	null;
+	private Long endDate			=	null;
 	private Integer endValue			=	null;
 	private String message				=	null;
 	private Integer retryCount			=	0;
 	private Integer errorRetryCount = 0;
 	private String result				=	null;
-	private long startupTime	=0;
+	private long startupTime	= 0;
+	private String instanceId = null;
+	private Integer approvalStatus		=null;
+	private Integer approvalResult		=null;
+	private String approvalRequestUser	="";
+	private String approvalUser		="";
+	private String approvalComment		="";
 	private JobSessionJobEntity jobSessionJobEntity;
 
 	@Deprecated
 	public JobSessionNodeEntity() {
 	}
 
-	public JobSessionNodeEntity(JobSessionNodeEntityPK pk,
-			JobSessionJobEntity jobSessionJobEntity) {
+	public JobSessionNodeEntity(JobSessionNodeEntityPK pk) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
-		this.relateToJobSessionJobEntity(jobSessionJobEntity);
 	}
 
 	public JobSessionNodeEntity(JobSessionJobEntity jobSessionJobEntity, String facilityId) {
@@ -57,7 +63,7 @@ public class JobSessionNodeEntity implements Serializable {
 				jobSessionJobEntity.getId().getSessionId(),
 				jobSessionJobEntity.getId().getJobunitId(),
 				jobSessionJobEntity.getId().getJobId(),
-				facilityId), jobSessionJobEntity);
+				facilityId));
 	}
 
 
@@ -71,11 +77,11 @@ public class JobSessionNodeEntity implements Serializable {
 	}
 
 	@Column(name="end_date")
-	public Timestamp getEndDate() {
+	public Long getEndDate() {
 		return this.endDate;
 	}
 
-	public void setEndDate(Timestamp endDate) {
+	public void setEndDate(Long endDate) {
 		this.endDate = endDate;
 	}
 
@@ -89,7 +95,7 @@ public class JobSessionNodeEntity implements Serializable {
 		this.endValue = endValue;
 	}
 
-
+	@Column(name="message")
 	public String getMessage() {
 		return this.message;
 	}
@@ -109,6 +115,7 @@ public class JobSessionNodeEntity implements Serializable {
 	}
 
 
+	@Column(name="result")
 	public String getResult() {
 		return this.result;
 	}
@@ -139,15 +146,16 @@ public class JobSessionNodeEntity implements Serializable {
 
 
 	@Column(name="start_date")
-	public Timestamp getStartDate() {
+	public Long getStartDate() {
 		return this.startDate;
 	}
 
-	public void setStartDate(Timestamp startDate) {
+	public void setStartDate(Long startDate) {
 		this.startDate = startDate;
 	}
 
 
+	@Column(name="status")
 	public Integer getStatus() {
 		return this.status;
 	}
@@ -164,6 +172,60 @@ public class JobSessionNodeEntity implements Serializable {
 
 	public void setStartupTime(long startupTime) {
 		this.startupTime = startupTime;
+	}
+
+	@Column(name="instance_id")
+	public String getInstanceId() {
+		return this.instanceId;
+	}
+
+	public void setInstanceId(String instanceId) {
+		this.instanceId = instanceId;
+	}
+
+	@Column(name="approval_status")
+	public Integer getApprovalStatus() {
+		return this.approvalStatus;
+	}
+
+	public void setApprovalStatus(Integer status) {
+		this.approvalStatus = status;
+	}
+
+	@Column(name="approval_result")
+	public Integer getApprovalResult() {
+		return this.approvalResult;
+	}
+
+	public void setApprovalResult(Integer result) {
+		this.approvalResult = result;
+	}
+
+	@Column(name="approval_request_user")
+	public String getApprovalRequestUser() {
+		return this.approvalRequestUser;
+	}
+
+	public void setApprovalRequestUser(String approvalRequestUser) {
+		this.approvalRequestUser = approvalRequestUser;
+	}
+
+	@Column(name="approval_user")
+	public String getApprovalUser() {
+		return this.approvalUser;
+	}
+
+	public void setApprovalUser(String approvalUser) {
+		this.approvalUser = approvalUser;
+	}
+	
+	@Column(name="approval_comment")
+	public String getApprovalComment() {
+		return this.approvalComment;
+	}
+
+	public void setApprovalComment(String approvalComment) {
+		this.approvalComment = approvalComment;
 	}
 
 	//bi-directional many-to-one association to JobSessionJobEntity

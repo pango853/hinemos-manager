@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.winservice.factory;
@@ -20,16 +13,15 @@ import intel.management.wsman.WsmanException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.monitor.run.bean.MonitorJudgementInfo;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorTruthValueType;
-import com.clustercontrol.repository.bean.NodeInfo;
-import com.clustercontrol.winservice.model.MonitorWinserviceInfoEntity;
-import com.clustercontrol.winservice.util.RequestWinRM;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.winservice.model.WinServiceCheckInfo;
 import com.clustercontrol.winservice.util.QueryUtil;
+import com.clustercontrol.winservice.util.RequestWinRM;
 
 /**
  * Windowsサービス監視クラス
@@ -41,13 +33,8 @@ public class RunMonitorWinService extends RunMonitorTruthValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorWinService.class );
 
-	private static final String MESSAGE_ID_INFO = "001";
-	private static final String MESSAGE_ID_WARNING = "002";
-	private static final String MESSAGE_ID_CRITICAL = "003";
-	private static final String MESSAGE_ID_UNKNOWN = "004";
-
 	/** Windowsサービス監視情報 */
-	private MonitorWinserviceInfoEntity m_winService = null;
+	private WinServiceCheckInfo m_winService = null;
 
 	/** Windowsサービス名 */
 	private String m_serviceName;
@@ -109,17 +96,36 @@ public class RunMonitorWinService extends RunMonitorTruthValueType {
 			return true;
 		} catch (WsmanException | HinemosUnknown e) {
 			// 不明
-			m_message = "unknown error . facilityId = " + m_facilityId;
-			m_messageOrg = "unknown error . facilityId = " + m_facilityId + ". " + e.getMessage();
-			m_nodeDate = System.currentTimeMillis();
-			m_log.warn("collect() facilityId = " + facilityId + ", " +
-					e.getMessage() + ", class=" + e.getClass().getName());
+			if (!m_isMonitorJob) {
+				// 監視ジョブ以外
+				m_message = "unknown error . facilityId = " + m_facilityId;
+				m_messageOrg = "unknown error . facilityId = " + m_facilityId + ". " + e.getMessage();
+			} else {
+				// 監視ジョブ
+				m_message = "unknown error . facilityId = " + facilityId;
+				m_messageOrg = "unknown error . facilityId = " + facilityId + ". " + e.getMessage();
+			}
+			m_nodeDate = HinemosTime.currentTimeMillis();
+			String message = "collect() facilityId = " + facilityId + ", " +
+					e.getMessage() + ", class=" + e.getClass().getName();
+			if (e instanceof WsmanException) {
+				m_log.warn(message);
+			} else {
+				m_log.debug(message);
+			}
 			return false;
 		} catch (Exception e) {
 			// 不明
-			m_message = "unknown error . facilityId = " + m_facilityId;
-			m_messageOrg = "unknown error . facilityId = " + m_facilityId + ". " + e.getMessage();
-			m_nodeDate = System.currentTimeMillis();
+			if (!m_isMonitorJob) {
+				// 監視ジョブ以外
+				m_message = "unknown error . facilityId = " + m_facilityId;
+				m_messageOrg = "unknown error . facilityId = " + m_facilityId + ". " + e.getMessage();
+			} else {
+				// 監視ジョブ
+				m_message = "unknown error . facilityId = " + facilityId;
+				m_messageOrg = "unknown error . facilityId = " + facilityId + ". " + e.getMessage();
+			}
+			m_nodeDate = HinemosTime.currentTimeMillis();
 
 			m_log.warn("collect() facilityId = " + facilityId, e);
 
@@ -134,7 +140,11 @@ public class RunMonitorWinService extends RunMonitorTruthValueType {
 	@Override
 	protected void setCheckInfo() throws MonitorNotFound {
 		// Windowsサービス監視情報を取得
-		m_winService = QueryUtil.getMonitorWinserviceInfoPK(m_monitorId);
+		if (!m_isMonitorJob) {
+			m_winService = QueryUtil.getMonitorWinserviceInfoPK(m_monitorId);
+		} else {
+			m_winService = QueryUtil.getMonitorWinserviceInfoPK(m_monitor.getMonitorId());
+		}
 
 		// Windowsサービス監視情報を設定
 		if(m_winService.getServiceName() != null){
@@ -158,21 +168,7 @@ public class RunMonitorWinService extends RunMonitorTruthValueType {
 	}
 
 	@Override
-	public String getMessageId(int id) {
-
-		MonitorJudgementInfo info = m_judgementInfoList.get(id);
-		if(info != null){
-			int priority = info.getPriority();
-			if(priority == PriorityConstant.TYPE_INFO){
-				return MESSAGE_ID_INFO;
-			}
-			else if(priority == PriorityConstant.TYPE_WARNING){
-				return MESSAGE_ID_WARNING;
-			}
-			else if(priority == PriorityConstant.TYPE_CRITICAL){
-				return MESSAGE_ID_CRITICAL;
-			}
-		}
-		return MESSAGE_ID_UNKNOWN;
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		return orgMsg;
 	}
 }

@@ -1,15 +1,11 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.maintenance;
 
 import java.util.ArrayList;
@@ -22,7 +18,7 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.fault.HinemosPropertyDuplicate;
 import com.clustercontrol.fault.HinemosPropertyNotFound;
@@ -31,7 +27,7 @@ import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidSetting;
 import com.clustercontrol.fault.InvalidUserPass;
 import com.clustercontrol.fault.NotifyNotFound;
-import com.clustercontrol.maintenance.bean.HinemosPropertyInfo;
+import com.clustercontrol.maintenance.model.HinemosPropertyInfo;
 import com.clustercontrol.maintenance.session.HinemosPropertyControllerBean;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 

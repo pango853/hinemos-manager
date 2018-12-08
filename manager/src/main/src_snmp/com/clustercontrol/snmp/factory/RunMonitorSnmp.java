@@ -1,48 +1,36 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.snmp.factory;
 
-import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.util.Date;
-
-import javax.persistence.EntityExistsException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.snmp4j.smi.SMIConstants;
 
-import com.clustercontrol.bean.PriorityConstant;
-import com.clustercontrol.bean.SnmpVersionConstant;
-import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorNumericValueType;
-import com.clustercontrol.repository.bean.NodeInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.snmp.bean.ConvertValueConstant;
-import com.clustercontrol.snmp.model.MonitorSnmpInfoEntity;
-import com.clustercontrol.snmp.model.MonitorSnmpValueEntity;
-import com.clustercontrol.snmp.model.MonitorSnmpValueEntityPK;
+import com.clustercontrol.monitor.bean.ConvertValueConstant;
+import com.clustercontrol.snmp.factory.MonitorSnmpCache.MonitorSnmpValue;
+import com.clustercontrol.snmp.factory.MonitorSnmpCache.MonitorSnmpValuePK;
+import com.clustercontrol.snmp.model.SnmpCheckInfo;
 import com.clustercontrol.snmp.util.QueryUtil;
 import com.clustercontrol.snmp.util.RequestSnmp4j;
 import com.clustercontrol.snmp.util.SnmpProperties;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * SNMP監視 数値監視を実行するファクトリークラス<BR>
@@ -54,13 +42,8 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorSnmp.class );
 
-	private static final String MESSAGE_ID_INFO = "001";
-	private static final String MESSAGE_ID_WARNING = "002";
-	private static final String MESSAGE_ID_CRITICAL = "003";
-	private static final String MESSAGE_ID_UNKNOWN = "004";
-
 	/** SNMP監視情報 */
-	private MonitorSnmpInfoEntity m_snmp = null;
+	private SnmpCheckInfo m_snmp = null;
 
 	/** OID */
 	private String m_snmpOid = null;
@@ -86,7 +69,7 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -103,16 +86,13 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 	@Override
 	public boolean collect(String facilityId) throws HinemosUnknown {
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
-
 		if (m_now != null) {
 			m_nodeDate = m_now.getTime();
 		}
-		m_value = 0;
 
 		// メッセージを設定
 		m_message = "";
-		m_messageOrg = Messages.getString("oid") + " : " + m_snmpOid;
+		m_messageOrg = MessageConstant.OID.getMessage() + " : " + m_snmpOid;
 
 		NodeInfo info = null;
 		try {
@@ -120,8 +100,9 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 			info = new RepositoryControllerBean().getNode(facilityId);
 		}
 		catch(FacilityNotFound e){
-			m_message = Messages.getString("message.snmp.6");
+			m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NODE_ATTRIBUTES.getMessage();
 			m_messageOrg = m_messageOrg + " (" + e.getMessage() + ")";
+			resetCache(m_monitorId, facilityId);
 			return false;
 		}
 
@@ -136,7 +117,7 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 					info.getSnmpCommunity(),
 					info.getSnmpPort(),
 					m_snmpOid,
-					SnmpVersionConstant.stringToSnmpType(info.getSnmpVersion()),
+					info.getSnmpVersion(),
 					info.getSnmpTimeout(),
 					info.getSnmpRetryCount(),
 					info.getSnmpSecurityLevel(),
@@ -147,9 +128,14 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 					info.getSnmpPrivProtocol()
 					);
 		} catch (Exception e) {
-			m_message = Messages.getString("message.snmp.6");
+			m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NODE_ATTRIBUTES.getMessage();
 			m_messageOrg = m_message + ", " + e.getMessage() + " (" + e.getClass().getName() + ")";
-			m_log.warn(m_messageOrg, e);
+			if (e instanceof NumberFormatException) {
+				m_log.warn(m_messageOrg);
+			} else {
+				m_log.warn(m_messageOrg, e);
+			}
+			resetCache(m_monitorId, facilityId);
 			return false;
 		}
 
@@ -159,15 +145,23 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 			double value = -1;
 			try {
 				if (m_request.getValue() == null) {
-					m_log.warn("collect() : m_request.getValue() is null");
+					m_log.debug("collect() : m_request.getValue() is null");
 					return false;
 				}
 				value = Double.parseDouble(m_request.getValue());
+			} catch (NumberFormatException e) {
+				m_log.info("collect() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				String[] args = { m_request.getValue() };
+				m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NUMERIC_VALUE.getMessage(args);
+				resetCache(m_monitorId, facilityId);
+				return false;
 			} catch (Exception e) {
 				m_log.warn("collect() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 				String[] args = { m_request.getValue() };
-				m_message = Messages.getString("message.snmp.8", args);
+				m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NUMERIC_VALUE.getMessage(args);
+				resetCache(m_monitorId, facilityId);
 				return false;
 			}
 			long date = m_request.getDate();
@@ -179,69 +173,89 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 			}
 			// 差分をとる場合
 			else if(m_convertFlg == ConvertValueConstant.TYPE_DELTA){
-
 				// 前回値を取得
-				MonitorSnmpValueEntity valueEntity = null;
-				MonitorSnmpValueEntityPK valueEntityPk = null;
-				double prevValue = 0;
-				long prevDate = 0;
+				MonitorSnmpValue valueEntity = null;
+				Double prevValue = 0d;
+				Long prevDate = 0l;
+				m_value = -1d;
+				if (!m_isMonitorJob) {
+					// 監視ジョブ以外の場合
+					// cacheより前回情報を取得
+					valueEntity = MonitorSnmpCache.getMonitorSnmpValue(m_monitorId, facilityId);
 
-				valueEntityPk = new MonitorSnmpValueEntityPK(m_monitorId, facilityId);
-				try {
-					valueEntity = QueryUtil.getMonitorSnmpValuePK(valueEntityPk);
-				} catch (MonitorNotFound e) {
-				}
-				if (valueEntity == null) {
-					// 初回だった場合
-					try {
-						// インスタンス生成
-						valueEntity = new MonitorSnmpValueEntity(valueEntityPk, null);
-						// 重複チェック
-						jtm.checkEntityExists(MonitorSnmpValueEntity.class, valueEntity.getId());
-					} catch (EntityExistsException e) {
-						m_log.info("run() : "
-								+ e.getClass().getSimpleName() + ", " + e.getMessage());
-						m_message = Messages.getString("message.snmp.7");
-						m_messageOrg = m_messageOrg + " (" + e.getMessage() + ")";
-						return false;
+					// 前回の取得値
+					prevValue = valueEntity.getValue();
+					if (valueEntity.getGetDate() != null) {
+						prevDate = valueEntity.getGetDate();
 					}
+				} else {
+					// 監視ジョブの場合
+					valueEntity = new MonitorSnmpValue(new MonitorSnmpValuePK(m_monitorId, facilityId));
+					if (m_prvData instanceof MonitorSnmpValue) {
+						// 前回値が存在する場合
+						prevValue = ((MonitorSnmpValue)m_prvData).getValue();
+						prevDate = ((MonitorSnmpValue)m_prvData).getGetDate();
+					}
+				}
 
-				}
-				// 前回の取得値
-				prevValue = valueEntity.getValue();
-				if (valueEntity.getGetDate() != null) {
-					prevDate = valueEntity.getGetDate().getTime();
-				}
-				
-				if (prevValue > value) {
-					if (m_request.getType() == SMIConstants.SYNTAX_COUNTER32) {
-						value += ((double)Integer.MAX_VALUE + 1) * 2;
-					} else if (m_request.getType() == SMIConstants.SYNTAX_COUNTER64) {
-						value += ((double)Long.MAX_VALUE + 1) * 2;
+				if (prevValue != null) {
+					if (prevValue > value) {
+						if (m_request.getType() == SMIConstants.SYNTAX_COUNTER32) {
+							value += ((double)Integer.MAX_VALUE + 1) * 2;
+						} else if (m_request.getType() == SMIConstants.SYNTAX_COUNTER64) {
+							value += ((double)Long.MAX_VALUE + 1) * 2;
+						}
 					}
 				}
 
 				// SNMP前回値情報を今回の取得値に更新
 				valueEntity.setValue(Double.valueOf(value));
-				valueEntity.setGetDate(new Timestamp(date));
+				valueEntity.setGetDate(date);
 
-				// 前回値取得時刻がSNMP取得許容時間よりも前だった場合、値取得失敗
-				int tolerance = (m_runInterval + SnmpProperties.getProperties().getValidSecond()) * 1000;
+				if (!m_isMonitorJob) {
+					// 監視処理時に対象の監視項目IDが有効、または収集が有効である場合にキャッシュを更新
+					if (m_monitor.getMonitorFlg() || m_monitor.getCollectorFlg())
+						MonitorSnmpCache.update(m_monitorId, facilityId, valueEntity);
 
-				if(prevDate > date - tolerance){
+					// 前回値取得時刻がSNMP取得許容時間よりも前だった場合、値取得失敗
+					int tolerance = (m_runInterval + SnmpProperties.getProperties().getValidSecond()) * 1000;
+
+					if(prevDate > date - tolerance){
+
+						// 前回値がnullであれば監視失敗
+						if (prevValue == null) {
+							m_log.debug("collect() : prevValue is null");
+							return false;
+						}
+
+						m_value = value - prevValue;
+						m_nodeDate = m_request.getDate();
+					}
+					else{
+						if (prevDate != 0l) {
+							DateFormat df = DateFormat.getDateTimeInstance();
+							df.setTimeZone(HinemosTime.getTimeZone());
+							String[] args = {df.format(new Date(prevDate))};
+							m_message = MessageConstant.MESSAGE_TOO_OLD_TO_CALCULATE.getMessage(args);
+							return false;
+						}
+						else {
+							// ノード監視結果取得時刻に0を設定し、正常終了
+							m_nodeDate = 0l;
+						}
+					}
+				} else {
 					m_value = value - prevValue;
 					m_nodeDate = m_request.getDate();
+					m_curData = valueEntity;
 				}
-				else{
-					String[] args = { DateFormat.getDateTimeInstance().format(new Date(prevDate))};
-					m_message = Messages.getString("message.snmp.9",args);
-					return false;
-				}
+
 			}
-			m_message = Messages.getString("select.value") + " : " + m_value;
+			m_message = MessageConstant.SELECT_VALUE.getMessage() + " : " + m_value;
 		}
 		else{
 			m_message = m_request.getMessage();
+			resetCache(m_monitorId, facilityId);
 		}
 		return result;
 	}
@@ -262,27 +276,6 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 	}
 
 	/* (非 Javadoc)
-	 * ノード用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.OperationMonitor#getMessageId(int)
-	 */
-	@Override
-	public String getMessageId(int id) {
-
-		if(id == PriorityConstant.TYPE_INFO){
-			return MESSAGE_ID_INFO;
-		}
-		else if(id == PriorityConstant.TYPE_WARNING){
-			return MESSAGE_ID_WARNING;
-		}
-		else if(id == PriorityConstant.TYPE_CRITICAL){
-			return MESSAGE_ID_CRITICAL;
-		}
-		else{
-			return MESSAGE_ID_UNKNOWN;
-		}
-	}
-
-	/* (非 Javadoc)
 	 * ノード用メッセージを取得
 	 * @see com.clustercontrol.monitor.run.factory.OperationMonitor#getMessage(int)
 	 */
@@ -300,24 +293,33 @@ public class RunMonitorSnmp extends RunMonitorNumericValueType {
 		return m_messageOrg;
 	}
 
-	/* (非 Javadoc)
-	 * スコープ用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#getMessageIdForScope(int)
+	/**
+	 * SNMPが取得できなかった場合、キャッシュをnull更新する。
+	 * @param m_monitorId 監視項目ID
+	 * @param facilityId ファシリティID
 	 */
-	@Override
-	protected String getMessageIdForScope(int priority) {
+	private void resetCache(String m_monitorId, String facilityId) {
 
-		if(priority == PriorityConstant.TYPE_INFO){
-			return MESSAGE_ID_INFO;
+		MonitorSnmpValue valueEntity = null;
+
+		// keyに紐づくキャッシュが存在しない場合は更新しない。
+		if (MonitorSnmpCache.getMonitorSnmpValue(m_monitorId, facilityId) == null) return;
+		valueEntity = new MonitorSnmpValue(new MonitorSnmpValuePK(m_monitorId, facilityId));
+		MonitorSnmpCache.update(m_monitorId, facilityId, valueEntity);
+	}
+
+	@Override
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		String[] args = {""};
+		if(m_convertFlg == ConvertValueConstant.TYPE_NO){
+			// 何もしない
+			args[0] = MessageConstant.CONVERT_NO.getMessage();
+		} else if (m_convertFlg == ConvertValueConstant.TYPE_DELTA) {
+			// 差分をとる
+			args[0] = MessageConstant.DELTA.getMessage();
 		}
-		else if(priority == PriorityConstant.TYPE_WARNING){
-			return MESSAGE_ID_WARNING;
-		}
-		else if(priority == PriorityConstant.TYPE_CRITICAL){
-			return MESSAGE_ID_CRITICAL;
-		}
-		else{
-			return MESSAGE_ID_UNKNOWN;
-		}
+		return MessageConstant.MESSAGE_JOB_MONITOR_ORGMSG_SNMP_N.getMessage(args)
+				+ "\n" + orgMsg
+				+ "\n" + msg;
 	}
 }

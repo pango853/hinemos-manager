@@ -1,24 +1,17 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.factory;
 
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.InvalidRole;
-import com.clustercontrol.repository.bean.ScopeInfo;
-import com.clustercontrol.repository.model.FacilityEntity;
+import com.clustercontrol.repository.model.FacilityInfo;
+import com.clustercontrol.repository.model.ScopeInfo;
 import com.clustercontrol.repository.util.QueryUtil;
 
 
@@ -46,7 +39,7 @@ public class ScopeProperty {
 		if(facilityId != null && facilityId.compareTo("") != 0){
 
 			//Facility取得
-			FacilityEntity facility = QueryUtil.getFacilityPK(facilityId);
+			FacilityInfo facility = QueryUtil.getFacilityPK(facilityId);
 
 			//ファシリティID
 			property.setFacilityId(facility.getFacilityId());
@@ -81,7 +74,7 @@ public class ScopeProperty {
 		if(facilityId != null && facilityId.compareTo("") != 0){
 
 			//Facility取得
-			FacilityEntity facility = QueryUtil.getFacilityPK_NONE(facilityId);
+			FacilityInfo facility = QueryUtil.getFacilityPK_NONE(facilityId);
 
 			//ファシリティID
 			property.setFacilityId(facility.getFacilityId());

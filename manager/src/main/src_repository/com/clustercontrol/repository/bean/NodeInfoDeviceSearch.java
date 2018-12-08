@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) since 2009 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.repository.bean;
 
 import java.io.Serializable;
@@ -22,8 +16,15 @@ import java.util.Set;
 
 import javax.xml.bind.annotation.XmlType;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.repository.model.NodeCpuInfo;
+import com.clustercontrol.repository.model.NodeDeviceInfo;
+import com.clustercontrol.repository.model.NodeDiskInfo;
+import com.clustercontrol.repository.model.NodeFilesystemInfo;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.NodeMemoryInfo;
+import com.clustercontrol.repository.model.NodeNetworkInterfaceInfo;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * このクラスはDeviceSearchの更新情報を持つクラスです。
@@ -39,28 +40,28 @@ public class NodeInfoDeviceSearch implements Serializable
 	private NodeInfo nodeInfo = null;
 	private NodeInfo newNodeInfo = null;
 	private ArrayList<DeviceSearchMessageInfo> deviceSearchMessageInfo = new ArrayList<DeviceSearchMessageInfo>();
-	private static String itemCpu = Messages.getString("cpu.list");
-	private static String itemMem = Messages.getString("memory.list");
-	private static String itemNic = Messages.getString("network.interface.list");
-	private static String itemDisk = Messages.getString("disk.list");
-	private static String itemFileSys = Messages.getString("file.system.list");
-	private static String itemGenDev = Messages.getString("general.device.list");
-	private NodeInfo errorNodeInfo = null;
+	private static String itemCpu = MessageConstant.CPU_LIST.getMessage();
+	private static String itemMem = MessageConstant.MEMORY_LIST.getMessage();
+	private static String itemNic = MessageConstant.NETWORK_INTERFACE_LIST.getMessage();
+	private static String itemDisk = MessageConstant.DISK_LIST.getMessage();
+	private static String itemFileSys = MessageConstant.FILE_SYSTEM_LIST.getMessage();
+	private static String itemGenDev = MessageConstant.GENERAL_DEVICE_LIST.getMessage();
+	private String errorMessage = null;
 
 	/**
 	 * 登録時エラーのあったノード詳細情報のsetter
-	 * @param nodeInfo
+	 * @param message
 	 */
-	public void setErrorNodeInfo(NodeInfo info) {
-		this.errorNodeInfo = info;
+	public void setErrorMessage(String message) {
+		this.errorMessage = message;
 	}
 
 	/**
 	 * 登録時エラーのあったノード詳細情報のgetter
-	 * @return nodeInfo
+	 * @return message
 	 */
-	public NodeInfo getErrorNodeInfo() {
-		return this.errorNodeInfo;
+	public String getErrorMessage() {
+		return this.errorMessage;
 	}
 
 	/**
@@ -129,7 +130,7 @@ public class NodeInfoDeviceSearch implements Serializable
 		equalsBasic = equalsNodeBasicInfo(lastNode);
 
 		//CPU情報
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.device.cpu", true)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_device_cpu.getBooleanValue()) {
 			Set<NodeCpuInfo> last = new HashSet<NodeCpuInfo>();
 			if (lastNode.getNodeCpuInfo() != null) {
 				last.addAll(lastNode.getNodeCpuInfo());
@@ -150,12 +151,12 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsCpu = current.size() == 0 ? true : false;
 				if(equalsCpu == false) {
 					//前回ノード情報:なし 今回ノード情報:あり
-					setMessage(itemCpu, Messages.getString("nonexistent"), Messages.getString("existent"));
+					setMessage(itemCpu, MessageConstant.NONEXISTENT.getMessage(), MessageConstant.EXISTENT.getMessage());
 				}
 			} else if (current.size() == 0) {
 				equalsCpu = false;
 				//前回ノード情報:あり 今回ノード情報:なし
-				setMessage(itemCpu, Messages.getString("existent"), Messages.getString("nonexistent"));
+				setMessage(itemCpu, MessageConstant.EXISTENT.getMessage(), MessageConstant.NONEXISTENT.getMessage());
 			} else if (last.equals(current)) {
 				equalsCpu = true;
 			} else {
@@ -167,7 +168,7 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		//メモリ情報
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.device.memory", true)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_device_memory.getBooleanValue()) {
 			Set<NodeMemoryInfo> last = new HashSet<NodeMemoryInfo>();
 			if (lastNode.getNodeMemoryInfo() != null) {
 				last.addAll(lastNode.getNodeMemoryInfo());
@@ -188,12 +189,12 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsMem = current.size() == 0 ? true : false;
 				if(!equalsMem) {
 					//前回ノード情報:なし 今回ノード情報:あり
-					setMessage(itemMem, Messages.getString("nonexistent"), Messages.getString("existent"));
+					setMessage(itemMem, MessageConstant.NONEXISTENT.getMessage(), MessageConstant.EXISTENT.getMessage());
 				}
 			} else if (current.size() == 0) {
 				equalsMem = false;
 				//前回ノード情報:あり 今回ノード情報:なし
-				setMessage(itemMem, Messages.getString("existent"), Messages.getString("nonexistent"));
+				setMessage(itemMem, MessageConstant.EXISTENT.getMessage(), MessageConstant.NONEXISTENT.getMessage());
 			} else if (last.equals(current)) {
 				equalsMem = true;
 			} else {
@@ -205,7 +206,7 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		//NIC情報
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.device.nic", true)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_device_nic.getBooleanValue()) {
 			Set<NodeNetworkInterfaceInfo> last = new HashSet<NodeNetworkInterfaceInfo>();
 			if (lastNode.getNodeNetworkInterfaceInfo() != null) {
 				last.addAll(lastNode.getNodeNetworkInterfaceInfo());
@@ -227,12 +228,12 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsNic = current.size() == 0 ? true : false;
 				if(! equalsNic) {
 					//前回ノード情報:なし 今回ノード情報:あり
-					setMessage(itemNic, Messages.getString("nonexistent"), Messages.getString("existent"));
+					setMessage(itemNic, MessageConstant.NONEXISTENT.getMessage(), MessageConstant.EXISTENT.getMessage());
 				}
 			} else if (current.size() == 0) {
 				equalsNic = false;
 				//前回ノード情報:あり 今回ノード情報:なし
-				setMessage(itemNic, Messages.getString("existent"), Messages.getString("nonexistent"));
+				setMessage(itemNic, MessageConstant.EXISTENT.getMessage(), MessageConstant.NONEXISTENT.getMessage());
 			} else if (last.equals(current)) {
 				equalsNic = true;
 			} else {
@@ -244,7 +245,7 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		//ディスク情報
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.device.disk", true)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_device_disk.getBooleanValue()) {
 			Set<NodeDiskInfo> last = new HashSet<NodeDiskInfo>();
 			if (lastNode.getNodeDiskInfo() != null) {
 				last.addAll(lastNode.getNodeDiskInfo());
@@ -265,12 +266,12 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsDisk = current.size() == 0 ? true : false;
 				if(! equalsDisk) {
 					//前回ノード情報:なし 今回ノード情報:あり
-					setMessage(itemDisk, Messages.getString("nonexistent"), Messages.getString("existent"));
+					setMessage(itemDisk, MessageConstant.NONEXISTENT.getMessage(), MessageConstant.EXISTENT.getMessage());
 				}
 			} else if (current.size() == 0) {
 				equalsDisk = false;
 				//前回ノード情報:あり 今回ノード情報:なし
-				setMessage(itemDisk, Messages.getString("existent"), Messages.getString("nonexistent"));
+				setMessage(itemDisk, MessageConstant.EXISTENT.getMessage(), MessageConstant.NONEXISTENT.getMessage());
 			} else if (last.equals(current)) {
 				equalsDisk = true;
 			} else {
@@ -282,7 +283,7 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		//ファイルシステム情報
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.device.filesystem", true)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_device_filesystem.getBooleanValue()) {
 			Set<NodeFilesystemInfo> last = new HashSet<NodeFilesystemInfo>();
 			if (lastNode.getNodeFilesystemInfo() != null) {
 				last.addAll(lastNode.getNodeFilesystemInfo());
@@ -303,12 +304,12 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsFs = current.size() == 0 ? true : false;
 				if(!equalsFs) {
 					//前回ノード情報:なし 今回ノード情報:あり
-					setMessage(itemFileSys, Messages.getString("nonexistent"), Messages.getString("existent"));
+					setMessage(itemFileSys, MessageConstant.NONEXISTENT.getMessage(), MessageConstant.EXISTENT.getMessage());
 				}
 			} else if (current.size() == 0) {
 				equalsFs = false;
 				//前回ノード情報:あり 今回ノード情報:なし
-				setMessage(itemFileSys, Messages.getString("existent"), Messages.getString("nonexistent"));
+				setMessage(itemFileSys, MessageConstant.EXISTENT.getMessage(), MessageConstant.NONEXISTENT.getMessage());
 			} else if (last.equals(current)) {
 				equalsFs = true;
 			} else {
@@ -320,7 +321,7 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		//汎用デバイス情報(自動検出されないため、trueにすると必ず削除されることを注意せよ）
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.device.general", false)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_device_general.getBooleanValue()) {
 			Set<NodeDeviceInfo> last = new HashSet<NodeDeviceInfo>();
 			if (lastNode.getNodeDeviceInfo() != null) {
 				last.addAll(lastNode.getNodeDeviceInfo());
@@ -335,14 +336,14 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsDevice = current.size() == 0 ? true : false;
 				if(!equalsDevice) {
 					//前回ノード情報:なし 今回ノード情報:あり
-					setMessage(itemGenDev, Messages.getString("nonexistent"), Messages.getString("existent"));
+					setMessage(itemGenDev, MessageConstant.NONEXISTENT.getMessage(), MessageConstant.EXISTENT.getMessage());
 				}
 			} else if (current.size() == 0) {
 				equalsDevice = false;
 				//前回ノード情報:あり 今回ノード情報:なし
-				setMessage(itemGenDev, Messages.getString("existent"), Messages.getString("nonexistent"));
+				setMessage(itemGenDev, MessageConstant.EXISTENT.getMessage(), MessageConstant.NONEXISTENT.getMessage());
 			} else if (last.equals(current)) {
-				equalsDevice = equalsDevice  && true;
+				// do nothing.
 			} else {
 				equalsDevice = equalsWithMap(itemGenDev, new ArrayList<NodeDeviceInfo>(last), new ArrayList<NodeDeviceInfo>(current));
 			}
@@ -357,21 +358,22 @@ public class NodeInfoDeviceSearch implements Serializable
 			//取得した情報で更新
 			if (equalsBasic == false) {
 				// サーバ基本情報->ハードウェア
-				if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.hardware", false)) {
+				if (HinemosPropertyCommon.repository_device_search_prop_basic_hardware.getBooleanValue()) {
 					this.newNodeInfo.setPlatformFamily(this.nodeInfo.getPlatformFamily());
-					this.newNodeInfo.setSubPlatformFamily(this.nodeInfo.getSubPlatformFamily());
+					//SNMPで取得される情報ではないためサブプラットフォームは置き換えない
+					//(置き換えてしまうとクラウド仮想化オプション利用時にリソース監視(メトリクス)が動作しなくなる)
 					this.newNodeInfo.setHardwareType(this.nodeInfo.getHardwareType());
 					this.newNodeInfo.setIconImage(this.nodeInfo.getIconImage());
 				}
 				// サーバ基本情報->ネットワーク
-				if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.network", true)) {
+				if (HinemosPropertyCommon.repository_device_search_prop_basic_network.getBooleanValue()) {
 					this.newNodeInfo.setIpAddressVersion(this.nodeInfo.getIpAddressVersion());
 					this.newNodeInfo.setIpAddressV4(this.nodeInfo.getIpAddressV4());
 					this.newNodeInfo.setIpAddressV6(this.nodeInfo.getIpAddressV6());
 					this.newNodeInfo.setNodeHostnameInfo(this.nodeInfo.getNodeHostnameInfo());
 				}
 				// サーバ基本情報->OS
-				if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.os", false)) {
+				if (HinemosPropertyCommon.repository_device_search_prop_basic_os.getBooleanValue()) {
 					this.newNodeInfo.setNodeName(this.nodeInfo.getNodeName());
 					this.newNodeInfo.setOsName(this.nodeInfo.getOsName());
 					this.newNodeInfo.setOsRelease(this.nodeInfo.getOsRelease());
@@ -379,7 +381,7 @@ public class NodeInfoDeviceSearch implements Serializable
 					this.newNodeInfo.setCharacterSet(this.nodeInfo.getCharacterSet());
 				}
 				// サーバ基本情報->Hinemosエージェント
-				if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.agent", false)) {
+				if (HinemosPropertyCommon.repository_device_search_prop_basic_agent.getBooleanValue()) {
 					this.newNodeInfo.setAgentAwakePort(this.nodeInfo.getAgentAwakePort());
 				}
 			}
@@ -415,51 +417,36 @@ public class NodeInfoDeviceSearch implements Serializable
 	private boolean equalsNodeBasicInfo(NodeInfo lastNode) {
 		boolean lEquals = true;
 
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.hardware", false)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_basic_hardware.getBooleanValue()) {
 			// HW
 			if( nodeInfo.getPlatformFamily() == null ) {
 				lEquals = lEquals && ( lastNode.getPlatformFamily() == null );
 				if (lastNode.getPlatformFamily() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("platform.family.name"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.HARDWARE.getMessage() + "." + MessageConstant.PLATFORM_FAMILY_NAME.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getPlatformFamily().equals( lastNode.getPlatformFamily() );
 				if (nodeInfo.getPlatformFamily().equals( lastNode.getPlatformFamily()) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("platform.family.name"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.HARDWARE.getMessage() + "." + MessageConstant.PLATFORM_FAMILY_NAME.getMessage(),
 							lastNode.getPlatformFamily(),
 							nodeInfo.getPlatformFamily());
 				}
 			}
-
-			if( nodeInfo.getSubPlatformFamily() == null ) {
-				lEquals = lEquals && ( lastNode.getSubPlatformFamily() == null );
-				if (lastNode.getSubPlatformFamily() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("sub.platform.family.name"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
-				}
-			} else {
-				lEquals = lEquals && nodeInfo.getSubPlatformFamily().equals( lastNode.getSubPlatformFamily() );
-				if (nodeInfo.getSubPlatformFamily().equals( lastNode.getSubPlatformFamily()) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("sub.platform.family.name"),
-							lastNode.getSubPlatformFamily(),
-							nodeInfo.getSubPlatformFamily());
-				}
-			}
-
+			//SNMPで取得される情報ではないためサブプラットフォームは置き換えない
+			//(置き換えてしまうとクラウド仮想化オプション利用時にリソース監視(メトリクス)が動作しなくなる)
 			if( nodeInfo.getHardwareType() == null ) {
 				lEquals = lEquals && ( lastNode.getHardwareType() == null );
 				if (lastNode.getHardwareType() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("hardware.type"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.HARDWARE.getMessage() + "." + MessageConstant.HARDWARE_TYPE.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getHardwareType().equals( lastNode.getHardwareType() );
 				if (nodeInfo.getHardwareType().equals( lastNode.getHardwareType()) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("hardware.type"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.HARDWARE.getMessage() + "." + MessageConstant.HARDWARE_TYPE.getMessage(),
 							lastNode.getHardwareType(),
 							nodeInfo.getHardwareType());
 				}
@@ -468,14 +455,14 @@ public class NodeInfoDeviceSearch implements Serializable
 			if( nodeInfo.getIconImage() == null ) {
 				lEquals = lEquals && ( lastNode.getIconImage() == null );
 				if (lastNode.getIconImage() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("icon.image"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.HARDWARE.getMessage() + "." + MessageConstant.ICON_IMAGE.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getIconImage().equals( lastNode.getIconImage() );
 				if (nodeInfo.getIconImage().equals( lastNode.getIconImage()) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("hardware") + "." + Messages.getString("icon.image"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.HARDWARE.getMessage() + "." + MessageConstant.ICON_IMAGE.getMessage(),
 							lastNode.getIconImage(),
 							nodeInfo.getIconImage());
 				}
@@ -483,19 +470,19 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		// IP アドレス
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.network", true)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_basic_network.getBooleanValue()) {
 			if( nodeInfo.getIpAddressVersion() == null )
 			{
 				lEquals = lEquals && ( lastNode.getIpAddressVersion() == null );
 				if (lastNode.getIpAddressVersion() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("network") + "." + Messages.getString("ip.address.version"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.NETWORK.getMessage() + "." + MessageConstant.IP_ADDRESS_VERSION.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getIpAddressVersion().equals( lastNode.getIpAddressVersion() );
 				if (nodeInfo.getIpAddressVersion().equals( lastNode.getIpAddressVersion() ) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("network") + "." + Messages.getString("ip.address.version"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.NETWORK.getMessage() + "." + MessageConstant.IP_ADDRESS_VERSION.getMessage(),
 							lastNode.getIpAddressVersion().toString(),
 							nodeInfo.getIpAddressVersion().toString());
 				}
@@ -506,7 +493,7 @@ public class NodeInfoDeviceSearch implements Serializable
 			} else {
 				lEquals = lEquals && nodeInfo.getIpAddressV4().equals( lastNode.getIpAddressV4() );
 				if (nodeInfo.getIpAddressV4().equals( lastNode.getIpAddressV4() ) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("network") + "." + Messages.getString("ip.address.v4"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.NETWORK.getMessage() + "." + MessageConstant.IP_ADDRESS_V4.getMessage(),
 							lastNode.getIpAddressV4(),
 							nodeInfo.getIpAddressV4());
 				}
@@ -517,7 +504,7 @@ public class NodeInfoDeviceSearch implements Serializable
 			} else {
 				lEquals = lEquals && nodeInfo.getIpAddressV6().equals( lastNode.getIpAddressV6() );
 				if (nodeInfo.getIpAddressV6().equals( lastNode.getIpAddressV6() ) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("network") + "." + Messages.getString("ip.address.v6"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.NETWORK.getMessage() + "." + MessageConstant.IP_ADDRESS_V6.getMessage(),
 							lastNode.getIpAddressV6(),
 							nodeInfo.getIpAddressV6());
 				}
@@ -525,6 +512,12 @@ public class NodeInfoDeviceSearch implements Serializable
 			if( nodeInfo.getNodeHostnameInfo() == null || nodeInfo.getNodeHostnameInfo().isEmpty() )
 			{
 				lEquals = lEquals && ( lastNode.getNodeHostnameInfo() == null || lastNode.getNodeHostnameInfo().isEmpty());
+			} else if (lastNode.getNodeHostnameInfo() == null || lastNode.getNodeHostnameInfo().isEmpty()) {
+				// 前回値が空で、今回のデバイスサーチで値がある場合（必ず同一ではない）
+				lEquals = false;
+				setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.NETWORK.getMessage() + "." + MessageConstant.HOST_NAME.getMessage(),
+						MessageConstant.NONEXISTENT.getMessage(),
+						nodeInfo.getNodeHostnameInfo().get(0).getHostname());
 			} else {
 				lEquals = lEquals
 						&& nodeInfo
@@ -539,7 +532,7 @@ public class NodeInfoDeviceSearch implements Serializable
 						.getHostname()
 						.equals(lastNode.getNodeHostnameInfo().get(0)
 								.getHostname()) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("network") + "." + Messages.getString("host.name"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.NETWORK.getMessage() + "." + MessageConstant.HOST_NAME.getMessage(),
 							lastNode.getNodeHostnameInfo().get(0).getHostname(),
 							nodeInfo.getNodeHostnameInfo().get(0).getHostname());
 				}
@@ -547,14 +540,14 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		// OS
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.os", false)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_basic_os.getBooleanValue()) {
 			if( nodeInfo.getNodeName() == null )
 			{
 				lEquals = lEquals && ( lastNode.getNodeName() == null );
 			} else {
 				lEquals = lEquals && nodeInfo.getNodeName().equals( lastNode.getNodeName() );
 				if (nodeInfo.getNodeName().equals( lastNode.getNodeName() ) == false) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("node.name"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.NODE_NAME.getMessage(),
 							lastNode.getNodeName(),
 							nodeInfo.getNodeName());
 				}
@@ -563,14 +556,14 @@ public class NodeInfoDeviceSearch implements Serializable
 			{
 				lEquals = lEquals && ( lastNode.getOsName() == null );
 				if (lastNode.getOsName() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("os.name"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.OS_NAME.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getOsName().equals( lastNode.getOsName() );
 				if (nodeInfo.getOsName().equals( lastNode.getOsName() ) == false ) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("os.name"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.OS_NAME.getMessage(),
 							lastNode.getOsName(),
 							nodeInfo.getOsName());
 				}
@@ -579,14 +572,14 @@ public class NodeInfoDeviceSearch implements Serializable
 			{
 				lEquals = lEquals && ( lastNode.getOsRelease() == null );
 				if (lastNode.getOsRelease() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("os.release"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.OS_RELEASE.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getOsRelease().equals( lastNode.getOsRelease() );
 				if (nodeInfo.getOsRelease().equals( lastNode.getOsRelease() ) == false ) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("os.release"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.OS_RELEASE.getMessage(),
 							lastNode.getOsRelease(),
 							nodeInfo.getOsRelease());
 				}
@@ -595,14 +588,14 @@ public class NodeInfoDeviceSearch implements Serializable
 			{
 				lEquals = lEquals && ( lastNode.getOsVersion() == null );
 				if (lastNode.getOsVersion() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("os.version"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.OS_VERSION.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getOsVersion().equals( lastNode.getOsVersion() );
 				if (nodeInfo.getOsVersion().equals( lastNode.getOsVersion() ) == false ) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("os.version"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.OS_VERSION.getMessage(),
 							lastNode.getOsVersion(),
 							nodeInfo.getOsVersion());
 				}
@@ -611,14 +604,14 @@ public class NodeInfoDeviceSearch implements Serializable
 			{
 				lEquals = lEquals && ( lastNode.getCharacterSet() == null );
 				if (lastNode.getCharacterSet() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("character.set"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.CHARACTER_SET.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getCharacterSet().equals( lastNode.getCharacterSet() );
 				if (nodeInfo.getCharacterSet().equals( lastNode.getCharacterSet() ) == false ) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("os") + "." + Messages.getString("character.set"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.OS.getMessage() + "." + MessageConstant.CHARACTER_SET.getMessage(),
 							lastNode.getCharacterSet(),
 							nodeInfo.getCharacterSet());
 				}
@@ -626,19 +619,19 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 
 		// Hinemosエージェント
-		if (HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.prop.basic.agent", false)) {
+		if (HinemosPropertyCommon.repository_device_search_prop_basic_agent.getBooleanValue()) {
 			if( nodeInfo.getAgentAwakePort() == null )
 			{
 				lEquals = lEquals && ( lastNode.getAgentAwakePort() == null );
 				if (lastNode.getAgentAwakePort() != null) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("agent") + "." + Messages.getString("agent.awake.port"),
-							Messages.getString("existent"),
-							Messages.getString("nonexistent"));
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.AGENT.getMessage() + "." + MessageConstant.AGENT_AWAKE_PORT.getMessage(),
+							MessageConstant.EXISTENT.getMessage(),
+							MessageConstant.NONEXISTENT.getMessage());
 				}
 			} else {
 				lEquals = lEquals && nodeInfo.getAgentAwakePort().equals( lastNode.getAgentAwakePort() );
 				if (nodeInfo.getAgentAwakePort().equals( lastNode.getAgentAwakePort() ) == false ) {
-					setMessage(Messages.getString("basic.information") + "." + Messages.getString("agent") + "." + Messages.getString("agent.awake.port"),
+					setMessage(MessageConstant.BASIC_INFORMATION.getMessage() + "." + MessageConstant.AGENT.getMessage() + "." + MessageConstant.AGENT_AWAKE_PORT.getMessage(),
 									lastNode.getAgentAwakePort().toString(),
 									nodeInfo.getAgentAwakePort().toString());
 				}
@@ -654,17 +647,17 @@ public class NodeInfoDeviceSearch implements Serializable
 
 		if (!lastDI.getDeviceDescription().equals(thisDI.getDeviceDescription())) {
 			equalsDevice = false;
-			String item = itemNm + "." + Messages.getString("description");
+			String item = itemNm + "." + MessageConstant.DESCRIPTION.getMessage();
 			setMessage(item, lastDI.getDeviceDescription(), thisDI.getDeviceDescription());
 		}
 		if (!lastDI.getDeviceDisplayName().equals(thisDI.getDeviceDisplayName())) {
 			equalsDevice = false;
-			String item = itemNm + "." + Messages.getString("device.display.name");
+			String item = itemNm + "." + MessageConstant.DEVICE_DISPLAY_NAME.getMessage();
 			setMessage(item, lastDI.getDeviceDisplayName(), thisDI.getDeviceDisplayName());
 		}
 		if (!lastDI.getDeviceIndex().equals(thisDI.getDeviceIndex())) {
 			equalsDevice = false;
-			String item = itemNm + "." + Messages.getString("device.index");
+			String item = itemNm + "." + MessageConstant.DEVICE_INDEX.getMessage();
 			setMessage(
 							item,
 							lastDI.getDeviceIndex() == null ? "" : lastDI.getDeviceIndex().toString(),
@@ -672,12 +665,12 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 		if (!lastDI.getDeviceName().equals(thisDI.getDeviceName())) {
 			equalsDevice = false;
-			String item = itemNm + "." + Messages.getString("device.name");
+			String item = itemNm + "." + MessageConstant.DEVICE_NAME.getMessage();
 			setMessage(item, lastDI.getDeviceName(), thisDI.getDeviceName());
 		}
 		if (!lastDI.getDeviceSize().equals(thisDI.getDeviceSize())) {
 			equalsDevice = false;
-			String item = itemNm + "." + Messages.getString("device.size");
+			String item = itemNm + "." + MessageConstant.DEVICE_SIZE.getMessage();
 			setMessage(
 							item,
 							lastDI.getDeviceSize() == null ? "" : lastDI.getDeviceSize().toString(),
@@ -685,12 +678,12 @@ public class NodeInfoDeviceSearch implements Serializable
 		}
 		if (!lastDI.getDeviceSizeUnit().equals(thisDI.getDeviceSizeUnit())) {
 			equalsDevice = false;
-			String item = itemNm + "." + Messages.getString("device.size.unit");
+			String item = itemNm + "." + MessageConstant.DEVICE_SIZE_UNIT.getMessage();
 			setMessage(item, lastDI.getDeviceIndex().toString(), thisDI.getDeviceIndex().toString());
 		}
 		if (!lastDI.getDeviceType().equals(thisDI.getDeviceType())) {
 			equalsDevice = false;
-			String item = itemNm + "." + Messages.getString("device.type");
+			String item = itemNm + "." + MessageConstant.DEVICE_TYPE.getMessage();
 			setMessage(item, lastDI.getDeviceType(), thisDI.getDeviceType());
 		}
 		return equalsDevice;
@@ -723,9 +716,9 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsInfo = equalsInfo && equalsNodeDeviceInfo(itemName, lastMap.get(key), thisDI);
 			} else {
 				equalsInfo = false;
-				setMessage(itemName + "." + Messages.getString("device.name") + "." + thisDI.getDeviceIndex(), Messages.getString("nonexistent"), thisDI.getDeviceName());
-				setMessage(itemName + "." + Messages.getString("device.index")  + "." + thisDI.getDeviceIndex(), Messages.getString("nonexistent"), thisDI.getDeviceIndex().toString());
-				setMessage(itemName + "." + Messages.getString("device.type")  + "." + thisDI.getDeviceIndex(), Messages.getString("nonexistent"), thisDI.getDeviceType());
+				setMessage(itemName + "." + MessageConstant.DEVICE_NAME.getMessage() + "." + thisDI.getDeviceIndex(), MessageConstant.NONEXISTENT.getMessage(), thisDI.getDeviceName());
+				setMessage(itemName + "." + MessageConstant.DEVICE_INDEX.getMessage()  + "." + thisDI.getDeviceIndex(), MessageConstant.NONEXISTENT.getMessage(), thisDI.getDeviceIndex().toString());
+				setMessage(itemName + "." + MessageConstant.DEVICE_TYPE.getMessage()  + "." + thisDI.getDeviceIndex(), MessageConstant.NONEXISTENT.getMessage(), thisDI.getDeviceType());
 			}
 		}
 		for (int i=0; lastList.size() > i; i++) {
@@ -735,9 +728,9 @@ public class NodeInfoDeviceSearch implements Serializable
 				equalsInfo = equalsInfo && equalsNodeDeviceInfo(itemName, lastDI, thisMap.get(key));
 			} else {
 				equalsInfo = false;
-				setMessage(itemName + "." + Messages.getString("device.name") + "." + lastDI.getDeviceIndex(), lastDI.getDeviceName(), Messages.getString("nonexistent"));
-				setMessage(itemName + "." + Messages.getString("device.index") + "." + lastDI.getDeviceIndex(), lastDI.getDeviceIndex().toString(), Messages.getString("nonexistent"));
-				setMessage(itemName + "." + Messages.getString("device.type") + "." + lastDI.getDeviceIndex(), lastDI.getDeviceType(), Messages.getString("nonexistent"));
+				setMessage(itemName + "." + MessageConstant.DEVICE_NAME.getMessage() + "." + lastDI.getDeviceIndex(), lastDI.getDeviceName(), MessageConstant.NONEXISTENT.getMessage());
+				setMessage(itemName + "." + MessageConstant.DEVICE_INDEX.getMessage() + "." + lastDI.getDeviceIndex(), lastDI.getDeviceIndex().toString(), MessageConstant.NONEXISTENT.getMessage());
+				setMessage(itemName + "." + MessageConstant.DEVICE_TYPE.getMessage() + "." + lastDI.getDeviceIndex(), lastDI.getDeviceType(), MessageConstant.NONEXISTENT.getMessage());
 			}
 		}
 

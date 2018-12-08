@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.http.util;
@@ -64,8 +57,8 @@ import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.conn.ssl.SSLContextBuilder;
 import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -74,9 +67,11 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HTTP;
+import org.apache.http.ssl.SSLContextBuilder;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * HTTPアクセスを実施するクライアントクラス<BR>
@@ -297,9 +292,6 @@ public class GetHttpResponse implements Closeable {
 
 	private static final Pattern chasetPattern = Pattern.compile("^\\s*.+\\s*;\\s*charset\\s*=\\s*(.*)\\s*$", Pattern.CASE_INSENSITIVE);
 
-	/** ボディ取得対象のContent-Type */
-	private static final String TARGET_CONTENT_TYPE = "text";
-
 	private static final int BUFF_SIZE = 1024 * 1024;
 	private static final int BODY_MAX_SIZE = 5 * BUFF_SIZE;
 
@@ -463,7 +455,7 @@ public class GetHttpResponse implements Closeable {
 				HttpPost requestPost = new HttpPost(url);
 				Charset charset = Consts.UTF_8;
 				try {
-					charset = Charset.forName(HinemosPropertyUtil.getHinemosPropertyStr("monitor.http.post.charset", "UTF-8"));
+					charset = Charset.forName(HinemosPropertyCommon.monitor_http_post_charset.getStringValue());
 				} catch (UnsupportedCharsetException e){
 					m_log.warn("UnsupportedCharsetException " + e.getMessage());
 				}
@@ -477,9 +469,9 @@ public class GetHttpResponse implements Closeable {
 
 			// Execute the method.
 			try {
-				long start = System.currentTimeMillis();
+				long start = HinemosTime.currentTimeMillis();
 				HttpResponse response = client.execute(request);
-				result.responseTime = System.currentTimeMillis() -start;
+				result.responseTime = HinemosTime.currentTimeMillis() -start;
 
 				result.statusCode = response.getStatusLine().getStatusCode();
 
@@ -499,7 +491,21 @@ public class GetHttpResponse implements Closeable {
 
 					// Content-Typeがtext文書の場合のみ、Bodyを取得
 					Header header = response.getFirstHeader(HTTP.CONTENT_TYPE);
-					if(header != null && header.getValue() != null && header.getValue().indexOf(TARGET_CONTENT_TYPE) != -1){
+					
+					boolean contentTypeFlag = false;
+					String[] contentTypes = HinemosPropertyCommon.monitor_http_content_type.getStringValue().split(",");
+					
+					if (header != null && header.getValue() != null) {
+						String value = header.getValue();
+						for (String contentType : contentTypes) {
+							if (value.indexOf(contentType) != -1) {
+								contentTypeFlag = true;
+								break;
+							}
+						}
+					}
+					
+					if(contentTypeFlag){
 						ByteArrayOutputStream out = new ByteArrayOutputStream();
 						try (InputStream in = response.getEntity().getContent()) {
 							byte [] buffer = new byte[BUFF_SIZE];
@@ -560,7 +566,7 @@ public class GetHttpResponse implements Closeable {
 						result.responseBody = content;
 					}
 					else{
-						result.errorMessage = Messages.getString("message.http.2");
+						result.errorMessage = MessageConstant.MESSAGE_FAIL_TO_CHECK_NOT_TEXT.getMessage();
 					}
 				}
 				else{
@@ -625,11 +631,12 @@ public class GetHttpResponse implements Closeable {
 						return true;
 					}
 				};
-				builder.setSSLSocketFactory(new SSLConnectionSocketFactory(new SSLContextBuilder().loadTrustMaterial(null, trustStrategy).build()));
+				builder.setSSLSocketFactory(
+						new SSLConnectionSocketFactory(new SSLContextBuilder().loadTrustMaterial(null, trustStrategy).build(),
+						new NoopHostnameVerifier()));
 			}
-
 			RequestConfig requestConfig = RequestConfig.custom()
-					.setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
+					.setCookieSpec(CookieSpecs.DEFAULT)
 					.setConnectTimeout(m_connectTimeout)
 					.setSocketTimeout(m_requestTimeout).build();
 			builder.setDefaultRequestConfig(requestConfig);

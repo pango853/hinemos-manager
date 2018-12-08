@@ -1,22 +1,13 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.factory;
 
-import java.sql.Timestamp;
-import java.util.Date;
 import java.util.List;
 
 import javax.persistence.EntityExistsException;
@@ -25,6 +16,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.bean.StatusConstant;
+import com.clustercontrol.collect.util.CollectDataUtil;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
@@ -32,9 +25,12 @@ import com.clustercontrol.fault.JobInfoNotFound;
 import com.clustercontrol.jobmanagement.bean.JobConstant;
 import com.clustercontrol.jobmanagement.model.JobSessionJobEntity;
 import com.clustercontrol.jobmanagement.model.JobSessionNodeEntity;
+import com.clustercontrol.jobmanagement.util.FromRunningAfterCommitCallback;
 import com.clustercontrol.jobmanagement.util.JobMultiplicityCache;
+import com.clustercontrol.jobmanagement.util.JobSessionChangeDataCache;
 import com.clustercontrol.jobmanagement.util.QueryUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  *  ジョブ操作の停止[強制]を行うクラスです。
@@ -97,32 +93,35 @@ public class OperateForceStopOfJob {
 			Integer endValue) throws JobInfoNotFound, InvalidRole, HinemosUnknown {
 		m_log.debug("forceStopJob2() : sessionId=" + sessionId + ", jobunitId=" + jobunitId + ", jobId=" + jobId +
 				", facilityId=" + facilityId + ", endValue=" + endValue);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
 
-		//セッションIDとジョブIDから、セッションジョブを取得
-		JobSessionNodeEntity sessionNode = QueryUtil.getJobSessionNodePK(sessionId, jobunitId, jobId, facilityId);
+			//セッションIDとジョブIDから、セッションジョブを取得
+			JobSessionNodeEntity sessionNode = QueryUtil.getJobSessionNodePK(sessionId, jobunitId, jobId, facilityId);
 
-		if(sessionNode == null) {
-			return;
-		}
-		// 強制終了の対象となるのは待機と停止処理中のみ。（参考：JobOperationJudgement.java）
-		if(sessionNode.getStatus() != StatusConstant.TYPE_WAIT && sessionNode.getStatus() != StatusConstant.TYPE_STOPPING){
-			return;
-		}
+			// 強制終了の対象となるのは待機と停止処理中のみ。（参考：JobOperationJudgement.java）
+			if(sessionNode.getStatus() != StatusConstant.TYPE_WAIT && sessionNode.getStatus() != StatusConstant.TYPE_STOPPING){
+				return;
+			}
 
-		//実行中から他の状態に遷移した場合は、キャッシュを更新する。
-		if (sessionNode.getStatus() == StatusConstant.TYPE_RUNNING) {
-			JobMultiplicityCache.fromRunning(sessionNode.getId());
-		} else if (sessionNode.getStatus() == StatusConstant.TYPE_WAIT) {
-			JobMultiplicityCache.removeWait(sessionNode.getId());
+			//実行中から他の状態に遷移した場合は、キャッシュを更新する。
+			if (sessionNode.getStatus() == StatusConstant.TYPE_RUNNING) {
+				jtm.addCallback(new FromRunningAfterCommitCallback(sessionNode.getId()));
+			} else if (sessionNode.getStatus() == StatusConstant.TYPE_WAIT) {
+				JobMultiplicityCache.removeWait(sessionNode.getId());
+			}
+			//実行状態を終了にする
+			sessionNode.setStatus(StatusConstant.TYPE_END);
+			//終了値を設定
+			sessionNode.setEndValue(endValue);
+			//終了日時を設定
+			sessionNode.setEndDate(HinemosTime.currentTimeMillis());
+
+			// 収集データ更新
+			CollectDataUtil.put(sessionNode);
+
+			//強制終了
+			new JobSessionNodeImpl().setMessage(sessionNode, MessageConstant.JOB_STOP_FORCE.getMessage());
 		}
-		//実行状態を終了にする
-		sessionNode.setStatus(StatusConstant.TYPE_END);
-		//終了値を設定
-		sessionNode.setEndValue(endValue);
-		//終了日時を設定
-		sessionNode.setEndDate(new Timestamp(new Date().getTime()));
-		//強制終了
-		new JobSessionNodeImpl().setMessage(sessionNode, Messages.getString("job.stop.force"));
 	}
 
 	/**
@@ -165,15 +164,14 @@ public class OperateForceStopOfJob {
 		//セッションIDとジョブIDから、セッションジョブを取得
 		JobSessionJobEntity sessionJob = QueryUtil.getJobSessionJobPK(sessionId, jobunitId, jobId);
 
-		if(sessionJob == null) {
-			return;
-		}
 		// 強制終了の対象となるのは待機と停止処理中のみ。（参考：JobOperationJudgement.java）
 		if(sessionJob.getStatus() != StatusConstant.TYPE_WAIT && sessionJob.getStatus() != StatusConstant.TYPE_STOPPING){
 			return;
 		}
 
-		if (sessionJob.getJobInfoEntity().getJobType() != JobConstant.TYPE_JOB) {
+		if (sessionJob.getJobInfoEntity().getJobType() != JobConstant.TYPE_JOB
+				&& sessionJob.getJobInfoEntity().getJobType() != JobConstant.TYPE_APPROVALJOB
+				&& sessionJob.getJobInfoEntity().getJobType() != JobConstant.TYPE_MONITORJOB) {
 			// 配下のジョブを停止する。
 			List<JobSessionJobEntity> childJob = QueryUtil.getChildJobSessionJob(sessionId, jobunitId, jobId);
 			for (JobSessionJobEntity job : childJob) {
@@ -192,6 +190,10 @@ public class OperateForceStopOfJob {
 		sessionJob.setStatus(StatusConstant.TYPE_END);
 		sessionJob.setEndStatus(endStatus);
 		sessionJob.setEndValue(endValue);
-		sessionJob.setEndDate(new Timestamp(new Date().getTime()));
+		sessionJob.setEndDate(HinemosTime.currentTimeMillis());
+		// ジョブ履歴用キャッシュ更新
+		JobSessionChangeDataCache.add(sessionJob);
+		// 収集データ更新
+		CollectDataUtil.put(sessionJob);
 	}
 }

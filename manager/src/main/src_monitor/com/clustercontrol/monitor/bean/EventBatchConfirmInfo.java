@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) since 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.monitor.bean;
 
 import java.io.Serializable;
@@ -27,18 +21,19 @@ import javax.xml.bind.annotation.XmlType;
 public class EventBatchConfirmInfo implements Serializable {
 
 	private static final long serialVersionUID = 8427283406919364254L;
-	private Integer[] priorityList = null;	//重要度リスト
+	private Integer[] priorityList = null;		//重要度リスト
 	private Long outputFromDate = null;		//更新日時（自）取得
-	private Long outputToDate = null;		//更新日時（至）取得
+	private Long outputToDate = null;			//更新日時（至）取得
 	private Long generationFromDate = null;	//出力日時（自）取得
-	private Long generationToDate = null;	//出力日時（至）取得
-	private String monitorId = null;		//監視項目ID
-	private String monitorDetailId = null;	//監視詳細
-	private String facilityType = null;		//対象ファシリティ種別
-	private String application = null;		//アプリケーション
-	private String message = null;			//メッセージ
-	private String comment = null;		//コメント
-	private String commentUser = null;		//コメントユーザ
+	private Long generationToDate = null;		//出力日時（至）取得
+	private String monitorId = null;			//監視項目ID
+	private String monitorDetailId = null;		//監視詳細
+	private Integer facilityType = null;		//対象ファシリティ種別
+	private String application = null;			//アプリケーション
+	private String message = null;				//メッセージ
+	private String comment = null;				//コメント
+	private String commentUser = null;			//コメントユーザ
+	private Boolean collectGraphFlg = null;	//性能グラフ用フラグ
 
 	public void setPriorityList(Integer[] priorityList) {
 		this.priorityList = priorityList;
@@ -82,10 +77,10 @@ public class EventBatchConfirmInfo implements Serializable {
 	public String getMonitorDetailId() {
 		return monitorDetailId;
 	}
-	public void setFacilityType(String facilityType) {
+	public void setFacilityType(Integer facilityType) {
 		this.facilityType = facilityType;
 	}
-	public String getFacilityType() {
+	public Integer getFacilityType() {
 		return facilityType;
 	}
 	public void setApplication(String application) {
@@ -111,6 +106,12 @@ public class EventBatchConfirmInfo implements Serializable {
 	}
 	public String getCommentUser() {
 		return commentUser;
+	}
+	public Boolean getCollectGraphFlg() {
+		return collectGraphFlg;
+	}
+	public void setCollectGraphFlg(Boolean collectGraphFlg) {
+		this.collectGraphFlg = collectGraphFlg;
 	}
 
 }

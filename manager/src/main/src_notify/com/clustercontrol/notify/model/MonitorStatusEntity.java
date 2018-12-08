@@ -1,7 +1,14 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.notify.model;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 
 import javax.persistence.Cacheable;
 import javax.persistence.Column;
@@ -18,11 +25,11 @@ import javax.persistence.Table;
 @Entity
 @Table(name="cc_monitor_status", schema="setting")
 @Cacheable(true)
-public class MonitorStatusEntity implements Serializable {
+public class MonitorStatusEntity implements Serializable, Cloneable {
 	private static final long serialVersionUID = 1L;
 	private MonitorStatusEntityPK id;
 	private Long counter;
-	private Timestamp lastUpdate;
+	private Long lastUpdate;
 	private Integer priority;
 
 	@Deprecated
@@ -48,6 +55,7 @@ public class MonitorStatusEntity implements Serializable {
 	}
 
 
+	@Column(name="counter")
 	public Long getCounter() {
 		return this.counter;
 	}
@@ -58,15 +66,16 @@ public class MonitorStatusEntity implements Serializable {
 
 
 	@Column(name="last_update")
-	public Timestamp getLastUpdate() {
+	public Long getLastUpdate() {
 		return this.lastUpdate;
 	}
 
-	public void setLastUpdate(Timestamp lastUpdate) {
+	public void setLastUpdate(Long lastUpdate) {
 		this.lastUpdate = lastUpdate;
 	}
 
 
+	@Column(name="priority")
 	public Integer getPriority() {
 		return this.priority;
 	}
@@ -80,11 +89,21 @@ public class MonitorStatusEntity implements Serializable {
 				MonitorStatusEntity.class.getSimpleName(), id, counter, lastUpdate, priority);
 	};
 	
+	@Override
 	public MonitorStatusEntity clone() {
-		MonitorStatusEntity entity = new MonitorStatusEntity(id.getFacilityId(), id.getPluginId(), id.getMonitorId(), id.getSubKey());
-		entity.counter = this.counter;
-		entity.lastUpdate = this.lastUpdate;
-		entity.priority = this.priority;
-		return entity;
+		try {
+			MonitorStatusEntity entity = (MonitorStatusEntity)super.clone();
+			entity.setId (new MonitorStatusEntityPK(id.getFacilityId(), id.getPluginId(), id.getMonitorId(), id.getSubKey()));
+			return entity;
+		} catch (CloneNotSupportedException e) {
+		}
+		return null;
+	}
+	
+	public static void main (String args[]) {
+		MonitorStatusEntity entity = new MonitorStatusEntity("1", "2", "3", "4");
+		System.out.println("hoge1 " + entity);
+		System.out.println("hoge2 " + entity.clone());
+		System.out.println("hoge3 " + entity.equals(entity.clone()));
 	}
 }

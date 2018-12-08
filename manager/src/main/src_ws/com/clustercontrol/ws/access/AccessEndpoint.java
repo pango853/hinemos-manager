@@ -1,15 +1,11 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.access;
 
 import java.util.ArrayList;
@@ -24,14 +20,15 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
+import com.clustercontrol.accesscontrol.bean.ManagerInfo;
 import com.clustercontrol.accesscontrol.bean.ObjectPrivilegeFilterInfo;
-import com.clustercontrol.accesscontrol.bean.ObjectPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeInfo;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
 import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
-import com.clustercontrol.accesscontrol.bean.RoleInfo;
 import com.clustercontrol.accesscontrol.bean.RoleTreeItem;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
-import com.clustercontrol.accesscontrol.bean.UserInfo;
+import com.clustercontrol.accesscontrol.model.RoleInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.UserInfo;
 import com.clustercontrol.accesscontrol.session.AccessControllerBean;
 import com.clustercontrol.accesscontrol.util.VersionUtil;
 import com.clustercontrol.bean.HinemosModuleConstant;
@@ -89,12 +86,13 @@ public class AccessEndpoint {
 	 * ログインチェックの為、本メソッドを使用します。
 	 *
 	 * 権限必要なし（ユーザ名チェックのみ実施）
+	 * ログインに成功した場合はHinemosプロパティから取得したタイムゾーンオフセットを返却します。
 	 *
 	 * @throws HinemosUnknown
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
 	 */
-	public void checkLogin() throws InvalidUserPass, InvalidRole, HinemosUnknown {
+	public ManagerInfo checkLogin() throws InvalidUserPass, InvalidRole, HinemosUnknown {
 		m_log.debug("checkLogin");
 
 		try {
@@ -105,10 +103,10 @@ public class AccessEndpoint {
 					+ HttpAuthenticator.getUserAccountString(wsctx));
 			throw e;
 		}
+
 		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_ACCESS + " Login, Method=checkLogin, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx));
-
-		new AccessControllerBean().checkLogin();
+		return new AccessControllerBean().checkLogin();
 	}
 
 	/**
@@ -213,7 +211,7 @@ public class AccessEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", UserID=");
-			msg.append(info.getId());
+			msg.append(info.getUserId());
 		}
 
 		try {
@@ -254,7 +252,7 @@ public class AccessEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", UserID=");
-			msg.append(info.getId());
+			msg.append(info.getUserId());
 		}
 
 		try {
@@ -476,11 +474,12 @@ public class AccessEndpoint {
 	 * @throws HinemosUnknown
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
+	 * @throws RoleNotFound 
 	 *
 	 * @see com.clustercontrol.bean.PropertyConstant
 	 * @see com.clustercontrol.accesscontrol.factory.RoleProperty#getProperty(String, int, Locale)
 	 */
-	public RoleInfo getRoleInfo(String roleId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+	public RoleInfo getRoleInfo(String roleId) throws InvalidUserPass, InvalidRole, HinemosUnknown, RoleNotFound {
 		m_log.debug("getRoleInfo");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.ACCESSCONTROL, SystemPrivilegeMode.READ));
@@ -523,16 +522,13 @@ public class AccessEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", RoleID=");
-			msg.append(info.getId());
+			msg.append(info.getRoleId());
+		} else {
+			throw new HinemosUnknown("RoleInfo is null.");
 		}
-
-		List<SystemPrivilegeInfo> splist = new ArrayList<SystemPrivilegeInfo>();
-		splist.add(new SystemPrivilegeInfo(FunctionConstant.REPOSITORY, SystemPrivilegeMode.READ));
 
 		try {
 			new AccessControllerBean().addRoleInfo(info);
-			// リポジトリ 参照のシステム権限を追加
-			new AccessControllerBean().replaceSystemPrivilegeRole(info.getId(), splist);
 		} catch (Exception e){
 			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_ACCESS + " Add Role Failed, Method=addRole, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -570,7 +566,7 @@ public class AccessEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", RoleID=");
-			msg.append(info.getId());
+			msg.append(info.getRoleId());
 		}
 
 		try {
@@ -759,6 +755,33 @@ public class AccessEndpoint {
 	}
 
 	/**
+	 * 指定された編集種別を条件としてシステム権限一覧情報を取得する。<BR>
+	 *
+	 * AccessControlRead権限が必要
+	 *
+	 * @param 編集種別
+	 * @return システム権限情報のリスト
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public ArrayList<SystemPrivilegeInfo> getSystemPrivilegeInfoListByEditType(String editType) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getSystemPrivilegeInfoListByEditType : editType=" + editType);
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.ACCESSCONTROL, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", EditType=");
+		msg.append(editType);
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_ACCESS + " Get, Method=getSystemPrivilegeInfoListByEditType, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+		return new AccessControllerBean().getSystemPrivilegeInfoListByEditType(editType);
+	}
+
+	/**
 	 * ロールへのユーザの割り当てを行います。<BR>
 	 *
 	 * roleIdで指定されるロールにuserIdsで指定されるユーザ群を
@@ -775,7 +798,7 @@ public class AccessEndpoint {
 	 * @throws UnEditableRole
 	 */
 	public void assignUserRole(String roleId, String[] userIds) throws InvalidUserPass, InvalidRole, HinemosUnknown, InvalidSetting, UnEditableRole {
-		m_log.debug("assignUserRole : roleId=" + roleId + ", userIds=" + userIds);
+		m_log.debug("assignUserRole : roleId=" + roleId + ", userIds=" + Arrays.toString(userIds));
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.ACCESSCONTROL, SystemPrivilegeMode.MODIFY));
 
@@ -829,11 +852,10 @@ public class AccessEndpoint {
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// システム権限の中身チェック リポジトリの参照がない場合はInvalidSettingを返す
-		SystemPrivilegeInfo checkInfo  = new SystemPrivilegeInfo(FunctionConstant.REPOSITORY, SystemPrivilegeMode.READ);
 		boolean isRepositoryRefer = false;
 		for (SystemPrivilegeInfo systemPrivilege : systemPrivileges) {
-
-			if(systemPrivilege.equals(checkInfo)) {
+			if(systemPrivilege.getSystemFunction().equals(FunctionConstant.REPOSITORY)
+					&& systemPrivilege.getSystemPrivilege().equals(SystemPrivilegeMode.READ.name())) {
 				isRepositoryRefer = true;
 				break;
 			}
@@ -884,12 +906,13 @@ public class AccessEndpoint {
 			// カレンダ、カレンダパターン
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.CALENDAR, SystemPrivilegeMode.READ));
 		} else if (HinemosModuleConstant.JOB.equals(filter.getObjectType())
-				|| HinemosModuleConstant.JOB_FILE_CHECK.equals(filter.getObjectType())
-				|| HinemosModuleConstant.JOB_SCHEDULE.equals(filter.getObjectType())) {
+				|| HinemosModuleConstant.JOB_KICK.equals(filter.getObjectType())
+				|| HinemosModuleConstant.JOBMAP_IMAGE_FILE.equals(filter.getObjectType())) {
 			// ジョブ、ジョブファイルチェック、ジョブスケジュール
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
-		} else if (HinemosModuleConstant.MONITOR.equals(filter.getObjectType())) {
-			// 監視設定
+		} else if (HinemosModuleConstant.MONITOR.equals(filter.getObjectType())
+				|| HinemosModuleConstant.HUB_LOGFORMAT.equals(filter.getObjectType())) {
+			// 監視設定、ログフォーマット
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
 		} else if (HinemosModuleConstant.PLATFORM_NOTIFY.equals(filter.getObjectType())
 				|| HinemosModuleConstant.PLATFORM_MAIL_TEMPLATE.equals(filter.getObjectType())) {
@@ -954,12 +977,13 @@ public class AccessEndpoint {
 			// カレンダ、カレンダパターン
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.CALENDAR, SystemPrivilegeMode.READ));
 		} else if (HinemosModuleConstant.JOB.equals(objectType)
-				|| HinemosModuleConstant.JOB_FILE_CHECK.equals(objectType)
-				|| HinemosModuleConstant.JOB_SCHEDULE.equals(objectType)) {
+				|| HinemosModuleConstant.JOB_KICK.equals(objectType)
+				|| HinemosModuleConstant.JOBMAP_IMAGE_FILE.equals(objectType)) {
 			// ジョブ、ジョブファイルチェック、ジョブスケジュール
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
-		} else if (HinemosModuleConstant.MONITOR.equals(objectType)) {
-			// 監視設定
+		} else if (HinemosModuleConstant.MONITOR.equals(objectType)
+				|| HinemosModuleConstant.HUB_LOGFORMAT.equals(objectType)) {
+			// 監視設定、ログフォーマット
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
 		} else if (HinemosModuleConstant.PLATFORM_NOTIFY.equals(objectType)
 				|| HinemosModuleConstant.PLATFORM_MAIL_TEMPLATE.equals(objectType)) {
@@ -1018,12 +1042,13 @@ public class AccessEndpoint {
 			// カレンダ、カレンダパターン
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.CALENDAR, SystemPrivilegeMode.MODIFY));
 		} else if (HinemosModuleConstant.JOB.equals(objectType)
-				|| HinemosModuleConstant.JOB_FILE_CHECK.equals(objectType)
-				|| HinemosModuleConstant.JOB_SCHEDULE.equals(objectType)) {
-			// ジョブ、ジョブファイルチェック、ジョブスケジュール
+				|| HinemosModuleConstant.JOB_KICK.equals(objectType)
+				|| HinemosModuleConstant.JOBMAP_IMAGE_FILE.equals(objectType)) {
+			// ジョブ、ジョブ実行契機
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
-		} else if (HinemosModuleConstant.MONITOR.equals(objectType)) {
-			// 監視設定
+		} else if (HinemosModuleConstant.MONITOR.equals(objectType)
+				|| HinemosModuleConstant.HUB_LOGFORMAT.equals(objectType)) {
+			// 監視設定、ログフォーマット
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.MODIFY));
 		} else if (HinemosModuleConstant.PLATFORM_NOTIFY.equals(objectType)
 				|| HinemosModuleConstant.PLATFORM_MAIL_TEMPLATE.equals(objectType)) {
@@ -1039,6 +1064,9 @@ public class AccessEndpoint {
 				|| HinemosModuleConstant.INFRA_FILE.equals(objectType)) {
 			// 環境構築
 			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.MODIFY));
+		} else if (HinemosModuleConstant.HUB_TRANSFER.equals(objectType)) {
+			// 収集蓄積
+			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HUB, SystemPrivilegeMode.MODIFY));
 		} else {
 			m_log.info("replaceObjectPrivilegeInfo " + objectType);
 		}

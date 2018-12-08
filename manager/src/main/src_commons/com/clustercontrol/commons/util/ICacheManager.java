@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2015 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.commons.util;
@@ -24,7 +17,6 @@ import java.util.Set;
  * （他のオプション製品の正常動作が保証されなくなるため）<br/>
  * ただし、Hinemosマネージャ固有のキャッシュデータ・Hinemosマネージャの動作に応じて可変でないstaticなキャッシュデータは本インタフェースを通じて管理する必要はない。<br/>
  * (設定ファイルなどの値を格納したキャッシュデータなど)
- * @author Tomoya
  */
 public interface ICacheManager {
 	

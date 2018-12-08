@@ -1,23 +1,14 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.factory;
 
-import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
@@ -27,7 +18,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.Ipv6Util;
 import com.clustercontrol.commons.util.JpaTransactionManager;
@@ -36,48 +26,36 @@ import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.UsedFacility;
+import com.clustercontrol.nodemap.session.NodeMapControllerBean;
+import com.clustercontrol.platform.repository.FacilityModifierUtil;
 import com.clustercontrol.repository.bean.FacilityConstant;
-import com.clustercontrol.repository.bean.FacilityInfo;
 import com.clustercontrol.repository.bean.FacilityTreeAttributeConstant;
-import com.clustercontrol.repository.bean.NodeCpuInfo;
-import com.clustercontrol.repository.bean.NodeDeviceInfo;
-import com.clustercontrol.repository.bean.NodeDiskInfo;
-import com.clustercontrol.repository.bean.NodeFilesystemInfo;
-import com.clustercontrol.repository.bean.NodeHostnameInfo;
-import com.clustercontrol.repository.bean.NodeInfo;
-import com.clustercontrol.repository.bean.NodeMemoryInfo;
-import com.clustercontrol.repository.bean.NodeNetworkInterfaceInfo;
-import com.clustercontrol.repository.bean.NodeNoteInfo;
-import com.clustercontrol.repository.bean.NodeVariableInfo;
-import com.clustercontrol.repository.bean.ScopeInfo;
 import com.clustercontrol.repository.entity.CollectorPlatformMstData;
 import com.clustercontrol.repository.entity.CollectorSubPlatformMstData;
 import com.clustercontrol.repository.model.CollectorPlatformMstEntity;
 import com.clustercontrol.repository.model.CollectorSubPlatformMstEntity;
-import com.clustercontrol.repository.model.FacilityEntity;
+import com.clustercontrol.repository.model.FacilityInfo;
 import com.clustercontrol.repository.model.FacilityRelationEntity;
-import com.clustercontrol.repository.model.NodeCpuEntity;
-import com.clustercontrol.repository.model.NodeCpuEntityPK;
-import com.clustercontrol.repository.model.NodeDeviceEntity;
-import com.clustercontrol.repository.model.NodeDeviceEntityPK;
-import com.clustercontrol.repository.model.NodeDiskEntity;
-import com.clustercontrol.repository.model.NodeDiskEntityPK;
-import com.clustercontrol.repository.model.NodeEntity;
-import com.clustercontrol.repository.model.NodeFilesystemEntity;
-import com.clustercontrol.repository.model.NodeFilesystemEntityPK;
-import com.clustercontrol.repository.model.NodeHostnameEntity;
-import com.clustercontrol.repository.model.NodeHostnameEntityPK;
-import com.clustercontrol.repository.model.NodeMemoryEntity;
-import com.clustercontrol.repository.model.NodeMemoryEntityPK;
-import com.clustercontrol.repository.model.NodeNetworkInterfaceEntity;
-import com.clustercontrol.repository.model.NodeNetworkInterfaceEntityPK;
-import com.clustercontrol.repository.model.NodeNoteEntity;
-import com.clustercontrol.repository.model.NodeNoteEntityPK;
-import com.clustercontrol.repository.model.NodeVariableEntity;
-import com.clustercontrol.repository.model.NodeVariableEntityPK;
+import com.clustercontrol.repository.model.NodeGeneralDeviceInfo;
+import com.clustercontrol.repository.model.NodeCpuInfo;
+import com.clustercontrol.repository.model.NodeDeviceInfo;
+import com.clustercontrol.repository.model.NodeDeviceInfoPK;
+import com.clustercontrol.repository.model.NodeDiskInfo;
+import com.clustercontrol.repository.model.NodeFilesystemInfo;
+import com.clustercontrol.repository.model.NodeHostnameInfo;
+import com.clustercontrol.repository.model.NodeHostnameInfoPK;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.NodeMemoryInfo;
+import com.clustercontrol.repository.model.NodeNetworkInterfaceInfo;
+import com.clustercontrol.repository.model.NodeNoteInfo;
+import com.clustercontrol.repository.model.NodeNoteInfoPK;
+import com.clustercontrol.repository.model.NodeVariableInfo;
+import com.clustercontrol.repository.model.NodeVariableInfoPK;
+import com.clustercontrol.repository.model.ScopeInfo;
 import com.clustercontrol.repository.util.FacilityTreeCache;
 import com.clustercontrol.repository.util.FacilityUtil;
 import com.clustercontrol.repository.util.QueryUtil;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * ファシリティの更新処理を実装したクラス<BR>
@@ -93,15 +71,16 @@ public class FacilityModifier {
 	 * @throws EntityExistsException
 	 */
 	public static void addCollectorPratformMst(CollectorPlatformMstData data) throws EntityExistsException {
-		JpaTransactionManager jtm = new JpaTransactionManager();
-
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			// インスタンス生成
 			CollectorPlatformMstEntity entity = new CollectorPlatformMstEntity(data.getPlatformId());
 			// 重複チェック
 			jtm.checkEntityExists(CollectorPlatformMstEntity.class, entity.getPlatformId());
 			entity.setOrderNo(data.getOrderNo().intValue());
 			entity.setPlatformName(data.getPlatformName());
+			// 登録
+			em.persist(entity);
 		} catch (EntityExistsException e) {
 			m_log.info("addCollectorPratformMst() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
@@ -116,12 +95,14 @@ public class FacilityModifier {
 	 * @throws FacilityNotFound
 	 */
 	public static void deleteCollectorPratformMst(String platformId) throws FacilityNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-
-		// 該当するプラットフォーム定義情報を取得
-		CollectorPlatformMstEntity entity = QueryUtil.getCollectorPlatformMstPK(platformId);
-		// 削除
-		em.remove(entity);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+	
+			// 該当するプラットフォーム定義情報を取得
+			CollectorPlatformMstEntity entity = QueryUtil.getCollectorPlatformMstPK(platformId);
+			// 削除
+			em.remove(entity);
+		}
 	}
 
 	/** サブプラットフォーム定義情報を登録する。<BR>
@@ -131,16 +112,17 @@ public class FacilityModifier {
 	 * @throws EntityExistsException
 	 */
 	public static void addCollectorSubPratformMst(CollectorSubPlatformMstData data) throws EntityExistsException {
-		JpaTransactionManager jtm = new JpaTransactionManager();
-
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			// インスタンス生成
 			CollectorSubPlatformMstEntity entity = new CollectorSubPlatformMstEntity(data.getSubPlatformId());
 			// 重複チェック
 			jtm.checkEntityExists(CollectorSubPlatformMstEntity.class, entity.getSubPlatformId());
 			entity.setSubPlatformName(data.getSubPlatformName());
 			entity.setType(data.getType());
-			entity.setOrderNo(data.getOrderNo().intValue());
+			entity.setOrderNo(data.getOrderNo());
+			// 登録
+			em.persist(entity);
 		} catch (EntityExistsException e) {
 			m_log.info("addCollectorSubPratformMst() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
@@ -155,12 +137,14 @@ public class FacilityModifier {
 	 * @throws FacilityNotFound
 	 */
 	public static void deleteCollectorSubPratformMst(String subPlatformId) throws FacilityNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		// 該当するプラットフォーム定義情報を取得
-		CollectorSubPlatformMstEntity entity = QueryUtil.getCollectorSubPlatformMstPK(subPlatformId);
-		// 削除
-		em.remove(entity);
+			// 該当するプラットフォーム定義情報を取得
+			CollectorSubPlatformMstEntity entity = QueryUtil.getCollectorSubPlatformMstPK(subPlatformId);
+			// 削除
+			em.remove(entity);
+		}
 	}
 
 	/** スコープを追加する。<BR>
@@ -177,17 +161,16 @@ public class FacilityModifier {
 	public static void addScope(String parentFacilityId, ScopeInfo property, String modifyUserId, int displaySortOrder, boolean topicSendFlg)
 			throws FacilityNotFound, EntityExistsException, HinemosUnknown {
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
-
 		/** ローカル変数 */
-		FacilityEntity parentFacility = null;
-		FacilityEntity facility = null;
+		FacilityInfo parentFacility = null;
+		ScopeInfo facility = null;
 		String facilityId = null;
 
 		/** メイン処理 */
 		m_log.debug("adding a scope...");
 
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			// 入力値（ファシリティID）の格納
 			facilityId = property.getFacilityId();
 
@@ -204,13 +187,18 @@ public class FacilityModifier {
 			}
 
 			// ファシリティインスタンスの生成
-			facility = new FacilityEntity(facilityId);
+			facility = new ScopeInfo(facilityId);
 			// 重複チェック
-			jtm.checkEntityExists(FacilityEntity.class, facility.getFacilityId());
+			jtm.checkEntityExists(FacilityInfo.class, facilityId);
 			facility.setDisplaySortOrder(displaySortOrder);
 			facility.setFacilityType(FacilityConstant.TYPE_SCOPE);
-			facility.setValid(ValidConstant.TYPE_VALID);
+			facility.setValid(true);
 			setFacilityEntityProperties(facility, property, modifyUserId, false);
+			
+			facility.persistSelf();
+			em.persist(facility);
+			
+			em.flush();
 
 			// ファシリティ関連インスタンスの生成
 			if (! ObjectValidator.isEmptyString(parentFacilityId)) {
@@ -242,7 +230,7 @@ public class FacilityModifier {
 			throws FacilityNotFound, InvalidRole {
 
 		/** ローカル変数 */
-		FacilityEntity facility = null;
+		FacilityInfo facility = null;
 		String facilityId = null;
 
 		/** メイン処理 */
@@ -277,7 +265,7 @@ public class FacilityModifier {
 	public static void modifyScope(ScopeInfo property, String modifyUserId, boolean topicSendFlg) throws FacilityNotFound, InvalidRole {
 
 		/** ローカル変数 */
-		FacilityEntity facility = null;
+		FacilityInfo facility = null;
 		String facilityId = null;
 
 		/** メイン処理 */
@@ -321,10 +309,11 @@ public class FacilityModifier {
 
 
 		// 該当するファシリティインスタンスを取得（オブジェクト権限チェックなし）
-		FacilityEntity facility = QueryUtil.getFacilityPK_NONE(facilityId);
+		FacilityInfo facility = QueryUtil.getFacilityPK_NONE(facilityId);
 
 		// 関連インスタンス、ファシリティインスタンスを削除する
 		deleteScopeRecursive(facility);
+		FacilityModifierUtil.deleteFacilityRelation(facilityId);
 
 		m_log.info("deleteScope() successful in deleting a owner role scope with sub scopes. (facilityId = " + facilityId + ")");
 	}
@@ -346,10 +335,11 @@ public class FacilityModifier {
 		m_log.debug("deleting a scope with sub scopes...");
 
 		// 該当するファシリティインスタンスを取得
-		FacilityEntity facility = QueryUtil.getFacilityPK(facilityId, ObjectPrivilegeMode.MODIFY);
+		FacilityInfo facility = QueryUtil.getFacilityPK(facilityId, ObjectPrivilegeMode.MODIFY);
 
 		// 関連インスタンス、ファシリティインスタンスを削除する
 		deleteScopeRecursive(facility);
+		FacilityModifierUtil.deleteFacilityRelation(facilityId);
 
 		m_log.info("deleteScope() successful in deleting a scope with sub scopes. (facilityId = " + facilityId + ")");
 	}
@@ -361,42 +351,45 @@ public class FacilityModifier {
 	 * @throws UsedFacility
 	 * @throws HinemosUnknown
 	 */
-	private static void deleteScopeRecursive(FacilityEntity scope) throws UsedFacility, HinemosUnknown, FacilityNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+	private static void deleteScopeRecursive(FacilityInfo scope) throws UsedFacility, HinemosUnknown, FacilityNotFound {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		/** ローカル変数 */
-		String facilityId = null;
+			/** ローカル変数 */
+			String facilityId = null;
 
-		/** メイン処理 */
-		facilityId = scope.getFacilityId();
+			/** メイン処理 */
+			facilityId = scope.getFacilityId();
 
-		// スコープでない場合はエラーとする
-		if (!FacilityUtil.isScope(scope)) {
-			HinemosUnknown e = new HinemosUnknown("this facility is not a scope. (facilityId = " + facilityId + ")");
-			m_log.info("deleteScopeRecursive() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
-		}
+			// スコープでない場合はエラーとする
+			if (!FacilityUtil.isScope(scope)) {
+				HinemosUnknown e = new HinemosUnknown("this facility is not a scope. (facilityId = " + facilityId + ")");
+				m_log.info("deleteScopeRecursive() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
 
-		// 直下にスコープを存在する場合、そのスコープおよびサブスコープを削除する
-		List<FacilityEntity> childEntities = QueryUtil.getChildFacilityEntity(scope.getFacilityId());
-		if (childEntities != null && childEntities.size() > 0) {
-			Iterator<FacilityEntity> iter = childEntities.iterator();
-			while(iter.hasNext()) {
-				FacilityEntity childEntity = iter.next();
-				if (FacilityUtil.isScope(childEntity)) {
-					childEntity.tranSetUncheckFlg(true);
-					// リレーションを削除する
-					FacilityRelationEntity facilityRelationEntity
-					= QueryUtil.getFacilityRelationPk(scope.getFacilityId(), childEntity.getFacilityId());
-					em.remove(facilityRelationEntity);
-					deleteScopeRecursive(childEntity);
+			// 直下にスコープを存在する場合、そのスコープおよびサブスコープを削除する
+			List<FacilityInfo> childEntities = QueryUtil.getChildFacilityEntity(scope.getFacilityId());
+			if (childEntities != null && childEntities.size() > 0) {
+				Iterator<FacilityInfo> iter = childEntities.iterator();
+				while(iter.hasNext()) {
+					FacilityInfo childEntity = iter.next();
+					if (FacilityUtil.isScope(childEntity)) {
+						childEntity.tranSetUncheckFlg(true);
+						// リレーションを削除する
+						FacilityRelationEntity facilityRelationEntity
+						= QueryUtil.getFacilityRelationPk(scope.getFacilityId(), childEntity.getFacilityId());
+						em.remove(facilityRelationEntity);
+						deleteScopeRecursive(childEntity);
+					}
 				}
 			}
-		}
-		em.remove(scope);
+			em.remove(scope);
+			new NodeMapControllerBean().deleteMapInfo(null, scope.getFacilityId());
 
-		m_log.info("deleteScopeRecursive() successful in deleting a scope. (facilityId = " + facilityId + ")");
+			m_log.info("deleteScopeRecursive() successful in deleting a scope. (facilityId = " + facilityId + ")");
+		}
 	}
 
 	/**
@@ -413,41 +406,41 @@ public class FacilityModifier {
 			throws EntityExistsException, FacilityNotFound, HinemosUnknown {
 		m_log.debug("adding a node...");
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
 		String facilityId = nodeInfo.getFacilityId();
-		Boolean valid = nodeInfo.isValid();
+		Boolean valid = nodeInfo.getValid();
 
-		try {
-			// インスタンス生成
-			FacilityEntity facilityEntity = new FacilityEntity(facilityId);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			// 重複チェック
-			jtm.checkEntityExists(FacilityEntity.class, facilityEntity.getFacilityId());
-			facilityEntity.setFacilityType(FacilityConstant.TYPE_NODE);
-			facilityEntity.setDisplaySortOrder(displaySortOrder);
-			facilityEntity.setValid(FacilityUtil.getValid(valid));
-			setFacilityEntityProperties(facilityEntity, nodeInfo, modifyUserId, false);
+			jtm.checkEntityExists(FacilityInfo.class, nodeInfo.getFacilityId());
+			nodeInfo.setFacilityType(FacilityConstant.TYPE_NODE);
+			nodeInfo.setDisplaySortOrder(displaySortOrder);
+			nodeInfo.setValid(valid);
+			
+			setFacilityEntityProperties(nodeInfo, nodeInfo, modifyUserId, false);
 
-			// ノードインスタンスの生成
-			NodeEntity nodeEntity = new NodeEntity(facilityEntity);
-			// 重複チェック
-			jtm.checkEntityExists(NodeEntity.class, nodeEntity.getFacilityId());
-			setNodeEntityProperties(nodeEntity, nodeInfo, false);
-
+			nodeInfo.persistSelf();
+			em.persist(nodeInfo);
+			
+			setNodeEntityProperties(nodeInfo, nodeInfo, false);
+			
+			em.flush();
+			
 			// ファシリティ関連インスタンスの生成
-			long startTime = System.currentTimeMillis();
-			assignFacilityToScope(FacilityTreeAttributeConstant.REGISTEREFD_SCOPE, facilityId);
-			m_log.info(String.format("assignFacilityToScope FacilityTreeAttributeConstant.REGISTEREFD_SCOPE: %dms", System.currentTimeMillis() - startTime));
+			long startTime = HinemosTime.currentTimeMillis();
+			assignFacilityToScope(FacilityTreeAttributeConstant.REGISTERED_SCOPE, facilityId);
+			m_log.info(String.format("assignFacilityToScope FacilityTreeAttributeConstant.REGISTEREFD_SCOPE: %dms", HinemosTime.currentTimeMillis() - startTime));
 
 			// オーナー別スコープへの登録
-			startTime = System.currentTimeMillis();
-			assignFacilityToScope(facilityEntity.getOwnerRoleId(), facilityId);
-			m_log.info(String.format("assignFacilityToScope facilityEntity.getOwnerRoleId(): %dms", System.currentTimeMillis() - startTime));
+			startTime = HinemosTime.currentTimeMillis();
+			assignFacilityToScope(nodeInfo.getOwnerRoleId(), facilityId);
+			m_log.info(String.format("assignFacilityToScope facilityEntity.getOwnerRoleId(): %dms", HinemosTime.currentTimeMillis() - startTime));
 
 			// OS別スコープへの登録
-			startTime = System.currentTimeMillis();
-			String platformFamily = nodeEntity.getPlatformFamily();
+			startTime = HinemosTime.currentTimeMillis();
+			String platformFamily = nodeInfo.getPlatformFamily();
 			assignFacilityToScope(platformFamily, facilityId);
-			m_log.info(String.format("assignFacilityToScope %s: %dms", platformFamily, System.currentTimeMillis() - startTime));
+			m_log.info(String.format("assignFacilityToScope %s: %dms", platformFamily, HinemosTime.currentTimeMillis() - startTime));
 		} catch (FacilityNotFound e) {
 			throw e;
 		} catch (EntityExistsException e) {
@@ -476,28 +469,18 @@ public class FacilityModifier {
 		m_log.debug("modifing a node...");
 
 		String facilityId = nodeInfo.getFacilityId();
-		Boolean valid = nodeInfo.isValid();
-		FacilityEntity facilityEntity = QueryUtil.getFacilityPK(facilityId, ObjectPrivilegeMode.MODIFY);
+		Boolean valid = nodeInfo.getValid();
+		NodeInfo nodeEntity = QueryUtil.getNodePK(facilityId, ObjectPrivilegeMode.MODIFY);
 		if (valid == null) {
 			HinemosUnknown e = new HinemosUnknown("node's valid is invalid . (valid = null)");
 			m_log.info("modifyNode() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		} else {
-			facilityEntity.setValid(FacilityUtil.getValid(valid));
+			nodeEntity.setValid(valid);
 		}
 
-		// ファシリティがノードかどうかを確認する
-		if (!FacilityUtil.isNode(facilityEntity)) {
-			FacilityNotFound e = new FacilityNotFound("this facility is not a node. (facilityId = " + facilityId + ")");
-			m_log.info("modifyNode() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
-		}
-		setFacilityEntityProperties(facilityEntity, nodeInfo, modifyUserId, false);
-
-		// ノードインスタンスの取得
-		NodeEntity nodeEntity = facilityEntity.getNodeEntity();
+		setFacilityEntityProperties(nodeEntity, nodeInfo, modifyUserId, false);
 
 		// 変更情報の反映
 		String oldPlatformFamily = nodeEntity.getPlatformFamily();
@@ -528,24 +511,26 @@ public class FacilityModifier {
 	 */
 	public static void deleteNode(String facilityId, String modifyUserId, boolean topicSendFlg) throws FacilityNotFound, InvalidRole {
 
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		m_log.debug("deleting a node...");
+			m_log.debug("deleting a node...");
 
-		// 該当するファシリティインスタンスを取得
-		FacilityEntity facility = QueryUtil.getFacilityPK(facilityId, ObjectPrivilegeMode.MODIFY);
+			// 該当するファシリティインスタンスを取得
+			FacilityInfo facility = QueryUtil.getFacilityPK(facilityId, ObjectPrivilegeMode.MODIFY);
 
-		// ノードでない場合はエラーとする
-		if (!FacilityUtil.isNode(facility)) {
-			FacilityNotFound e = new FacilityNotFound("this facility is not a node. (facilityId = " + facilityId + ")");
-			m_log.info("deleteNode() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
+			// ノードでない場合はエラーとする
+			if (!FacilityUtil.isNode(facility)) {
+				FacilityNotFound e = new FacilityNotFound("this facility is not a node. (facilityId = " + facilityId + ")");
+				m_log.info("deleteNode() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+
+			em.remove(facility);
+			FacilityModifierUtil.deleteFacilityRelation(facilityId);
+			m_log.info("deleteNode() successful in deleting a node. (facilityId = " + facilityId + ")");
 		}
-
-		em.remove(facility);
-
-		m_log.info("deleteNode() successful in deleting a node. (facilityId = " + facilityId + ")");
 	}
 
 	/**
@@ -570,9 +555,10 @@ public class FacilityModifier {
 	public static void assignFacilitiesToScope(String scopeFacilityId, String[] facilityIds) throws FacilityNotFound {
 		m_log.debug("assigning facilities to a scope...");
 
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			// スコープのファシリティインスタンスの取得
-			FacilityEntity scope = QueryUtil.getFacilityPK_NONE(scopeFacilityId);
+			FacilityInfo scope = QueryUtil.getFacilityPK_NONE(scopeFacilityId);
 			scope.tranSetUncheckFlg(true);
 
 			if (!FacilityUtil.isScope(scope)) {
@@ -586,7 +572,8 @@ public class FacilityModifier {
 				if (doesFacilityRelationEntityExist(scopeFacilityId, facilityId)) {
 					m_log.info("assignFacilitiesToScope() skipped assinging a facility to a scope. (parentFacilityId = " + scopeFacilityId + ", facilityId = " + facilityId + ")");
 				} else {
-					new FacilityRelationEntity(scopeFacilityId, facilityId);
+					FacilityRelationEntity relation = new FacilityRelationEntity(scopeFacilityId, facilityId);
+					em.persist(relation);
 					m_log.info("assignFacilitiesToScope() successful in assinging a facility to a scope. (parentFacilityId = " + scopeFacilityId + ", facilityId = " + facilityId + ")");
 				}
 			}
@@ -615,34 +602,36 @@ public class FacilityModifier {
 	 */
 	public static void releaseNodeFromScope(String parentFacilityId, String[] facilityIds, String modifyUserId, boolean topicSendFlg)
 			throws FacilityNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		/** ローカル変数 */
-		FacilityEntity facility = null;
-		String facilityId = null;
+			/** ローカル変数 */
+			FacilityInfo facility = null;
+			String facilityId = null;
 
-		/** メイン処理 */
-		m_log.debug("releasing nodes from a scope...");
+			/** メイン処理 */
+			m_log.debug("releasing nodes from a scope...");
 
-		// 該当するファシリティインスタンスを取得
-		facility = QueryUtil.getFacilityPK(parentFacilityId);
+			// 該当するファシリティインスタンスを取得
+			facility = QueryUtil.getFacilityPK(parentFacilityId);
 
-		if (!FacilityUtil.isScope(facility)) {
-			FacilityNotFound e = new FacilityNotFound("parent's facility is not a scope. (parentFacilityId = " + parentFacilityId + ")");
-			m_log.info("releaseNodeFromScope() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
+			if (!FacilityUtil.isScope(facility)) {
+				FacilityNotFound e = new FacilityNotFound("parent's facility is not a scope. (parentFacilityId = " + parentFacilityId + ")");
+				m_log.info("releaseNodeFromScope() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+
+			for (int i = 0; i < facilityIds.length; i++) {
+				facilityId = facilityIds[i];
+				FacilityRelationEntity relation
+				= QueryUtil.getFacilityRelationPk(parentFacilityId, facilityId);
+				em.remove(relation);
+				m_log.info("releaseNodeFromScope() successful in releaseing a node. (parentFacilityId = " + parentFacilityId + ", facilityId = " + facilityId + ")");
+			}
+
+			m_log.info("releaseNodeFromScope() successful in releasing nodes from a scope.");
 		}
-
-		for (int i = 0; i < facilityIds.length; i++) {
-			facilityId = facilityIds[i];
-			FacilityRelationEntity relation
-			= QueryUtil.getFacilityRelationPk(parentFacilityId, facilityId);
-			em.remove(relation);
-			m_log.info("releaseNodeFromScope() successful in releaseing a node. (parentFacilityId = " + parentFacilityId + ", facilityId = " + facilityId + ")");
-		}
-
-		m_log.info("releaseNodeFromScope() successful in releasing nodes from a scope.");
 	}
 
 	/**
@@ -654,15 +643,14 @@ public class FacilityModifier {
 	 * @param skipIfEmptyFlg trueにすると、Propertyインスタンスの各格納値がnullあるいは空文字の場合に格納しない
 	 * @throws FacilityNotFound
 	 */
-	private static void setFacilityEntityProperties(FacilityEntity facilityEntity, FacilityInfo facilityInfo, String modifyUserId, boolean skipIfEmptyFlg) throws FacilityNotFound {
+	private static void setFacilityEntityProperties(FacilityInfo facilityEntity, FacilityInfo facilityInfo, String modifyUserId, boolean skipIfEmptyFlg) throws FacilityNotFound {
 		/** ローカル変数 */
 		String facilityName = null;
 		String description = null;
-		Timestamp now = null;
 
 		/** メイン処理 */
 		// 現在日時を取得
-		now = new Timestamp(new Date().getTime());
+		long now = HinemosTime.currentTimeMillis();
 
 		if (FacilityUtil.isScope(facilityEntity)) {
 			// 入力値（ファシリティ名）の格納
@@ -712,12 +700,12 @@ public class FacilityModifier {
 	 * @throws EntityExistsException
 	 * @throws HinemosUnknown
 	 */
-	private static void setNodeEntityProperties(NodeEntity nodeEntity, NodeInfo nodeInfo, boolean skipIfEmptyFlg) throws EntityExistsException, HinemosUnknown {
+	private static void setNodeEntityProperties(NodeInfo nodeEntity, NodeInfo nodeInfo, boolean skipIfEmptyFlg) throws EntityExistsException, HinemosUnknown {
 		m_log.debug("setNodeEntityProperties() : facilityId = " + nodeInfo.getFacilityId());
 
 		/** ローカル変数 */
 		// オートデバイスサーチ
-		Integer autoDeviceSearch = ValidConstant.TYPE_VALID;
+		Boolean autoDeviceSearch = true;
 
 		// HW
 		String platformFamily = null;
@@ -749,7 +737,7 @@ public class FacilityModifier {
 		String snmpPrivPassword = null;
 		Integer snmpPort = null;
 		String snmpCommunity = null;
-		String snmpVersion = null;
+		Integer snmpVersion = null;
 		String snmpSecurityLevel = null;
 		String snmpAuthProtocol = null;
 		String snmpPrivProtocol = null;
@@ -809,8 +797,8 @@ public class FacilityModifier {
 		String contact = null;
 
 		/** メイン処理 */
-		if (nodeInfo.isAutoDeviceSearch() != null && nodeInfo.isAutoDeviceSearch() == false) {
-			autoDeviceSearch = ValidConstant.TYPE_INVALID;
+		if (nodeInfo.getAutoDeviceSearch() != null && !nodeInfo.getAutoDeviceSearch()) {
+			autoDeviceSearch = false;
 		}
 		nodeEntity.setAutoDeviceSearch(autoDeviceSearch);
 
@@ -846,16 +834,17 @@ public class FacilityModifier {
 
 		// ホスト名(複数項目)
 		if (! skipIfEmptyFlg) {
-			List<NodeHostnameEntityPK> nodeHostnameEntityPkList = new ArrayList<NodeHostnameEntityPK>();
+			List<NodeHostnameInfoPK> nodeHostnameEntityPkList = new ArrayList<NodeHostnameInfoPK>();
 
 			if (nodeInfo.getNodeHostnameInfo() != null) {
 				for (NodeHostnameInfo hostname : nodeInfo.getNodeHostnameInfo()) {
-					NodeHostnameEntityPK entityPk = new NodeHostnameEntityPK(nodeEntity.getFacilityId(), hostname.getHostname());
+					NodeHostnameInfoPK entityPk = new NodeHostnameInfoPK(nodeEntity.getFacilityId(), hostname.getHostname());
 					try {
 						QueryUtil.getNodeHostnamePK(entityPk);
 					} catch (FacilityNotFound e) {
 						// 新規登録
-						new NodeHostnameEntity(nodeEntity, hostname.getHostname());
+						NodeHostnameInfo node = new NodeHostnameInfo(nodeEntity.getFacilityId(), hostname.getHostname());
+						node.relateToNodeEntity(nodeEntity);
 					}
 					nodeHostnameEntityPkList.add(entityPk);
 				}
@@ -924,7 +913,7 @@ public class FacilityModifier {
 			nodeEntity.setSnmpCommunity(snmpCommunity);
 		}
 		snmpVersion = nodeInfo.getSnmpVersion();
-		if (! (skipIfEmptyFlg && ObjectValidator.isEmptyString(snmpVersion))) {
+		if (! (skipIfEmptyFlg && snmpVersion == -1)) {
 			nodeEntity.setSnmpVersion(snmpVersion);
 		}
 		snmpSecurityLevel = nodeInfo.getSnmpSecurityLevel();
@@ -997,7 +986,7 @@ public class FacilityModifier {
 		}
 		ipmiRetries = nodeInfo.getIpmiRetries();
 		if (! (skipIfEmptyFlg && ipmiRetries == -1)) {
-			nodeEntity.setIpmiRetryCount(ipmiRetries);
+			nodeEntity.setIpmiRetries(ipmiRetries);
 		}
 		ipmiProtocol = nodeInfo.getIpmiProtocol();
 		if (! (skipIfEmptyFlg && ObjectValidator.isEmptyString(ipmiProtocol))) {
@@ -1035,7 +1024,7 @@ public class FacilityModifier {
 		}
 		winrmRetries = nodeInfo.getWinrmRetries();
 		if (! (skipIfEmptyFlg && winrmRetries == -1)) {
-			nodeEntity.setWinrmRetryCount(winrmRetries);
+			nodeEntity.setWinrmRetries(winrmRetries);
 		}
 		
 		// SSH関連
@@ -1067,7 +1056,7 @@ public class FacilityModifier {
 		// デバイス関連
 		// 汎用デバイス関連
 		if (! skipIfEmptyFlg) {
-			List<NodeDeviceEntityPK> nodeDeviceEntityPkList = new ArrayList<NodeDeviceEntityPK>();
+			List<NodeDeviceInfoPK> nodeDeviceEntityPkList = new ArrayList<NodeDeviceInfoPK>();
 			if (nodeInfo.getNodeDeviceInfo() != null) {
 				for (NodeDeviceInfo deviceProperty : nodeInfo.getNodeDeviceInfo()) {
 					if(deviceProperty != null){
@@ -1075,17 +1064,18 @@ public class FacilityModifier {
 						if (deviceProperty.getDeviceIndex() != -1
 								&& ! ObjectValidator.isEmptyString(deviceProperty.getDeviceType())
 								&& ! ObjectValidator.isEmptyString(deviceProperty.getDeviceName())) {
-							NodeDeviceEntityPK entityPk
-							= new NodeDeviceEntityPK(nodeEntity.getFacilityId(),
+							NodeDeviceInfoPK entityPk
+							= new NodeDeviceInfoPK(nodeEntity.getFacilityId(),
 									deviceProperty.getDeviceIndex(),
 									deviceProperty.getDeviceType(),
 									deviceProperty.getDeviceName());
-							NodeDeviceEntity entity = null;
+							NodeGeneralDeviceInfo entity = null;
 							try {
 								entity = QueryUtil.getNodeDeviceEntityPK(entityPk);
 							} catch (FacilityNotFound e) {
 								// 新規登録
-								entity = new NodeDeviceEntity(entityPk, nodeEntity);
+								entity = new NodeGeneralDeviceInfo(entityPk);
+								entity.relateToNodeEntity(nodeEntity);
 							}
 							entity.setDeviceDisplayName(deviceProperty.getDeviceDisplayName());
 							entity.setDeviceSize(deviceProperty.getDeviceSize());
@@ -1108,7 +1098,7 @@ public class FacilityModifier {
 
 		// CPUデバイス関連
 		if (! skipIfEmptyFlg) {
-			List<NodeCpuEntityPK> nodeCpuEntityPkList = new ArrayList<NodeCpuEntityPK>();
+			List<NodeDeviceInfoPK> nodeCpuEntityPkList = new ArrayList<NodeDeviceInfoPK>();
 
 			if (nodeInfo.getNodeCpuInfo() != null) {
 				for (NodeCpuInfo cpuProperty : nodeInfo.getNodeCpuInfo()) {
@@ -1117,17 +1107,18 @@ public class FacilityModifier {
 						if (cpuProperty.getDeviceIndex() != -1
 								&& ! ObjectValidator.isEmptyString(cpuProperty.getDeviceType())
 								&& ! ObjectValidator.isEmptyString(cpuProperty.getDeviceName())) {
-							NodeCpuEntityPK entityPk
-							= new NodeCpuEntityPK(nodeEntity.getFacilityId(),
+							NodeDeviceInfoPK entityPk
+							= new NodeDeviceInfoPK(nodeEntity.getFacilityId(),
 									cpuProperty.getDeviceIndex(),
 									cpuProperty.getDeviceType(),
 									cpuProperty.getDeviceName());
-							NodeCpuEntity entity = null;
+							NodeCpuInfo entity = null;
 							try {
 								entity = QueryUtil.getNodeCpuEntityPK(entityPk);
 							} catch (FacilityNotFound e) {
 								// 新規登録
-								entity = new NodeCpuEntity(entityPk, nodeEntity);
+								entity = new NodeCpuInfo(entityPk);
+								entity.relateToNodeEntity(nodeEntity);
 							}
 							entity.setDeviceDisplayName(cpuProperty.getDeviceDisplayName());
 							entity.setDeviceSize(cpuProperty.getDeviceSize());
@@ -1150,7 +1141,7 @@ public class FacilityModifier {
 
 		// MEMデバイス関連
 		if (!skipIfEmptyFlg) {
-			List<NodeMemoryEntityPK> nodeMemoryEntityPkList = new ArrayList<NodeMemoryEntityPK>();
+			List<NodeDeviceInfoPK> nodeMemoryEntityPkList = new ArrayList<NodeDeviceInfoPK>();
 
 			if (nodeInfo.getNodeMemoryInfo() != null) {
 				for (NodeMemoryInfo memoryProperty : nodeInfo.getNodeMemoryInfo()) {
@@ -1159,17 +1150,18 @@ public class FacilityModifier {
 						if (memoryProperty.getDeviceIndex() != -1
 								&& ! ObjectValidator.isEmptyString(memoryProperty.getDeviceType())
 								&& ! ObjectValidator.isEmptyString(memoryProperty.getDeviceName())) {
-							NodeMemoryEntityPK entityPk
-							= new NodeMemoryEntityPK(nodeEntity.getFacilityId(),
+							NodeDeviceInfoPK entityPk
+							= new NodeDeviceInfoPK(nodeEntity.getFacilityId(),
 									memoryProperty.getDeviceIndex(),
 									memoryProperty.getDeviceType(),
 									memoryProperty.getDeviceName());
-							NodeMemoryEntity entity = null;
+							NodeMemoryInfo entity = null;
 							try {
 								entity = QueryUtil.getNodeMemoryEntityPK(entityPk);
 							} catch (FacilityNotFound e) {
 								// 新規登録
-								entity = new NodeMemoryEntity(entityPk, nodeEntity);
+								entity = new NodeMemoryInfo(entityPk);
+								entity.relateToNodeEntity(nodeEntity);
 							}
 							entity.setDeviceDisplayName(memoryProperty.getDeviceDisplayName());
 							entity.setDeviceSize(memoryProperty.getDeviceSize());
@@ -1192,7 +1184,7 @@ public class FacilityModifier {
 
 		// NICデバイス関連
 		if (! skipIfEmptyFlg) {
-			List<NodeNetworkInterfaceEntityPK> nodeNetworkInterfaceEntityPkList = new ArrayList<NodeNetworkInterfaceEntityPK>();
+			List<NodeDeviceInfoPK> nodeNetworkInterfaceEntityPkList = new ArrayList<NodeDeviceInfoPK>();
 
 			if (nodeInfo.getNodeNetworkInterfaceInfo() != null) {
 				for (NodeNetworkInterfaceInfo nicProperty : nodeInfo.getNodeNetworkInterfaceInfo()) {
@@ -1201,24 +1193,25 @@ public class FacilityModifier {
 						if (nicProperty.getDeviceIndex() != -1
 								&& ! ObjectValidator.isEmptyString(nicProperty.getDeviceType())
 								&& ! ObjectValidator.isEmptyString(nicProperty.getDeviceName())) {
-							NodeNetworkInterfaceEntityPK entityPk
-							= new NodeNetworkInterfaceEntityPK(nodeEntity.getFacilityId(),
+							NodeDeviceInfoPK entityPk
+							= new NodeDeviceInfoPK(nodeEntity.getFacilityId(),
 									nicProperty.getDeviceIndex(),
 									nicProperty.getDeviceType(),
 									nicProperty.getDeviceName());
-							NodeNetworkInterfaceEntity entity = null;
+							NodeNetworkInterfaceInfo entity = null;
 							try {
 								entity = QueryUtil.getNodeNetworkInterfaceEntityPK(entityPk);
 							} catch (FacilityNotFound e) {
 								// 新規登録
-								entity = new NodeNetworkInterfaceEntity(entityPk, nodeEntity);
+								entity = new NodeNetworkInterfaceInfo(entityPk);
+								entity.relateToNodeEntity(nodeEntity);
 							}
 							entity.setDeviceDisplayName(nicProperty.getDeviceDisplayName());
 							entity.setDeviceSize(nicProperty.getDeviceSize());
 							entity.setDeviceSizeUnit(nicProperty.getDeviceSizeUnit());
 							entity.setDeviceDescription(nicProperty.getDeviceDescription());
-							entity.setDeviceNicIpAddress(nicProperty.getNicIpAddress());
-							entity.setDeviceNicMacAddress(nicProperty.getNicMacAddress());
+							entity.setNicIpAddress(nicProperty.getNicIpAddress());
+							entity.setNicMacAddress(nicProperty.getNicMacAddress());
 							nodeNetworkInterfaceEntityPkList.add(entityPk);
 						} else {
 							HinemosUnknown e = new HinemosUnknown("both type and index of nic are required. " +
@@ -1236,7 +1229,7 @@ public class FacilityModifier {
 
 		// DISKデバイス関連
 		if (! skipIfEmptyFlg) {
-			List<NodeDiskEntityPK> nodeDiskEntityPkList = new ArrayList<NodeDiskEntityPK>();
+			List<NodeDeviceInfoPK> nodeDiskEntityPkList = new ArrayList<NodeDeviceInfoPK>();
 
 			if (nodeInfo.getNodeDiskInfo() != null) {
 				for (NodeDiskInfo diskProperty : nodeInfo.getNodeDiskInfo()) {
@@ -1245,23 +1238,24 @@ public class FacilityModifier {
 						if (diskProperty.getDeviceIndex() != -1
 								&& ! ObjectValidator.isEmptyString(diskProperty.getDeviceType())
 								&& ! ObjectValidator.isEmptyString(diskProperty.getDeviceName())) {
-							NodeDiskEntityPK entityPk
-							= new NodeDiskEntityPK(nodeEntity.getFacilityId(),
+							NodeDeviceInfoPK entityPk
+							= new NodeDeviceInfoPK(nodeEntity.getFacilityId(),
 									diskProperty.getDeviceIndex(),
 									diskProperty.getDeviceType(),
 									diskProperty.getDeviceName());
-							NodeDiskEntity entity = null;
+							NodeDiskInfo entity = null;
 							try {
 								entity = QueryUtil.getNodeDiskEntityPK(entityPk);
 							} catch (FacilityNotFound e) {
 								// 新規登録
-								entity = new NodeDiskEntity(entityPk, nodeEntity);
+								entity = new NodeDiskInfo(entityPk);
+								entity.relateToNodeEntity(nodeEntity);
 							}
 							entity.setDeviceDisplayName(diskProperty.getDeviceDisplayName());
 							entity.setDeviceSize(diskProperty.getDeviceSize());
 							entity.setDeviceSizeUnit(diskProperty.getDeviceSizeUnit());
 							entity.setDeviceDescription(diskProperty.getDeviceDescription());
-							entity.setDeviceDiskRpm(diskProperty.getDiskRpm());
+							entity.setDiskRpm(diskProperty.getDiskRpm());
 							nodeDiskEntityPkList.add(entityPk);
 						} else {
 							HinemosUnknown e = new HinemosUnknown("both type and index of disk are required. " +
@@ -1279,7 +1273,7 @@ public class FacilityModifier {
 
 		// ファイルシステム関連
 		if (! skipIfEmptyFlg) {
-			List<NodeFilesystemEntityPK> nodeFilesystemEntityPkList = new ArrayList<NodeFilesystemEntityPK>();
+			List<NodeDeviceInfoPK> nodeFilesystemEntityPkList = new ArrayList<NodeDeviceInfoPK>();
 
 			if (nodeInfo.getNodeFilesystemInfo() != null) {
 				for (NodeFilesystemInfo filesystemProperty : nodeInfo.getNodeFilesystemInfo()) {
@@ -1288,23 +1282,24 @@ public class FacilityModifier {
 						if (filesystemProperty.getDeviceIndex() != -1
 								&& ! ObjectValidator.isEmptyString(filesystemProperty.getDeviceType())
 								&& ! ObjectValidator.isEmptyString(filesystemProperty.getDeviceName())) {
-							NodeFilesystemEntityPK entityPk
-							= new NodeFilesystemEntityPK(nodeEntity.getFacilityId(),
+							NodeDeviceInfoPK entityPk
+							= new NodeDeviceInfoPK(nodeEntity.getFacilityId(),
 									filesystemProperty.getDeviceIndex(),
 									filesystemProperty.getDeviceType(),
 									filesystemProperty.getDeviceName());
-							NodeFilesystemEntity entity = null;
+							NodeFilesystemInfo entity = null;
 							try {
 								entity = QueryUtil.getFilesystemDiskEntityPK(entityPk);
 							} catch (FacilityNotFound e) {
 								// 新規登録
-								entity = new NodeFilesystemEntity(entityPk, nodeEntity);
+								entity = new NodeFilesystemInfo(entityPk);
+								entity.relateToNodeEntity(nodeEntity);
 							}
 							entity.setDeviceDisplayName(filesystemProperty.getDeviceDisplayName());
 							entity.setDeviceSize(filesystemProperty.getDeviceSize());
 							entity.setDeviceSizeUnit(filesystemProperty.getDeviceSizeUnit());
 							entity.setDeviceDescription(filesystemProperty.getDeviceDescription());
-							entity.setDeviceFilesystemType(filesystemProperty.getFilesystemType());
+							entity.setFilesystemType(filesystemProperty.getFilesystemType());
 							nodeFilesystemEntityPkList.add(entityPk);
 						} else {
 							HinemosUnknown e = new HinemosUnknown("both type and index of filesystem are required. " +
@@ -1353,18 +1348,19 @@ public class FacilityModifier {
 
 		// ノード変数
 		if (! skipIfEmptyFlg) {
-			List<NodeVariableEntityPK> nodeVariableEntityPkList = new ArrayList<NodeVariableEntityPK>();
+			List<NodeVariableInfoPK> nodeVariableEntityPkList = new ArrayList<NodeVariableInfoPK>();
 
 			if (nodeInfo.getNodeVariableInfo() != null) {
 				for (NodeVariableInfo variable : nodeInfo.getNodeVariableInfo()) {
 					if (variable != null) {
-						NodeVariableEntityPK entityPk = new NodeVariableEntityPK(nodeEntity.getFacilityId(), variable.getNodeVariableName());
-						NodeVariableEntity entity = null;
+						NodeVariableInfoPK entityPk = new NodeVariableInfoPK(nodeEntity.getFacilityId(), variable.getNodeVariableName());
+						NodeVariableInfo entity = null;
 						try {
 							entity = QueryUtil.getNodeVariableEntityPK(entityPk);
 						} catch (FacilityNotFound e) {
 							// 新規登録
-							entity = new NodeVariableEntity(nodeEntity, variable.getNodeVariableName());
+							entity = new NodeVariableInfo(nodeEntity.getFacilityId(), variable.getNodeVariableName());
+							entity.relateToNodeEntity(nodeEntity);
 						}
 						entity.setNodeVariableValue(variable.getNodeVariableValue());
 						nodeVariableEntityPkList.add(entityPk);
@@ -1387,18 +1383,19 @@ public class FacilityModifier {
 
 		// 備考
 		if (! skipIfEmptyFlg) {
-			List<NodeNoteEntityPK> nodeNoteEntityPkList = new ArrayList<NodeNoteEntityPK>();
+			List<NodeNoteInfoPK> nodeNoteEntityPkList = new ArrayList<NodeNoteInfoPK>();
 
 			if (nodeInfo.getNodeNoteInfo() != null) {
 				for (NodeNoteInfo note : nodeInfo.getNodeNoteInfo()) {
 					if(note != null){
-						NodeNoteEntity entity = null;
-						NodeNoteEntityPK entityPk = new NodeNoteEntityPK(nodeEntity.getFacilityId(), note.getNoteId());
+						NodeNoteInfo entity = null;
+						NodeNoteInfoPK entityPk = new NodeNoteInfoPK(nodeEntity.getFacilityId(), note.getNoteId());
 						try {
 							entity = QueryUtil.getNodeNoteEntityPK(entityPk);
 						} catch (FacilityNotFound e) {
 							// 新規登録
-							entity = new NodeNoteEntity(entityPk, nodeEntity);
+							entity = new NodeNoteInfo(entityPk.getFacilityId(), entityPk.getNoteId());
+							entity.relateToNodeEntity(nodeEntity);
 						}
 						entity.setNote(note.getNote());
 						nodeNoteEntityPkList.add(entityPk);

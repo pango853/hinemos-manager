@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2007 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.maintenance.session;
@@ -33,12 +26,10 @@ import com.clustercontrol.fault.MaintenanceDuplicate;
 import com.clustercontrol.fault.MaintenanceNotFound;
 import com.clustercontrol.fault.NotifyNotFound;
 import com.clustercontrol.fault.ObjectPrivilege_InvalidRole;
-import com.clustercontrol.maintenance.bean.HinemosPropertyInfo;
-import com.clustercontrol.maintenance.factory.AddHinemosProperty;
 import com.clustercontrol.maintenance.factory.HinemosPropertyInfoCache;
-import com.clustercontrol.maintenance.factory.DeleteHinemosProperty;
 import com.clustercontrol.maintenance.factory.ModifyHinemosProperty;
 import com.clustercontrol.maintenance.factory.SelectHinemosPropertyInfo;
+import com.clustercontrol.maintenance.model.HinemosPropertyInfo;
 import com.clustercontrol.maintenance.util.HinemosPropertyValidator;
 import com.clustercontrol.notify.util.NotifyRelationCache;
 
@@ -75,34 +66,34 @@ public class HinemosPropertyControllerBean {
 			HinemosPropertyValidator.validateHinemosPropertyInfo(info);
 
 			// 共通設定情報を登録
-			AddHinemosProperty add = new AddHinemosProperty();
-			add.addHinemosProperty(info, loginUser);
+			ModifyHinemosProperty property = new ModifyHinemosProperty();
+			property.addHinemosProperty(info, loginUser);
 
 			jtm.commit();
 			HinemosPropertyInfoCache.refresh();
 
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (HinemosUnknown | InvalidSetting | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosPropertyDuplicate(e.getMessage(), e);
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("addHinemosProperty() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -130,35 +121,31 @@ public class HinemosPropertyControllerBean {
 			HinemosPropertyValidator.validateHinemosPropertyInfo(info);
 
 			// 共通設定情報を登録
-			ModifyHinemosProperty modify = new ModifyHinemosProperty();
-			modify.modifyHinemosProperty(info, loginUser);
+			ModifyHinemosProperty property = new ModifyHinemosProperty();
+			property.modifyHinemosProperty(info, loginUser);
 
 			jtm.commit();
 
 			HinemosPropertyInfoCache.refresh();
 
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosPropertyNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (InvalidSetting | HinemosPropertyNotFound | InvalidRole | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("modifyHinemosProperty() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -180,8 +167,8 @@ public class HinemosPropertyControllerBean {
 			jtm.begin();
 
 			// 共通設定情報を削除
-			DeleteHinemosProperty delete = new DeleteHinemosProperty();
-			delete.deleteHinemosProperty(key);
+			ModifyHinemosProperty property = new ModifyHinemosProperty();
+			property.deleteHinemosProperty(key);
 
 			jtm.commit();
 
@@ -190,25 +177,24 @@ public class HinemosPropertyControllerBean {
 			// コミット後にキャッシュクリア
 			NotifyRelationCache.refresh();
 
-		} catch (HinemosPropertyNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (HinemosPropertyNotFound | InvalidRole | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("deleteHinemosProperty() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -234,19 +220,20 @@ public class HinemosPropertyControllerBean {
 			jtm.begin();
 			info = select.getHinemosPropertyInfo(key);
 			jtm.commit();
-		} catch (HinemosPropertyNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (HinemosPropertyNotFound | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("getHinemosPropertyInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return info;
 	}
@@ -284,15 +271,18 @@ public class HinemosPropertyControllerBean {
 			list = select.getHinemosPropertyInfoList();
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getHinemosPropertyList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return list;

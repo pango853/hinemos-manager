@@ -1,39 +1,26 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.http.util;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.http.bean.HttpScenarioCheckInfo;
-import com.clustercontrol.http.bean.Page;
-import com.clustercontrol.http.bean.Pattern;
-import com.clustercontrol.http.bean.Variable;
-import com.clustercontrol.http.model.MonitorHttpScenarioInfoEntity;
-import com.clustercontrol.http.model.MonitorHttpScenarioPageInfoEntity;
-import com.clustercontrol.http.model.MonitorHttpScenarioPatternInfoEntity;
-import com.clustercontrol.http.model.MonitorHttpScenarioVariableInfoEntity;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
+import com.clustercontrol.http.model.HttpScenarioCheckInfo;
+import com.clustercontrol.http.model.Page;
+import com.clustercontrol.http.model.Pattern;
+import com.clustercontrol.http.model.Variable;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 
 /**
  * HTTP監視(シナリオ)判定情報を管理するクラス<BR>
@@ -72,63 +59,9 @@ public class ControlHttpScenarioInfo {
 	 */
 	public HttpScenarioCheckInfo get() throws MonitorNotFound {
 		// HTTP監視情報を取得
-		MonitorHttpScenarioInfoEntity entity = QueryUtil.getMonitorHttpScenarioInfoPK(m_monitorId);
-
-		HttpScenarioCheckInfo http = new HttpScenarioCheckInfo();
-		http.setMonitorId(m_monitorId);
-		http.setMonitorTypeId(m_monitorTypeId);
-		http.setAuthType(entity.getAuthType());
-		http.setAuthUser(entity.getAuthUser());
-		http.setAuthPassword(entity.getAuthPassword());
-		http.setProxyFlg(ValidConstant.typeToBoolean(entity.getProxyFlg()));
-		http.setProxyUrl(entity.getProxyUrl());
-		http.setProxyPort(entity.getProxyPort());
-		http.setProxyUser(entity.getProxyUser());
-		http.setProxyPassword(entity.getProxyPassword());
-		http.setMonitoringPerPageFlg(ValidConstant.typeToBoolean(entity.getMonitoringPerPageFlg()));
-		http.setUserAgent(entity.getUserAgent());
-		http.setConnectTimeout(entity.getConnectTimeout());
-		http.setRequestTimeout(entity.getRequestTimeout());
-
-		Page[] pages = new Page[entity.getMonitorHttpScenarioPageInfoEntities().size()];
-		for (MonitorHttpScenarioPageInfoEntity pageEntity: entity.getMonitorHttpScenarioPageInfoEntities()) {
-			Integer order = pageEntity.getId().getPageOrderNo().intValue();
-
-			Page page = new Page();
-			page.setUrl(pageEntity.getUrl());
-			page.setDescription(pageEntity.getDescription());
-			page.setStatusCode(pageEntity.getStatusCode());
-			page.setPost(pageEntity.getPost());
-			page.setPriority(pageEntity.getPriority());
-			page.setMessage(pageEntity.getMessage());
-
-			com.clustercontrol.http.bean.Pattern[] patterns = new com.clustercontrol.http.bean.Pattern[pageEntity.getMonitorHttpScenarioPatternInfoEntities().size()];
-			for (MonitorHttpScenarioPatternInfoEntity patternEntity: pageEntity.getMonitorHttpScenarioPatternInfoEntities()) {
-				com.clustercontrol.http.bean.Pattern p = new com.clustercontrol.http.bean.Pattern();
-				p.setPattern(patternEntity.getPattern());
-				p.setDescription(patternEntity.getDescription());
-				p.setCaseSensitivityFlg(ValidConstant.typeToBoolean(patternEntity.getCaseSensitivityFlg()));
-				p.setProcessType(patternEntity.getProcessType());
-				p.setValidFlg(ValidConstant.typeToBoolean(patternEntity.getValidFlg()));
-				patterns[patternEntity.getId().getPatternOrderNo()] = p;
-			}
-			page.setPatterns(Arrays.asList(patterns));
-
-			List<com.clustercontrol.http.bean.Variable> variables = new ArrayList<com.clustercontrol.http.bean.Variable>();
-			for (MonitorHttpScenarioVariableInfoEntity variableEntity: pageEntity.getMonitorHttpScenarioVariableInfoEntities()) {
-				com.clustercontrol.http.bean.Variable v = new com.clustercontrol.http.bean.Variable();
-				v.setName(variableEntity.getId().getName());
-				v.setMatchingWithResponseFlg(ValidConstant.typeToBoolean(variableEntity.getMatchingWithResponseFlg()));
-				v.setValue(variableEntity.getValue());
-				variables.add(v);
-			}
-			page.setVariables(variables);
-
-			pages[order] = page;
-		}
-		http.setPages(Arrays.asList(pages));
-
-		return http;
+		HttpScenarioCheckInfo check = QueryUtil.getMonitorHttpScenarioInfoPK(m_monitorId);
+		check.setMonitorTypeId(m_monitorTypeId);
+		return check;
 	}
 
 	/**
@@ -143,65 +76,39 @@ public class ControlHttpScenarioInfo {
 	 */
 	public boolean add(HttpScenarioCheckInfo http) throws MonitorNotFound, InvalidRole {
 
-		MonitorInfoEntity monitorEntity = com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK(m_monitorId);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			MonitorInfo monitorInfo = com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK(m_monitorId);
+			em.persist(http);
+			http.relateToMonitorInfo(monitorInfo);
+			
+			for (int i = 0; i < http.getPages().size(); ++i) {
+				Page page = http.getPages().get(i);
+				page.setMonitorId(m_monitorId);
+				page.setPageOrderNo(i);
+				em.persist(page);
+				page.relateToMonitorHttpScenarioInfoEntity(http);
 
-		// HTTP監視情報を追加
-		MonitorHttpScenarioInfoEntity entity = new MonitorHttpScenarioInfoEntity(monitorEntity);
-		entity.setAuthType(http.getAuthType());
-		entity.setAuthUser(http.getAuthUser());
-		entity.setAuthPassword(http.getAuthPassword());
-		entity.setProxyFlg(ValidConstant.booleanToType(http.getProxyFlg()));
-		entity.setProxyUrl(http.getProxyUrl());
-		entity.setProxyPort(http.getProxyPort());
-		entity.setProxyUser(http.getProxyUser());
-		entity.setProxyPassword(http.getProxyPassword());
-		entity.setMonitoringPerPageFlg(ValidConstant.booleanToType(http.getMonitoringPerPageFlg()));
-		entity.setUserAgent(http.getUserAgent());
-		entity.setConnectTimeout(http.getConnectTimeout());
-		entity.setRequestTimeout(http.getRequestTimeout());
+				for (int j = 0; j < page.getPatterns().size(); ++j) {
+					Pattern p = page.getPatterns().get(j);
+					p.setMonitorId(m_monitorId);
+					p.setPageOrderNo(i);
+					p.setPatternOrderNo(j);
+					em.persist(p);
+					p.relateToMonitorHttpScenarioPageInfoEntity(page);
+				}
 
-		int pageOrderNo = 0;
-		List<MonitorHttpScenarioPageInfoEntity> pageEntities = new ArrayList<MonitorHttpScenarioPageInfoEntity>();
-		for (com.clustercontrol.http.bean.Page page: http.getPages()) {
-			MonitorHttpScenarioPageInfoEntity pageEntity = new MonitorHttpScenarioPageInfoEntity(entity, pageOrderNo);
-			pageEntity.setUrl(page.getUrl());
-			pageEntity.setDescription(page.getDescription());
-			pageEntity.setStatusCode(page.getStatusCode());
-			pageEntity.setPost(page.getPost());
-			pageEntity.setPriority(page.getPriority());
-			pageEntity.setMessage(page.getMessage());
-
-			int patternOrderNo = 0;
-			List<MonitorHttpScenarioPatternInfoEntity> patternEntities = new ArrayList<MonitorHttpScenarioPatternInfoEntity>();
-			for (com.clustercontrol.http.bean.Pattern p: page.getPatterns()) {
-				MonitorHttpScenarioPatternInfoEntity patternEntity = new MonitorHttpScenarioPatternInfoEntity(pageEntity, patternOrderNo);
-				patternEntity.setPattern(p.getPattern());
-				patternEntity.setDescription(p.getDescription());
-				patternEntity.setCaseSensitivityFlg(ValidConstant.booleanToType(p.getCaseSensitivityFlg()));
-				patternEntity.setProcessType(p.getProcessType());
-				patternEntity.setValidFlg(ValidConstant.booleanToType(p.getValidFlg()));
-				patternEntities.add(patternEntity);
-
-				patternOrderNo++;
+				for (int k = 0; k < page.getVariables().size(); ++k) {
+					Variable v = page.getVariables().get(k);
+					v.setMonitorId(m_monitorId);
+					v.setPageOrderNo(i);
+					em.persist(v);
+					v.relateToMonitorHttpScenarioPageInfoEntity(page);
+				}
 			}
-			pageEntity.setMonitorHttpScenarioPatternInfoEntities(patternEntities);
 
-			List<MonitorHttpScenarioVariableInfoEntity> variableEntities = new ArrayList<MonitorHttpScenarioVariableInfoEntity>();
-			for (Variable v: page.getVariables()) {
-				MonitorHttpScenarioVariableInfoEntity variableEntity = new MonitorHttpScenarioVariableInfoEntity(pageEntity, v.getName());
-				variableEntity.setMatchingWithResponseFlg(ValidConstant.booleanToType(v.getMatchingWithResponseFlg()));
-				variableEntity.setValue(v.getValue());
-				variableEntities.add(variableEntity);
-			}
-			pageEntity.setMonitorHttpScenarioVariableInfoEntities(variableEntities);
-
-			pageEntities.add(pageEntity);
-
-			pageOrderNo++;
+			return true;
 		}
-		entity.setMonitorHttpScenarioPageInfoEntities(pageEntities);
-
-		return true;
 	}
 
 	/**
@@ -215,158 +122,185 @@ public class ControlHttpScenarioInfo {
 	 * @since 2.1.0
 	 */
 	public boolean modify(HttpScenarioCheckInfo http) throws MonitorNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
 
-		MonitorInfoEntity monitorEntity = com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK(m_monitorId);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		// HTTP監視(シナリオ)情報を取得
-		MonitorHttpScenarioInfoEntity entity = QueryUtil.getMonitorHttpScenarioInfoPK(m_monitorId);
+			MonitorInfo monitorEntity = com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK(m_monitorId);
 
-		// HTTP監視(シナリオ)情報を設定
-		entity.setAuthType(http.getAuthType());
-		entity.setAuthUser(http.getAuthUser());
-		entity.setAuthPassword(http.getAuthPassword());
-		entity.setProxyFlg(ValidConstant.booleanToType(http.getProxyFlg()));
-		entity.setProxyUrl(http.getProxyUrl());
-		entity.setProxyPort(http.getProxyPort());
-		entity.setProxyUser(http.getProxyUser());
-		entity.setProxyPassword(http.getProxyPassword());
-		entity.setMonitoringPerPageFlg(ValidConstant.booleanToType(http.getMonitoringPerPageFlg()));
-		entity.setUserAgent(http.getUserAgent());
-		entity.setConnectTimeout(http.getConnectTimeout());
-		entity.setRequestTimeout(http.getRequestTimeout());
-		monitorEntity.setMonitorHttpScenarioInfoEntity(entity);
+			// HTTP監視(シナリオ)情報を取得
+			HttpScenarioCheckInfo entity = QueryUtil.getMonitorHttpScenarioInfoPK(m_monitorId);
 
-		List<Page> pList = new ArrayList<Page>(http.getPages());
-		Iterator<Page> piter = pList.iterator();
-		List<MonitorHttpScenarioPageInfoEntity> peList = new ArrayList<MonitorHttpScenarioPageInfoEntity>(entity.getMonitorHttpScenarioPageInfoEntities());
+			// HTTP監視(シナリオ)情報を設定
+			entity.setAuthType(http.getAuthType());
+			entity.setAuthUser(http.getAuthUser());
+			entity.setAuthPassword(http.getAuthPassword());
+			entity.setProxyFlg(http.getProxyFlg());
+			entity.setProxyUrl(http.getProxyUrl());
+			entity.setProxyPort(http.getProxyPort());
+			entity.setProxyUser(http.getProxyUser());
+			entity.setProxyPassword(http.getProxyPassword());
+			entity.setMonitoringPerPageFlg(http.getMonitoringPerPageFlg());
+			entity.setUserAgent(http.getUserAgent());
+			entity.setConnectTimeout(http.getConnectTimeout());
+			entity.setRequestTimeout(http.getRequestTimeout());
+			monitorEntity.setHttpScenarioCheckInfo(entity);
 
-		int pageOrderNo = 0;
-		while (piter.hasNext()) {
-			Page p = piter.next();
+			List<Page> pList = new ArrayList<Page>(http.getPages());
+			Iterator<Page> piter = pList.iterator();
+			List<Page> peList = new ArrayList<Page>(entity.getPages());
 
-			Iterator<MonitorHttpScenarioPageInfoEntity> peiter = peList.iterator();
-			while (peiter.hasNext()) {
-				MonitorHttpScenarioPageInfoEntity pe = peiter.next();
-				if (pageOrderNo == pe.getId().getPageOrderNo()) {
-					pe.setUrl(p.getUrl());
-					pe.setDescription(p.getDescription());
-					pe.setStatusCode(p.getStatusCode());
-					pe.setPost(p.getPost());
-					pe.setPriority(p.getPriority());
-					pe.setMessage(p.getMessage());
+			int pageOrderNo = 0;
+			while (piter.hasNext()) {
+				Page p = piter.next();
 
-					List<Pattern> ptList = new ArrayList<Pattern>(p.getPatterns());
-					Iterator<Pattern> ptiter = ptList.iterator();
-					List<MonitorHttpScenarioPatternInfoEntity> pteList = new ArrayList<MonitorHttpScenarioPatternInfoEntity>(pe.getMonitorHttpScenarioPatternInfoEntities());
+				Iterator<Page> peiter = peList.iterator();
+				while (peiter.hasNext()) {
+					Page pe = peiter.next();
+					if (pageOrderNo == pe.getId().getPageOrderNo()) {
+						pe.setUrl(p.getUrl());
+						pe.setDescription(p.getDescription());
+						pe.setStatusCode(p.getStatusCode());
+						pe.setPost(p.getPost());
+						pe.setPriority(p.getPriority());
+						pe.setMessage(p.getMessage());
 
-					int patternOrderNo = 0;
-					while (ptiter.hasNext()) {
-						Pattern pt = ptiter.next();
+						List<Pattern> ptList = new ArrayList<Pattern>(p.getPatterns());
+						Iterator<Pattern> ptiter = ptList.iterator();
+						List<Pattern> pteList = new ArrayList<Pattern>(pe.getPatterns());
 
-						Iterator<MonitorHttpScenarioPatternInfoEntity> pteiter = pteList.iterator();
-						while (pteiter.hasNext()) {
-							MonitorHttpScenarioPatternInfoEntity pte = pteiter.next();
-							if (patternOrderNo == pte.getId().getPatternOrderNo()) {
-								pte.setPattern(pt.getPattern());
-								pte.setDescription(pt.getDescription());
-								pte.setCaseSensitivityFlg(ValidConstant.booleanToType(pt.getCaseSensitivityFlg()));
-								pte.setProcessType(pt.getProcessType());
-								pte.setValidFlg(ValidConstant.booleanToType(pt.getValidFlg()));
+						int patternOrderNo = 0;
+						while (ptiter.hasNext()) {
+							Pattern pt = ptiter.next();
 
-								pteiter.remove();
-								ptiter.remove();
-								break;
+							Iterator<Pattern> pteiter = pteList.iterator();
+							while (pteiter.hasNext()) {
+								Pattern pte = pteiter.next();
+								if (patternOrderNo == pte.getId().getPatternOrderNo()) {
+									pte.setPattern(pt.getPattern());
+									pte.setDescription(pt.getDescription());
+									pte.setCaseSensitivityFlg(pt.getCaseSensitivityFlg());
+									pte.setProcessType(pt.getProcessType());
+									pte.setValidFlg(pt.getValidFlg());
+
+									pteiter.remove();
+									ptiter.remove();
+									break;
+								}
+							}
+							patternOrderNo++;
+						}
+
+						for (Pattern pt: ptList) {
+							Pattern pte = new Pattern();
+							pte.setMonitorId(entity.getMonitorId());
+							pte.setPageOrderNo(pageOrderNo);
+							pte.setPatternOrderNo(p.getPatterns().indexOf(pt));
+							pte.setPattern(pt.getPattern());
+							pte.setDescription(pt.getDescription());
+							pte.setCaseSensitivityFlg(pt.getCaseSensitivityFlg());
+							pte.setProcessType(pt.getProcessType());
+							pte.setValidFlg(pt.getValidFlg());
+							em.persist(pte);
+							pte.relateToMonitorHttpScenarioPageInfoEntity(pe);
+						}
+
+						for (Pattern pte: pteList) {
+							pe.getPatterns().remove(pte);
+							em.remove(pte);
+						}
+
+						List<Variable> vList = new ArrayList<Variable>(p.getVariables());
+						Iterator<Variable> viter = vList.iterator();
+						List<Variable> veList = new ArrayList<Variable>(pe.getVariables());
+
+						while (viter.hasNext()) {
+							Variable v = viter.next();
+
+							Iterator<Variable> veiter = veList.iterator();
+							while (veiter.hasNext()) {
+								Variable ve = veiter.next();
+								if (v.getName().equals(ve.getId().getName())) {
+									ve.setMatchingWithResponseFlg(v.getMatchingWithResponseFlg());
+									ve.setValue(v.getValue());
+
+									veiter.remove();
+									viter.remove();
+									break;
+								}
 							}
 						}
-						patternOrderNo++;
-					}
 
-					for (Pattern pt: ptList) {
-						MonitorHttpScenarioPatternInfoEntity pte = new MonitorHttpScenarioPatternInfoEntity(pe, p.getPatterns().indexOf(pt));
-						pte.setPattern(pt.getPattern());
-						pte.setDescription(pt.getDescription());
-						pte.setCaseSensitivityFlg(ValidConstant.booleanToType(pt.getCaseSensitivityFlg()));
-						pte.setProcessType(pt.getProcessType());
-						pte.setValidFlg(ValidConstant.booleanToType(pt.getValidFlg()));
-					}
-
-					for (MonitorHttpScenarioPatternInfoEntity pte: pteList) {
-						pe.getMonitorHttpScenarioPatternInfoEntities().remove(pte);
-						em.remove(pte);
-					}
-
-					List<Variable> vList = new ArrayList<Variable>(p.getVariables());
-					Iterator<Variable> viter = vList.iterator();
-					List<MonitorHttpScenarioVariableInfoEntity> veList = new ArrayList<MonitorHttpScenarioVariableInfoEntity>(pe.getMonitorHttpScenarioVariableInfoEntities());
-
-					while (viter.hasNext()) {
-						Variable v = viter.next();
-
-						Iterator<MonitorHttpScenarioVariableInfoEntity> veiter = veList.iterator();
-						while (veiter.hasNext()) {
-							MonitorHttpScenarioVariableInfoEntity ve = veiter.next();
-							if (v.getName().equals(ve.getId().getName())) {
-								ve.setMatchingWithResponseFlg(ValidConstant.booleanToType(v.getMatchingWithResponseFlg()));
-								ve.setValue(v.getValue());
-
-								veiter.remove();
-								viter.remove();
-								break;
-							}
+						for (Variable v: vList) {
+							Variable ve = new Variable();
+							ve.setMonitorId(entity.getMonitorId());
+							ve.setPageOrderNo(pageOrderNo);
+							ve.setMatchingWithResponseFlg(v.getMatchingWithResponseFlg());
+							ve.setName(v.getName());
+							ve.setValue(v.getValue());
+							em.persist(ve);
+							ve.relateToMonitorHttpScenarioPageInfoEntity(pe);
 						}
+
+						for (Variable ve: veList) {
+							pe.getVariables().remove(ve);
+							em.remove(ve);
+						}
+
+						peiter.remove();
+						piter.remove();
+
+						break;
 					}
+				}
+				pageOrderNo++;
+			}
 
-					for (Variable v: vList) {
-						MonitorHttpScenarioVariableInfoEntity ve = new MonitorHttpScenarioVariableInfoEntity(pe, v.getName());
-						ve.setMatchingWithResponseFlg(ValidConstant.booleanToType(v.getMatchingWithResponseFlg()));
-						ve.setValue(v.getValue());
-					}
+			for (Page p: pList) {
+				Page pe = new Page();
+				pe.setMonitorId(entity.getMonitorId());
+				pe.setPageOrderNo(http.getPages().indexOf(p));
+				pe.setUrl(p.getUrl());
+				pe.setDescription(p.getDescription());
+				pe.setStatusCode(p.getStatusCode());
+				pe.setPost(p.getPost());
+				pe.setPriority(p.getPriority());
+				pe.setMessage(p.getMessage());
+				em.persist(pe);
+				pe.relateToMonitorHttpScenarioInfoEntity(entity);
+				
+				for (Pattern pt: p.getPatterns()) {
+					Pattern pte = new Pattern();
+					pte.setMonitorId(entity.getMonitorId());
+					pte.setPageOrderNo(pe.getPageOrderNo());
+					pte.setPatternOrderNo(p.getPatterns().indexOf(pt));
+					pte.setPattern(pt.getPattern());
+					pte.setDescription(pt.getDescription());
+					pte.setCaseSensitivityFlg(pt.getCaseSensitivityFlg());
+					pte.setProcessType(pt.getProcessType());
+					pte.setValidFlg(pt.getValidFlg());
+					em.persist(pte);
+					pte.relateToMonitorHttpScenarioPageInfoEntity(pe);
+				}
 
-					for (MonitorHttpScenarioVariableInfoEntity ve: veList) {
-						pe.getMonitorHttpScenarioVariableInfoEntities().remove(ve);
-						em.remove(ve);
-					}
-
-					peiter.remove();
-					piter.remove();
-
-					break;
+				for (Variable v: p.getVariables()) {
+					Variable ve = new Variable();
+					ve.setMonitorId(entity.getMonitorId());
+					ve.setPageOrderNo(pe.getPageOrderNo());
+					ve.setName(v.getName());
+					ve.setMatchingWithResponseFlg(v.getMatchingWithResponseFlg());
+					ve.setValue(v.getValue());
+					em.persist(ve);
+					ve.relateToMonitorHttpScenarioPageInfoEntity(pe);
 				}
 			}
-			pageOrderNo++;
-		}
 
-		for (Page p: pList) {
-			MonitorHttpScenarioPageInfoEntity pe = new MonitorHttpScenarioPageInfoEntity(entity, http.getPages().indexOf(p));
-			pe.setUrl(p.getUrl());
-			pe.setDescription(p.getDescription());
-			pe.setStatusCode(p.getStatusCode());
-			pe.setPost(p.getPost());
-			pe.setPriority(p.getPriority());
-			pe.setMessage(p.getMessage());
-
-			for (Pattern pt: p.getPatterns()) {
-				MonitorHttpScenarioPatternInfoEntity pte = new MonitorHttpScenarioPatternInfoEntity(pe, p.getPatterns().indexOf(pt));
-				pte.setPattern(pt.getPattern());
-				pte.setDescription(pt.getDescription());
-				pte.setCaseSensitivityFlg(ValidConstant.booleanToType(pt.getCaseSensitivityFlg()));
-				pte.setProcessType(pt.getProcessType());
-				pte.setValidFlg(ValidConstant.booleanToType(pt.getValidFlg()));
+			for (Page pe: peList) {
+				entity.getPages().remove(pe);
+				em.remove(pe);
 			}
-
-			for (Variable v: p.getVariables()) {
-				MonitorHttpScenarioVariableInfoEntity ve = new MonitorHttpScenarioVariableInfoEntity(pe, v.getName());
-				ve.setMatchingWithResponseFlg(ValidConstant.booleanToType(v.getMatchingWithResponseFlg()));
-				ve.setValue(v.getValue());
-			}
+	
+			return true;
 		}
-
-		for (MonitorHttpScenarioPageInfoEntity pe: peList) {
-			entity.getMonitorHttpScenarioPageInfoEntities().remove(pe);
-			em.remove(pe);
-		}
-
-		return true;
 	}
 }

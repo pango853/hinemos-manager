@@ -6,7 +6,7 @@
 	<named-query name="InfraManagementInfoEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM InfraManagementInfoEntity a
+				SELECT a FROM InfraManagementInfo a
 				ORDER BY a.managementId
 			]]>
 		</query>
@@ -14,7 +14,7 @@
 	<named-query name="InfraManagementInfoEntity.findByOwnerRoleId">
 		<query>
 			<![CDATA[
-				SELECT a FROM InfraManagementInfoEntity a
+				SELECT a FROM InfraManagementInfo a
 				WHERE a.ownerRoleId = :ownerRoleId
 				ORDER BY a.managementId
 			]]>
@@ -23,7 +23,7 @@
 	<named-query name="InfraManagementInfoEntity.findByFacilityId">
 		<query>
 			<![CDATA[
-				SELECT a FROM InfraManagementInfoEntity a
+				SELECT a FROM InfraManagementInfo a
 				WHERE a.facilityId = :facilityId
 			]]>
 		</query>
@@ -31,7 +31,7 @@
 	<named-query name="InfraCheckResultEntity.findByManagementId">
 		<query>
 			<![CDATA[
-				SELECT a FROM InfraCheckResultEntity a
+				SELECT a FROM InfraCheckResult a
 				WHERE a.id.managementId = :managementId
 				ORDER BY a.id.nodeId, a.id.moduleId
 			]]>
@@ -40,7 +40,7 @@
 	<named-query name="InfraCheckResultEntity.findByModuleId">
 		<query>
 			<![CDATA[
-				SELECT a FROM InfraCheckResultEntity a
+				SELECT a FROM InfraCheckResult a
 				WHERE a.id.managementId = :managementId AND a.id.moduleId = :moduleId
 				ORDER BY a.id.nodeId
 			]]>
@@ -49,7 +49,7 @@
 	<named-query name="InfraFileEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM InfraFileEntity a
+				SELECT a FROM InfraFileInfo a
 				ORDER BY a.fileId
 			]]>
 		</query>
@@ -57,8 +57,33 @@
 	<named-query name="FileTransferModuleInfoEntity.findByFileId">
 		<query>
 			<![CDATA[
-				SELECT a FROM FileTransferModuleInfoEntity a
-				WHERE a.infraFileEntity.fileId = :fileId
+				SELECT a FROM FileTransferModuleInfo a
+				WHERE a.fileId = :fileId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="ReferManagementModuleInfo.findByReferManagementId">
+		<query>
+			<![CDATA[
+				SELECT a FROM ReferManagementModuleInfo a
+				WHERE a.referManagementId = :referManagementId
+			]]>
+		</query>
+	</named-query>
+	<named-query name="InfraModuleInfo.findByManagementId">
+		<query>
+			<![CDATA[
+				SELECT a FROM InfraModuleInfo a
+				WHERE a.id.managementId = :managementId
+				ORDER BY a.orderNo
+			]]>
+		</query>
+	</named-query>
+	<named-query name="InfraManagementParamInfo.findByManagementId">
+		<query>
+			<![CDATA[
+				SELECT a FROM InfraManagementParamInfo a
+				WHERE a.id.managementId = :managementId
 			]]>
 		</query>
 	</named-query>

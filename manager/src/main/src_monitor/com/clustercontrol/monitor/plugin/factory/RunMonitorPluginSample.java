@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.monitor.plugin.factory;
 
 import org.apache.commons.logging.Log;
@@ -15,9 +23,6 @@ public class RunMonitorPluginSample extends RunMonitorNumericValueType {
 
 	/** 不明メッセージ */
 	private String m_unKnownMessage = null;
-
-	/** 不明メッセージID */
-	private static final String MESSAGE_ID_UNKNOWN = "100";
 
 	/** メッセージ **/
 	private String m_message = null;
@@ -61,7 +66,7 @@ public class RunMonitorPluginSample extends RunMonitorNumericValueType {
 			m_nodeDate = m_now.getTime();
 		}
 
-		m_value = 10;//監視対象の数値
+		m_value = (double) 10;//監視対象の数値
 		m_message = "sample message";
 		m_messageOrg = "sample original message";
 		m_unKnownMessage = "sample unknown message";//不明時
@@ -72,18 +77,6 @@ public class RunMonitorPluginSample extends RunMonitorNumericValueType {
 
 	@Override
 	protected void setCheckInfo() throws MonitorNotFound {
-	}
-
-	/**
-	 * メッセージID
-	 */
-	@Override
-	public String getMessageId(int key) {
-		String messageId = super.getMessageId(key);
-		if(messageId == null || "".equals(messageId)){
-			return MESSAGE_ID_UNKNOWN;
-		}
-		return messageId;
 	}
 
 	/**

@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.commons.util;
 
 import org.apache.commons.logging.Log;
@@ -12,11 +20,11 @@ public class CacheManagerFactory {
 	
 	static {
 		String className = null;
-		Class<? extends AbstractCacheManager> clazz = LocalCacheManager.class;
 		AbstractCacheManager cacheManager = new LocalCacheManager();
 		try {
 			className = System.getProperty("hinemos.cachemanager.class", LocalCacheManager.class.getName());
-			clazz = (Class<? extends AbstractCacheManager>)Class.forName(className);
+			@SuppressWarnings("unchecked")
+			Class<? extends AbstractCacheManager> clazz = (Class<? extends AbstractCacheManager>)Class.forName(className);
 			
 			if (clazz != null) {
 				cacheManager = clazz.newInstance();

@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.port.protocol;
@@ -18,7 +11,6 @@ package com.clustercontrol.port.protocol;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Date;
 import java.util.Properties;
 
 import javax.naming.Context;
@@ -31,8 +23,9 @@ import javax.naming.directory.InitialDirContext;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * DNSサービスが動作しているかを確認するクラスです。
@@ -93,20 +86,19 @@ public class ReachAddressDNS extends ReachAddressProtocol {
 
 			InitialDirContext idctx = null;
 
-			String hostname = HinemosPropertyUtil.getHinemosPropertyStr("monitor.port.protocol.dns", "localhost");
+			String hostname = HinemosPropertyCommon.monitor_port_protocol_dns.getStringValue();
 			m_log.debug("The hostname from which to retrieve attributes is " + hostname);
 
 			for (int i = 0; i < m_sentCount && retry; i++) {
 				try {
-					Date d = new Date();
-					bufferOrg.append(d + " Tried to Connect: ");
+					bufferOrg.append(HinemosTime.getDateString() + " Tried to Connect: ");
 
-					start = System.currentTimeMillis();
+					start = HinemosTime.currentTimeMillis();
 
 					idctx = new InitialDirContext(props);
 					Attributes attrs = idctx.getAttributes(hostname);
 
-					end = System.currentTimeMillis();
+					end = HinemosTime.currentTimeMillis();
 
 					bufferOrg.append("\n");
 					NamingEnumeration<? extends Attribute> allAttr = attrs.getAll();
@@ -170,10 +162,10 @@ public class ReachAddressDNS extends ReachAddressProtocol {
 			m_messageOrg = bufferOrg.toString();
 			return isReachable;
 		} catch (UnknownHostException e) {
-			m_log.debug("isRunning(): " + Messages.getString("message.port.6")
+			m_log.debug("isRunning(): " + MessageConstant.MESSAGE_FAIL_TO_EXECUTE_TO_CONNECT.getMessage()
 					+ e.getMessage());
 
-			m_message = Messages.getString("message.port.6") + " ("
+			m_message = MessageConstant.MESSAGE_FAIL_TO_EXECUTE_TO_CONNECT.getMessage() + " ("
 					+ e.getMessage() + ")";
 
 			return false;

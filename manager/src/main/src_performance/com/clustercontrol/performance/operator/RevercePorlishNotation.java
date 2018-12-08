@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2008 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.performance.operator;
@@ -23,7 +16,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.sharedtable.DataTable;
+import com.clustercontrol.poller.util.DataTable;
 
 
 /**
@@ -147,17 +140,20 @@ public class RevercePorlishNotation extends Operator {
 					} else {
 						_stack.push(getVal(expArray[i], currentTable, previousTable, deviceName));
 					}
+				} catch (CollectedDataNotFoundWithNoPollingException e) {
+					throw e;
 				} catch (CollectedDataNotFoundException | IllegalStateException | EmptyStackException e) {
 					log.warn("calc [" + expression + "], " + e.getClass().getName() + ", " + e.getMessage());
-					throw new InvalidValueException();
+					throw new InvalidValueException(e.getMessage());
 				} catch (Exception e) {
 					log.warn("calc [" + expression + "], " + e.getClass().getName() + ", " + e.getMessage(), e);
-					throw new InvalidValueException();
+					throw new InvalidValueException(e.getMessage());
 				}
 			}
 			if (_stack.size() > 1) {
-				log.warn("calc : expression is invalid, expression-" + expression);
-				throw new InvalidValueException();
+				String messages = "expression is invalid, expression-" + expression;
+				log.warn("calc : " + messages);
+				throw new InvalidValueException(messages);
 			}
 		}
 		return result;

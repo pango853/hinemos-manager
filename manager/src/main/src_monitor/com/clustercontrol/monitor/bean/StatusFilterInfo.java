@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.monitor.bean;
 
 import java.io.Serializable;
@@ -34,7 +28,7 @@ public class StatusFilterInfo implements Serializable {
 	private Long generationDateTo = null;	//出力日時（至）
 	private String monitorId = null;		//監視項目ID
 	private String monitorDetailId = null;	//監視詳細
-	private String facilityType = null;		//対象ファシリティ種別
+	private Integer facilityType = null;		//対象ファシリティ種別
 	private String application = null;		//アプリケーション
 	private String message = null;			//メッセージ
 	private Long outputDate = null;			//更新日時
@@ -78,10 +72,10 @@ public class StatusFilterInfo implements Serializable {
 	public void setMonitorDetailId(String monitorDetailId) {
 		this.monitorDetailId = monitorDetailId;
 	}
-	public void setFacilityType(String facilityType) {
+	public void setFacilityType(Integer facilityType) {
 		this.facilityType = facilityType;
 	}
-	public String getFacilityType() {
+	public Integer getFacilityType() {
 		return facilityType;
 	}
 	public void setApplication(String application) {

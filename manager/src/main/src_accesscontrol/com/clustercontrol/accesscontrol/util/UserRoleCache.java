@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.accesscontrol.util;
@@ -23,16 +16,16 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
-import com.clustercontrol.accesscontrol.model.RoleEntity;
-import com.clustercontrol.accesscontrol.model.SystemPrivilegeEntity;
-import com.clustercontrol.accesscontrol.model.UserEntity;
+import com.clustercontrol.accesscontrol.model.RoleInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.UserInfo;
 import com.clustercontrol.commons.util.AbstractCacheManager;
 import com.clustercontrol.commons.util.CacheManagerFactory;
+import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
 import com.clustercontrol.fault.HinemosUnknown;
 
@@ -189,8 +182,11 @@ public class UserRoleCache {
 		
 		for (String roleId : roleIdList) {
 			List<SystemPrivilegeInfo> systemPrivilegeList = getSystemPrivilegeList(roleId);
-			if (systemPrivilegeList.contains(info)) {
-				return true;
+			for (SystemPrivilegeInfo cache: systemPrivilegeList) {
+				if (cache.getSystemFunction().equals(info.getSystemFunction()) &&
+						cache.getSystemPrivilege().equals(info.getSystemPrivilege())) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -202,17 +198,21 @@ public class UserRoleCache {
 	public static void refresh(){
 		m_log.info("refreshing cache : " + UserRoleCache.class.getSimpleName());
 		
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			_lock.writeLock();
+			
+			long startTime = System.currentTimeMillis();
+			em.clear();
 			
 			// ロールに所属するユーザを取得
 			HashMap<String, ArrayList<String>> roleUserMap = new HashMap<String, ArrayList<String>>();
-			List<RoleEntity> roleEntities = QueryUtil.getAllRole_NONE();
+			List<RoleInfo> roleEntities = QueryUtil.getAllRole_NONE();
 			
-			for (RoleEntity roleEntity : roleEntities) {
+			for (RoleInfo roleEntity : roleEntities) {
 				ArrayList<String> userIdList = new ArrayList<String>();
-				if (roleEntity.getUserEntities() != null) {
-					for (UserEntity userEntity : roleEntity.getUserEntities()) {
+				if (roleEntity.getUserInfoList() != null) {
+					for (UserInfo userEntity : roleEntity.getUserInfoList()) {
 						userIdList.add(userEntity.getUserId());
 					}
 				}
@@ -222,26 +222,22 @@ public class UserRoleCache {
 			// ロールに割り当てられたシステム権限を取得
 			HashMap<String, ArrayList<SystemPrivilegeInfo>> roleSystemPrivilegeMap = new HashMap<String, ArrayList<SystemPrivilegeInfo>>();
 			
-			for (RoleEntity roleEntity : roleEntities) {
-				ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
-				if (roleEntity.getSystemPrivilegeEntities() != null) {
-					for (SystemPrivilegeEntity systemPrivilegeEntity : roleEntity.getSystemPrivilegeEntities()) {
-						systemPrivilegeList.add(new SystemPrivilegeInfo(
-								systemPrivilegeEntity.getId().getSystemFunction(),
-								SystemPrivilegeMode.valueOf(systemPrivilegeEntity.getId().getSystemPrivilege())));
-					}
-				}
-				roleSystemPrivilegeMap.put(roleEntity.getRoleId(), systemPrivilegeList);
+			for (RoleInfo roleEntity : roleEntities) {
+				roleSystemPrivilegeMap.put(roleEntity.getRoleId(),
+						roleEntity.getSystemPrivilegeList() != null ? 
+							new ArrayList<SystemPrivilegeInfo>(roleEntity.getSystemPrivilegeList()):
+							new ArrayList<SystemPrivilegeInfo>()
+							);
 			}
 			
 			// ユーザが所属するロールを取得
 			HashMap<String, ArrayList<String>> userRoleMap = new HashMap<String, ArrayList<String>>();
-			List<UserEntity> userEntities = QueryUtil.getAllUser_NONE();
+			List<UserInfo> userEntities = QueryUtil.getAllUser_NONE();
 
-			for (UserEntity userEntity : userEntities) {
+			for (UserInfo userEntity : userEntities) {
 				ArrayList<String> roleIdList = new ArrayList<String>();
-				if (userEntity.getRoleEntities() != null) {
-					for (RoleEntity roleEntity : userEntity.getRoleEntities()) {
+				if (userEntity.getRoleList() != null) {
+					for (RoleInfo roleEntity : userEntity.getRoleList()) {
 						roleIdList.add(roleEntity.getRoleId());
 					}
 				}
@@ -251,6 +247,11 @@ public class UserRoleCache {
 			storeRoleUserCache(roleUserMap);
 			storeRoleSystemPrivilegeCache(roleSystemPrivilegeMap);
 			storeUserRoleCache(userRoleMap);
+			
+			m_log.info("refresh UserRoleCache " + (System.currentTimeMillis() - startTime) +
+					"ms. roleUserMap size=" + roleUserMap.size() +
+					" roleSystemPrivilegeMap size=" + roleSystemPrivilegeMap.size() +
+					" userRoleMap size=" + userRoleMap.size());
 		} finally {
 			_lock.writeUnlock();
 		}

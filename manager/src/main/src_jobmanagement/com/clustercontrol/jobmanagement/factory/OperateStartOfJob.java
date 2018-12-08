@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.factory;
@@ -22,8 +15,8 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.JobApprovalStatusConstant;
 import com.clustercontrol.bean.StatusConstant;
-import com.clustercontrol.bean.YesNoConstant;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.commons.util.NotifyGroupIdGenerator;
@@ -37,6 +30,7 @@ import com.clustercontrol.jobmanagement.bean.JobConstant;
 import com.clustercontrol.jobmanagement.model.JobInfoEntity;
 import com.clustercontrol.jobmanagement.model.JobSessionJobEntity;
 import com.clustercontrol.jobmanagement.model.JobSessionNodeEntity;
+import com.clustercontrol.jobmanagement.util.FromRunningAfterCommitCallback;
 import com.clustercontrol.jobmanagement.util.JobMultiplicityCache;
 import com.clustercontrol.jobmanagement.util.QueryUtil;
 import com.clustercontrol.notify.session.NotifyControllerBean;
@@ -133,9 +127,6 @@ public class OperateStartOfJob {
 		//セッションIDとジョブIDから、セッションジョブを取得
 		JobSessionJobEntity sessionJob = QueryUtil.getJobSessionJobPK(sessionId, jobunitId, jobId);
 
-		if(sessionJob == null){
-			return;
-		}
 		JobInfoEntity job = sessionJob.getJobInfoEntity();
 
 		//終了状態、終了値、終了・中断日時、開始・再実行日時をクリア
@@ -148,10 +139,10 @@ public class OperateStartOfJob {
 		sessionJob.setDelayNotifyFlg(DelayNotifyConstant.NONE);
 
 		//開始時保留、開始時スキップをチェック
-		if(job.getSuspend() == YesNoConstant.TYPE_YES){
+		if(job.getSuspend().booleanValue()){
 			//JobSessionJobの実行状態に保留中を設定
 			sessionJob.setStatus(StatusConstant.TYPE_RESERVING);
-		}else if(job.getSkip() == YesNoConstant.TYPE_YES){
+		}else if(job.getSkip().booleanValue()){
 			//JobSessionJobの実行状態にスキップを設定
 			sessionJob.setStatus(StatusConstant.TYPE_SKIP);
 		}else{
@@ -159,7 +150,9 @@ public class OperateStartOfJob {
 			sessionJob.setStatus(StatusConstant.TYPE_WAIT);
 		}
 
-		if(job.getJobType() == JobConstant.TYPE_JOB){
+		if(job.getJobType() == JobConstant.TYPE_JOB
+				|| job.getJobType() == JobConstant.TYPE_APPROVALJOB
+				|| job.getJobType() == JobConstant.TYPE_MONITORJOB){
 			//ジョブの場合
 			List<JobSessionNodeEntity> nodeEntityList;
 			if(facilityId != null && facilityId.length() > 0){
@@ -175,6 +168,10 @@ public class OperateStartOfJob {
 					// ジョブを中断から開始即時に遷移する場合、実行中のノード詳細は現在実行中のプロセスを
 					// そのまま実行し続け、新規にプロセスを起こすことはないため、ノードが実行中の場合にはステータスクリアは行わない
 					if (sessionNode.getStatus() == StatusConstant.TYPE_RUNNING) {
+						if(job.getJobType() == JobConstant.TYPE_APPROVALJOB){
+							// 承認ジョブの場合、ノード状態は実行中でも承認状態が中断中に変わっているため、承認待に遷移させる
+							sessionNode.setApprovalStatus(JobApprovalStatusConstant.TYPE_PENDING);
+						}
 						try {
 							m_log.info("clearStatus() : skip clearStatus because running job is not completed. "
 									+ "sessionId=" + sessionId + ", jobunitId=" + jobunitId
@@ -195,6 +192,9 @@ public class OperateStartOfJob {
 					sessionNode.setErrorRetryCount(0);
 					sessionNode.setResult(null);
 					sessionNode.setMessage(null);
+					//承認情報をクリア
+					sessionNode.setApprovalResult(null);
+					sessionNode.setApprovalUser("");
 				}
 			}
 		}else if(job.getJobType() == JobConstant.TYPE_FILEJOB && !CreateHulftJob.isHulftMode()){
@@ -212,16 +212,6 @@ public class OperateStartOfJob {
 					//ジョブ削除を行う
 					clearJob(child.getId().getSessionId(), child.getId().getJobunitId(), child.getId().getJobId());
 				}
-			}
-		} else if (job.getJobType() == JobConstant.TYPE_FILEJOB && CreateHulftJob.isHulftMode()){
-			// HULFTモードのファイル転送ジョブの場合
-
-			//セッションIDとジョブIDから、直下のジョブを取得
-			Collection<JobSessionJobEntity> collection = null;
-			collection = QueryUtil.getChildJobSessionJob(sessionId, jobunitId, jobId);
-			for (JobSessionJobEntity child : collection) {
-				//ジョブの実行状態をクリアする
-				clearStatus(child.getId().getSessionId(), child.getId().getJobunitId(), child.getId().getJobId(), null);
 			}
 		}else{
 			//ジョブ以外の場合
@@ -246,47 +236,51 @@ public class OperateStartOfJob {
 	 */
 	private void clearJob(String sessionId, String jobunitId, String jobId) throws JobInfoNotFound, InvalidRole {
 
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		m_log.debug("clearJob() : sessionId=" + sessionId + ", jobId=" + jobId);
+			m_log.debug("clearJob() : sessionId=" + sessionId + ", jobId=" + jobId);
 
-		//セッションIDとジョブIDから、セッションジョブを取得
-		JobSessionJobEntity sessionJob = QueryUtil.getJobSessionJobPK(sessionId, jobunitId, jobId);
+			//セッションIDとジョブIDから、セッションジョブを取得
+			JobSessionJobEntity sessionJob = QueryUtil.getJobSessionJobPK(sessionId, jobunitId, jobId);
 
-		JobInfoEntity job = sessionJob.getJobInfoEntity();
+			JobInfoEntity job = sessionJob.getJobInfoEntity();
 
-		if(job.getJobType() != JobConstant.TYPE_JOB){
-			//ジョブ以外の場合
+			if(job.getJobType() != JobConstant.TYPE_JOB
+					&& job.getJobType() != JobConstant.TYPE_APPROVALJOB
+					&& job.getJobType() != JobConstant.TYPE_MONITORJOB){
+				//ジョブ以外の場合
 
-			//セッションIDとジョブIDから、直下のジョブを取得
-			Collection<JobSessionJobEntity> collection = QueryUtil.getChildJobSessionJob(sessionId, jobunitId, jobId);
-			for (JobSessionJobEntity relation : collection) {
+				//セッションIDとジョブIDから、直下のジョブを取得
+				Collection<JobSessionJobEntity> collection = QueryUtil.getChildJobSessionJob(sessionId, jobunitId, jobId);
+				for (JobSessionJobEntity relation : collection) {
 
-				//ジョブを削除
-				clearJob(relation.getId().getSessionId(), relation.getId().getJobunitId(), relation.getId().getJobId());
-			}
-		} else {
-			List<JobSessionNodeEntity> list = sessionJob.getJobSessionNodeEntities();
-			for (JobSessionNodeEntity sessionNode : list) {
-				//実行中から他の状態に遷移した場合は、キャッシュを更新する。
-				if (sessionNode.getStatus() == StatusConstant.TYPE_RUNNING) {
-					JobMultiplicityCache.fromRunning(sessionNode.getId());
-				} else if (sessionNode.getStatus() == StatusConstant.TYPE_WAIT) {
-					JobMultiplicityCache.removeWait(sessionNode.getId());
+					//ジョブを削除
+					clearJob(relation.getId().getSessionId(), relation.getId().getJobunitId(), relation.getId().getJobId());
+				}
+			} else {
+				List<JobSessionNodeEntity> list = sessionJob.getJobSessionNodeEntities();
+				for (JobSessionNodeEntity sessionNode : list) {
+					//実行中から他の状態に遷移した場合は、キャッシュを更新する。
+					if (sessionNode.getStatus() == StatusConstant.TYPE_RUNNING) {
+						jtm.addCallback(new FromRunningAfterCommitCallback(sessionNode.getId()));
+					} else if (sessionNode.getStatus() == StatusConstant.TYPE_WAIT) {
+						JobMultiplicityCache.removeWait(sessionNode.getId());
+					}
 				}
 			}
+
+			try {
+				new NotifyControllerBean().deleteNotifyRelation(NotifyGroupIdGenerator.generate(job));
+			} catch (HinemosUnknown e) {
+				m_log.info("clearJob() : " + e.getMessage() + "," + job.getId());
+			}
+
+
+			// セッションジョブと関連するジョブ情報を削除
+			sessionJob.unchain();	// 削除前処理
+			em.remove(sessionJob);
 		}
-
-		try {
-			new NotifyControllerBean().deleteNotifyRelation(NotifyGroupIdGenerator.generate(job));
-		} catch (HinemosUnknown e) {
-			m_log.info("clearJob() : " + e.getMessage() + "," + job.getId());
-		}
-
-
-		// セッションジョブと関連するジョブ情報を削除
-		sessionJob.unchain();	// 削除前処理
-		em.remove(sessionJob);
 	}
 
 	/**

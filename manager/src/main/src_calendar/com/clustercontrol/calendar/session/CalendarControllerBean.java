@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.calendar.session;
@@ -21,11 +14,12 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.calendar.bean.CalendarDetailInfo;
-import com.clustercontrol.calendar.bean.CalendarInfo;
-import com.clustercontrol.calendar.bean.CalendarPatternInfo;
+import com.clustercontrol.accesscontrol.util.RoleValidator;
 import com.clustercontrol.calendar.factory.ModifyCalendar;
 import com.clustercontrol.calendar.factory.SelectCalendar;
+import com.clustercontrol.calendar.model.CalendarDetailInfo;
+import com.clustercontrol.calendar.model.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarPatternInfo;
 import com.clustercontrol.calendar.util.CalendarCacheManagementCallback;
 import com.clustercontrol.calendar.util.CalendarChangedNotificationCallback;
 import com.clustercontrol.calendar.util.CalendarPatternCacheManagementCallback;
@@ -64,15 +58,18 @@ public class CalendarControllerBean {
 			list = select.getAllCalendarList(null);
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("getAllCalendarList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return list;
 	}
@@ -95,15 +92,18 @@ public class CalendarControllerBean {
 			list = select.getAllCalendarList(ownerRoleId);
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("getCalendarList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return list;
 	}
@@ -122,25 +122,27 @@ public class CalendarControllerBean {
 	 */
 	public ArrayList<String> getCalendarIdList() throws InvalidRole, HinemosUnknown {
 		JpaTransactionManager jtm = null;
-		ArrayList<String> list = new ArrayList<String>();
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 			SelectCalendar select = new SelectCalendar();
-			list = select.getCalendarIdList();
+			ArrayList<String> list = select.getCalendarIdList();
 			jtm.commit();
+			return list;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getCalendarIdList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
-		return list;
 	}
 
 	/**
@@ -162,22 +164,24 @@ public class CalendarControllerBean {
 			SelectCalendar select = new SelectCalendar();
 			info = select.getCalendar(id);
 			jtm.commit();
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getCalendar() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return info;
 	}
@@ -201,22 +205,24 @@ public class CalendarControllerBean {
 			SelectCalendar select = new SelectCalendar();
 			info = select.getCalendarFull(id);
 			jtm.commit();
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getCalendar() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return info;
 	}
@@ -239,22 +245,24 @@ public class CalendarControllerBean {
 			SelectCalendar select = new SelectCalendar();
 			list = select.getCalendarPatternList(ownerRoleId);
 			jtm.commit();
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("getCalendarPatternList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return list;
 	}
@@ -277,22 +285,24 @@ public class CalendarControllerBean {
 			SelectCalendar select = new SelectCalendar();
 			info = select.getCalendarPattern(id);
 			jtm.commit();
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getCalendarPattern() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return info;
 	}
@@ -319,6 +329,11 @@ public class CalendarControllerBean {
 
 			//入力チェック
 			CalendarValidator.validateCalendarInfo(info);
+			
+			//ユーザがオーナーロールIDに所属しているかチェック
+			RoleValidator.validateUserBelongRole(info.getOwnerRoleId(),
+					(String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID),
+					(Boolean)HinemosSessionContext.instance().getProperty(HinemosSessionContext.IS_ADMINISTRATOR));
 
 			String loginUser = (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID);
 
@@ -327,29 +342,25 @@ public class CalendarControllerBean {
 
 			jtm.addCallback(new CalendarChangedNotificationCallback());
 			jtm.commit();
-		} catch (CalendarDuplicate e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarDuplicate | HinemosUnknown | InvalidRole | InvalidSetting e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
 		} catch(Exception e){
 			m_log.warn("addCalendar() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
 			// EntityManagerクリア
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -379,29 +390,28 @@ public class CalendarControllerBean {
 			ModifyCalendar modify = new ModifyCalendar();
 			modify.modifyCalendar(info, loginUser);
 			
-			jtm.addCallback(new CalendarCacheManagementCallback(info.getId()));
+			jtm.addCallback(new CalendarCacheManagementCallback(info.getCalendarId()));
 			jtm.addCallback(new CalendarChangedNotificationCallback());
 			
 			jtm.commit();
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (InvalidSetting | InvalidRole | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("modifyCalendar() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -416,7 +426,7 @@ public class CalendarControllerBean {
 	 * @throws HinemosUnknown
 	 * @throws InvalidRole
 	 */
-	public void deleteCalendar(List<String> idList) throws CalendarNotFound, HinemosUnknown, InvalidRole {
+	public void deleteCalendar(List<String> idList) throws CalendarNotFound, HinemosUnknown, InvalidRole, InvalidSetting {
 		JpaTransactionManager jtm = null;
 		try {
 			jtm = new JpaTransactionManager();
@@ -436,25 +446,24 @@ public class CalendarControllerBean {
 			
 			jtm.commit();
 
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | HinemosUnknown | InvalidRole | InvalidSetting e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("deleteCalendar() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -480,6 +489,11 @@ public class CalendarControllerBean {
 
 			//入力チェック
 			CalendarValidator.validateCalendarPatternInfo(info);
+			
+			//ユーザがオーナーロールIDに所属しているかチェック
+			RoleValidator.validateUserBelongRole(info.getOwnerRoleId(),
+					(String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID),
+					(Boolean)HinemosSessionContext.instance().getProperty(HinemosSessionContext.IS_ADMINISTRATOR));
 
 			String loginUser = (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID);
 
@@ -488,29 +502,25 @@ public class CalendarControllerBean {
 
 			jtm.addCallback(new CalendarChangedNotificationCallback());
 			jtm.commit();
-		} catch (CalendarDuplicate e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarDuplicate | HinemosUnknown | InvalidSetting | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch(Exception e){
 			m_log.warn("addCalendarPattern() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
 			// EntityManagerクリア
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -541,29 +551,28 @@ public class CalendarControllerBean {
 			ModifyCalendar modify = new ModifyCalendar();
 			modify.modifyCalendarPattern(info, loginUser);
 			
-			jtm.addCallback(new CalendarPatternCacheManagementCallback(info.getId()));
+			jtm.addCallback(new CalendarPatternCacheManagementCallback(info.getCalPatternId()));
 			jtm.addCallback(new CalendarChangedNotificationCallback());
 			
 			jtm.commit();
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (InvalidSetting | HinemosUnknown | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("modifyCalendarPattern() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -598,25 +607,24 @@ public class CalendarControllerBean {
 			jtm.addCallback(new CalendarChangedNotificationCallback());
 			
 			jtm.commit();
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | HinemosUnknown | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("deleteCalendarPattern() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -649,18 +657,22 @@ public class CalendarControllerBean {
 			jtm.rollback();
 			throw e;
 		} catch (InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getCalendarMonthInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return ret;
 	}
@@ -686,22 +698,24 @@ public class CalendarControllerBean {
 			SelectCalendar select = new SelectCalendar();
 			ret = select.getCalendarWeek(id, year, month, day);
 			jtm.commit();
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getCalendarDisp() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return ret;
 	}
@@ -727,22 +741,24 @@ public class CalendarControllerBean {
 			SelectCalendar select = new SelectCalendar();
 			isRun = select.isRun(id, checkTimestamp);
 			jtm.commit();
-		} catch (CalendarNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (CalendarNotFound | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("isRun() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return isRun;
 	}

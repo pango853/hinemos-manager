@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -32,30 +25,6 @@ public class JobSchedule extends JobKick implements Serializable {
 	 */
 	private static final long serialVersionUID = 9120046546824522587L;
 
-	public JobSchedule() {
-		this.m_type = JobTriggerTypeConstant.TYPE_SCHEDULE;
-	}
-	/**
-	 * スケジュール設定定義
-	 * @param scheduleType
-	 * @param week
-	 * @param hour
-	 * @param minute
-	 * @param fromXminutes
-	 * @param everyXminutes
-	 */
-	public JobSchedule(int scheduleType, Integer week,
-			Integer hour, Integer minute, Integer fromXminutes, Integer everyXminutes) {
-		super();
-		this.m_type = JobTriggerTypeConstant.TYPE_SCHEDULE;
-		this.m_scheduleType = scheduleType;
-		this.m_week = week;
-		this.m_hour = hour;
-		this.m_minute = minute;
-		this.m_fromXminutes = fromXminutes;
-		this.m_everyXminutes = everyXminutes;
-	}
-
 	/** スケジュール種別
 	 * @see com.clustercontrol.bean.ScheduleConstant
 	 * */
@@ -70,6 +39,31 @@ public class JobSchedule extends JobKick implements Serializable {
 	private Integer m_fromXminutes = null;
 
 	private Integer m_everyXminutes = null;
+
+	
+	public JobSchedule() {
+		this.m_type = JobKickConstant.TYPE_SCHEDULE;
+	}
+	/**
+	 * スケジュール設定定義
+	 * @param scheduleType
+	 * @param week
+	 * @param hour
+	 * @param minute
+	 * @param fromXminutes
+	 * @param everyXminutes
+	 */
+	public JobSchedule(int scheduleType, Integer week,
+			Integer hour, Integer minute, Integer fromXminutes, Integer everyXminutes) {
+		super();
+		this.m_type = JobKickConstant.TYPE_SCHEDULE;
+		this.m_scheduleType = scheduleType;
+		this.m_week = week;
+		this.m_hour = hour;
+		this.m_minute = minute;
+		this.m_fromXminutes = fromXminutes;
+		this.m_everyXminutes = everyXminutes;
+	}
 
 	public int getScheduleType() {
 		return m_scheduleType;

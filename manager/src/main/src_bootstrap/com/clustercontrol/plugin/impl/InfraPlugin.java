@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.plugin.impl;
@@ -21,8 +14,8 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.infra.bean.InfraManagementInfo;
 import com.clustercontrol.infra.factory.SelectInfraManagement;
+import com.clustercontrol.infra.model.InfraManagementInfo;
 import com.clustercontrol.notify.util.INotifyOwnerDeterminer;
 import com.clustercontrol.plugin.api.HinemosPlugin;
 import com.jcraft.jsch.JSch;
@@ -41,7 +34,7 @@ public class InfraPlugin implements HinemosPlugin {
 		public String getEventOwnerRoleId(String monitorId, String monitorDetailId, String pluginId, String facilityId) {
 			InfraManagementInfo management = null;
 			try {
-				management = new SelectInfraManagement().get(monitorId, ObjectPrivilegeMode.READ);
+				management = new SelectInfraManagement().get(monitorId, null, ObjectPrivilegeMode.READ);
 			} catch (Exception e) {
 				Logger.getLogger(this.getClass()).warn(e.getMessage(), e);
 			}
@@ -52,7 +45,7 @@ public class InfraPlugin implements HinemosPlugin {
 		public String getStatusOwnerRoleId(String monitorId, String monitorDetailId, String pluginId, String facilityId) {
 			InfraManagementInfo management = null;
 			try {
-				management = new SelectInfraManagement().get(monitorId, ObjectPrivilegeMode.READ);
+				management = new SelectInfraManagement().get(monitorId, null, ObjectPrivilegeMode.READ);
 			} catch (Exception e) {
 				Logger.getLogger(this.getClass()).warn(e.getMessage(), e);
 			}
@@ -64,8 +57,12 @@ public class InfraPlugin implements HinemosPlugin {
 	public Set<String> getDependency() {
 		Set<String> dependency = new HashSet<String>();
 		dependency.add(AsyncWorkerPlugin.class.getName());
-		dependency.add(SharedTablePlugin.class.getName());
 		return dependency;
+	}
+
+	@Override
+	public Set<String> getRequiredKeys() {
+		return null;
 	}
 
 	@Override

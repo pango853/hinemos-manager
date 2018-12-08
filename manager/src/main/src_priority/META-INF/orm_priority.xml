@@ -7,7 +7,7 @@
 	<named-query name="PriorityInfoEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM PriorityInfoEntity a
+				SELECT a FROM PriorityJudgmentInfo a
 				ORDER BY a.judgmentId
 			]]>
 		</query>

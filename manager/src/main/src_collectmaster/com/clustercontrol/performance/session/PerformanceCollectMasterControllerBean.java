@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.performance.session;
@@ -44,11 +37,11 @@ import com.clustercontrol.performance.monitor.entity.CollectorItemCodeMstData;
 import com.clustercontrol.performance.monitor.entity.CollectorPollingMstData;
 import com.clustercontrol.performance.monitor.entity.CollectorPollingMstPK;
 import com.clustercontrol.repository.bean.FacilityTreeAttributeConstant;
-import com.clustercontrol.repository.bean.ScopeInfo;
 import com.clustercontrol.repository.entity.CollectorPlatformMstData;
 import com.clustercontrol.repository.entity.CollectorSubPlatformMstData;
 import com.clustercontrol.repository.model.CollectorPlatformMstEntity;
 import com.clustercontrol.repository.model.CollectorSubPlatformMstEntity;
+import com.clustercontrol.repository.model.ScopeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 
 /**
@@ -81,15 +74,18 @@ public class PerformanceCollectMasterControllerBean {
 
 			jtm.commit();
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("addCollectCalcMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -118,15 +114,18 @@ public class PerformanceCollectMasterControllerBean {
 
 			jtm.commit();
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("addCollectCategoryCollectMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -155,15 +154,18 @@ public class PerformanceCollectMasterControllerBean {
 
 			jtm.commit();
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		}catch(Exception e){
 			m_log.warn("addCollectCategoryMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -192,15 +194,18 @@ public class PerformanceCollectMasterControllerBean {
 
 			jtm.commit();
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("addCollectItemCalcMethodMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -228,15 +233,18 @@ public class PerformanceCollectMasterControllerBean {
 
 			jtm.commit();
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("addCollectItemCodeMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -265,15 +273,18 @@ public class PerformanceCollectMasterControllerBean {
 
 			jtm.commit();
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		}catch(Exception e){
 			m_log.warn("addCollectPollingMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -313,15 +324,18 @@ public class PerformanceCollectMasterControllerBean {
 		}catch(EntityExistsException e){
 			// プラットフォーム情報の追加に失敗した場合。
 			// 既にあるものは残したままで追加させるロジックのため、ロールバックはせず追加できなかったことをフラグで示す。
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			return false;
 		}catch(Exception e){
 			m_log.warn("addCollectPlatformMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return true;
@@ -349,15 +363,18 @@ public class PerformanceCollectMasterControllerBean {
 		}catch(EntityExistsException e){
 			// サブプラットフォーム情報の追加に失敗した場合。
 			// 既にあるものは残したままで追加させるロジックのため、ロールバックはせず追加できなかったことをフラグで示す。
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			return false;
 		}catch(Exception e){
 			m_log.warn("addCollectSubPlatformMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return true;
@@ -411,11 +428,13 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("addCollectMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			rtnFlg = false;
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return rtnFlg;
@@ -449,10 +468,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e){
 			m_log.warn("deleteCollectCalcMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -482,10 +503,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e){
 			m_log.warn("deleteCollectCalcMasterAll() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -521,10 +544,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e){
 			m_log.warn("deleteCollectCategoryCollectMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -554,10 +579,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e){
 			m_log.warn("deleteCollectCategoryCollectMasterAll() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -592,10 +619,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e){
 			m_log.warn("deleteCollectCategoryMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -625,10 +654,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e){
 			m_log.warn("deleteCollectCategoryMasterAll() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -663,10 +694,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e){
 			m_log.warn("deleteCollectItemCalcMethodMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -696,10 +729,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("deleteCollectItemCalcMethodMasterAll() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -734,10 +769,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("deleteCollectItemCodeMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -768,10 +805,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("deleteCollectItemCodeMasterAll() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -806,10 +845,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("deleteCollectPollingMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -839,10 +880,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("deleteCollectPollingMasterAll() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -878,10 +921,12 @@ public class PerformanceCollectMasterControllerBean {
 		}catch(Exception e){
 			m_log.warn("deleteCollectPlatformMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return true;
@@ -915,10 +960,12 @@ public class PerformanceCollectMasterControllerBean {
 		}catch(Exception e){
 			m_log.warn("deleteCollectSubPlatformMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return true;
@@ -954,10 +1001,12 @@ public class PerformanceCollectMasterControllerBean {
 		}catch(Exception e){
 			m_log.warn("deleteCollectMasterAll() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -982,10 +1031,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectCalcMasterList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -1009,10 +1060,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectCategoryList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -1036,10 +1089,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectItemCodeMasterList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -1063,10 +1118,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectItemCalcMasterList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -1090,10 +1147,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectPollingList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -1117,10 +1176,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectCategoryCollectList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return ret;
@@ -1153,10 +1214,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectPlatformMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return platformMstList;
@@ -1190,10 +1253,12 @@ public class PerformanceCollectMasterControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getCollectSubPlatformMaster() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return subPlatformMstList;
@@ -1207,12 +1272,12 @@ public class PerformanceCollectMasterControllerBean {
 	 */
 	public CollectMasterInfo getCollectMasterInfo() throws HinemosUnknown {
 		JpaTransactionManager jtm = null;
-		CollectMasterInfo info = new CollectMasterInfo();
 
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 
+			CollectMasterInfo info = new CollectMasterInfo();
 			info.setCollectorCategoryMstDataList(getCollectCategoryList());
 			info.setCollectorItemCodeMstDataList(getCollectItemCodeMasterList());
 			info.setCollectorItemCalcMethodMstDataList(getCollectItemCalcMasterList());
@@ -1221,18 +1286,20 @@ public class PerformanceCollectMasterControllerBean {
 			info.setCollectorCalcMethodMstDataList(getCollectCalcMasterList());
 
 			jtm.commit();
+			
+			return info;
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getCollectMasterInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
-
-		return info;
 	}
 }

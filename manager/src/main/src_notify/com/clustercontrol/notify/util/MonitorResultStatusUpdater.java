@@ -1,29 +1,20 @@
 /*
-
- Copyright (C) 2009 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.util;
-
-import java.sql.Timestamp;
 
 import javax.persistence.EntityExistsException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.NotifyNotFound;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
 import com.clustercontrol.notify.entity.MonitorStatusPK;
 import com.clustercontrol.notify.model.MonitorStatusEntity;
@@ -78,7 +69,7 @@ public class MonitorResultStatusUpdater {
 				monitorStatus = new MonitorStatusEntity(facilityId, pluginId, monitorId, subkey);
 				// 重複チェック
 				monitorStatus.setPriority(currentPriority);
-				monitorStatus.setLastUpdate(new Timestamp(generateDate));
+				monitorStatus.setLastUpdate(generateDate);
 				monitorStatus.setCounter(1l);
 				MonitorStatusCache.add(monitorStatus);
 				return true;
@@ -113,12 +104,12 @@ public class MonitorResultStatusUpdater {
 		// 同一重要度カウンタをアップ
 		long oldCount = monitorStatus.getCounter();
 		// 同一重要度カウンタの最大値（この値を超えた場合は、以降は更新されない）
-		int maxInitialCount = HinemosPropertyUtil.getHinemosPropertyNum("notify.initial.count.max", 10);
+		int maxInitialCount = HinemosPropertyCommon.notify_initial_count_max.getIntegerValue();
 
 		// 最大カウント数を超えると、それ以上は増やさない（DBへのupdateを減らすための方策）
 		if(oldCount <= maxInitialCount){
 			monitorStatus.setCounter(oldCount+1);
-			monitorStatus.setLastUpdate(new Timestamp(generateDate));
+			monitorStatus.setLastUpdate(generateDate);
 			MonitorStatusCache.update(monitorStatus);
 		}
 		return false;

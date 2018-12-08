@@ -1,33 +1,50 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.hinemosagent.bean;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import javax.xml.bind.annotation.XmlType;
 
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.util.HinemosTime;
+
+@XmlType(namespace = "http://agent.ws.clustercontrol.com")
 public class AgentInfo implements Cloneable, Serializable {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 	private String facilityId = "";
 	private String hostname = "";
 	private ArrayList<String> ipAddressList = new ArrayList<String>();
 	private int interval = 0;
+	private String instanceId = "";
 
 	// firstLoginはエージェントの起動時刻なので、エージェント側で入力
-	// new Date().getTime()を利用する。
+	// HinemosTime.getDateInstance().getTime()を利用する。
 	private long startupTime;
 	// lastLoginはマネージャ側で入力
 	private long lastLogin;
 
 	public void refreshLastLogin() {
-		lastLogin = System.currentTimeMillis();
+		lastLogin = HinemosTime.currentTimeMillis();
 	}
 	public boolean isValid() {
 		/*
 		 * (interval * monitor.agent.valid.multi + monitor.agent.valid.plus) の時間でgetTopicがない場合は、無効とみなす。
 		 */
-		int intervalMulti = HinemosPropertyUtil.getHinemosPropertyNum("monitor.agent.valid.multi", 2);
-		int intervalPlus = HinemosPropertyUtil.getHinemosPropertyNum("monitor.agent.valid.plus", 10 * 1000); // 10sec
-		if (interval * intervalMulti + intervalPlus > System.currentTimeMillis() - lastLogin) {
+		int intervalMulti = HinemosPropertyCommon.monitor_agent_valid_multi.getIntegerValue();
+		int intervalPlus = HinemosPropertyCommon.monitor_agent_valid_plus.getIntegerValue(); // 10sec
+		if (interval * intervalMulti + intervalPlus > HinemosTime.currentTimeMillis() - lastLogin) {
 			return true;
 		}
 		return false;
@@ -69,23 +86,32 @@ public class AgentInfo implements Cloneable, Serializable {
 	public long getLastLogin() {
 		return lastLogin;
 	}
+	public String getInstanceId() {
+		return instanceId;
+	}
+	public void setInstanceId(String instanceId) {
+		this.instanceId = instanceId;
+	}
 
 	@Override
 	public String toString() {
-		String str = new Date(startupTime) + "," + new Date(lastLogin) + ",(" + interval + ")";
-		str += "[";
+		StringBuilder str = new StringBuilder(new Date(startupTime) + "," + new Date(lastLogin) + ",(" + interval + ")");
+		str.append("[");
 		if (facilityId != null) {
-			str += facilityId;
+			str.append(facilityId);
 		}
-		str += ",";
+		if (instanceId != null) {
+			str.append("," + instanceId);
+		}
+		str.append(",");
 		if (hostname != null) {
-			str += hostname;
+			str.append(hostname);
 		}
-		str += "]";
+		str.append("]");
 		for (String ipAddress : ipAddressList) {
-			str += ipAddress + ",";
+			str.append(ipAddress + ",");
 		}
-		return str;
+		return str.toString();
 	}
 
 	@Override

@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2008 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.poller.impl;
@@ -23,8 +16,8 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 
@@ -47,7 +40,10 @@ import org.sblim.wbem.client.UserPrincipal;
 import org.sblim.wbem.util.SessionProperties;
 
 import com.clustercontrol.poller.bean.PollerProtocolConstant;
-import com.clustercontrol.sharedtable.DataTable;
+import com.clustercontrol.poller.util.DataTable;
+import com.clustercontrol.poller.util.TableEntry;
+import com.clustercontrol.poller.util.TableEntry.ErrorType;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * WBEMのポーリングを実行するクラス
@@ -104,6 +100,7 @@ public class WbemPollerImpl {
 	 * @param cimList 対象CIMクラス、プロパティのリスト
 	 * @param indexCheckFlg ポーリング結果のインデックスが揃っているかのチェック
 	 */
+	@SuppressWarnings("unchecked")
 	public DataTable polling(
 			String ipAddress,
 			int port,
@@ -113,7 +110,7 @@ public class WbemPollerImpl {
 			String nameSpace,
 			int retries,
 			int timeout,
-			List<String> cimList // cimクラスとプロパティ名のリスト
+			Set<String> cimList // cimクラスとプロパティ名のリスト
 			) {
 		// クラス変数を初期化
 		init();
@@ -164,7 +161,7 @@ public class WbemPollerImpl {
 			m_log.debug("URL             : " + m_cimAgentAddress);
 		}
 
-		long enumerationStart = System.currentTimeMillis();
+		long enumerationStart = HinemosTime.currentTimeMillis();
 
 		CIMClient cimClient = null;
 
@@ -204,18 +201,16 @@ public class WbemPollerImpl {
 
 			// 問い合わせ用のHashMapを作成
 			HashMap<String, ArrayList<String>> requestMap = new HashMap<String, ArrayList<String>>();
-			Iterator<String> itr = cimList.iterator();
-			String[] targetValue = new String[2];
 			String cimClass = "";
 			String cimProperty = "";
 			ArrayList<String> propertyList = null;
 
 			int i = 0;
-			while(itr.hasNext()) {
+			for (String cimText : cimList) {
 
-				m_cimText[i] = itr.next();
+				m_cimText[i] = cimText;
 
-				targetValue = m_cimText[i].split("\\.");
+				String[] targetValue = m_cimText[i].split("\\.");
 				cimClass = targetValue[0];
 				cimProperty = targetValue[1];
 
@@ -240,35 +235,28 @@ public class WbemPollerImpl {
 			CIMInstance ci = null;
 			CIMValue value = null;
 			Enumeration<CIMInstance> enm = null;
-			Iterator<String> itr2 = null;
 
 			// 設定したリトライ回数分リトライする
 			for(int j = 0; j < retries; j++) {
 				boolean errorFlg = false;
 				m_retMap = new HashMap<String, CIMValue>();
 				try {
-					Set<String> keySet = requestMap.keySet();
-					itr = keySet.iterator();
+					for (Map.Entry<String, ArrayList<String>> cimClassEntry: requestMap.entrySet()) {
+						cimClass = cimClassEntry.getKey();
+						propertyList = cimClassEntry.getValue();
 
-					// 値の取得
-					while (itr.hasNext()) {
+						m_log.debug("CIMClass : " + cimClassEntry.getKey());
 
-						cimClass = itr.next();
-						propertyList = requestMap.get(cimClass);
-
-						m_log.debug("CIMClass : " + cimClass);
-
-						cop = new CIMObjectPath(cimClass);
+						cop = new CIMObjectPath(cimClassEntry.getKey());
 						enm = cimClient.enumInstances(cop, true);
 
 						i = 0;
 						while(enm.hasMoreElements()) {
 
 							ci = enm.nextElement();
-							itr2 = propertyList.iterator();
 
-							while(itr2.hasNext()) {
-								cimProperty = itr2.next();
+							for (String property : propertyList) {
+								cimProperty = property;
 
 								if(ci.getProperty(cimProperty) != null){
 
@@ -314,10 +302,16 @@ public class WbemPollerImpl {
 					}
 				} catch(CIMException e){
 					errorFlg = true;
+					for (String property : propertyList) {
+						dataTable.putValue(new TableEntry(getEntryKey(cimClass + "." + property + ".0"), HinemosTime.currentTimeMillis(), ErrorType.IO_ERROR, e));
+					}
 					m_log.warn("polling() warning :" + m_ipAddress.toString() +
 							", cimClass=" + cimClass + ", ID=" + e.getID() + ", message=" + e.getMessage());
 				} catch(Exception e) {
 					errorFlg = true;
+					for (String property : propertyList) {
+						dataTable.putValue(new TableEntry(getEntryKey(cimClass + "." + property + ".0"), HinemosTime.currentTimeMillis(), ErrorType.IO_ERROR, e));
+					}
 					m_log.warn("polling() warning :" + m_ipAddress.toString() + ", " + cimClass + " unforeseen error. " + e.getMessage(), e);
 				} finally {
 					if (errorFlg) {
@@ -332,7 +326,7 @@ public class WbemPollerImpl {
 				}
 			}
 		}
-		catch(Exception e){
+		catch(RuntimeException e){
 			m_log.warn("polling() warning :" + m_ipAddress.toString() + " unforeseen error. " + e.getMessage(), e);
 		}
 		finally {
@@ -346,7 +340,7 @@ public class WbemPollerImpl {
 			}
 		}
 
-		long enumerationStop = System.currentTimeMillis();
+		long enumerationStop = HinemosTime.currentTimeMillis();
 
 		// デバッグ出力
 		if (m_log.isDebugEnabled()) {
@@ -363,15 +357,11 @@ public class WbemPollerImpl {
 				return dataTable;
 			}
 
-			long time = System.currentTimeMillis(); // 取得時刻
+			long time = HinemosTime.currentTimeMillis(); // 取得時刻
 
-			Set<String> keySet = m_retMap.keySet();
-			Iterator<String> itr = keySet.iterator();
-
-			while(itr.hasNext()) {
-
-				String cimString = itr.next();
-				CIMValue value = m_retMap.get(cimString);
+			for(Map.Entry<String, CIMValue> entry: m_retMap.entrySet()) {
+				String cimString = entry.getKey();
+				CIMValue value = entry.getValue();
 
 				if(value.getType().getType() == CIMDataType.UINT8){
 					long ret = ((UnsignedInt8)value.getValue()).longValue();
@@ -459,6 +449,10 @@ public class WbemPollerImpl {
 
 			// 収集したデータを全てクリアする
 			dataTable.clear();
+			for(Map.Entry<String, CIMValue> entry: m_retMap.entrySet()) {
+				final String entryKey = getEntryKey(entry.getKey());
+				dataTable.putValue(new TableEntry(entryKey, HinemosTime.currentTimeMillis(), ErrorType.IO_ERROR, e));
+			}
 		}
 		return dataTable;
 	}
@@ -482,12 +476,12 @@ public class WbemPollerImpl {
 		} else if(type == CIMDataType.UINT64) {
 		} else if(type == CIMDataType.STRING) {
 		} else if(type == CIMDataType.STRING_ARRAY){
+			@SuppressWarnings("unchecked")
 			Vector<String> ret = (Vector<String>)value.getValue();
 			if (ret.size() == 0) {
 				m_log.info("checkCIMData : CIMValue has fault. : ip=" + m_ipAddress);
 				return false;
 			}
-		} else if(value.getType().getType() == CIMDataType.DATETIME) {
 		}
 		return true;
 	}
@@ -520,13 +514,13 @@ public class WbemPollerImpl {
 		String nameSpace = args[5];  // 設定不可
 		int retries = Integer.parseInt(args[6]);
 		int timeout = Integer.parseInt(args[7]);
-		ArrayList<String> cims = new ArrayList<String>();
+		Set<String> cims = new HashSet<String>();
 
-		for(int i=9; i<args.length; i++){
+		for(int i=8; i<args.length; i++){
 			cims.add(args[i]);
 		}
 
-		poller.polling(
+		DataTable table = poller.polling(
 				ipAddress,
 				port,
 				protocol,
@@ -536,6 +530,6 @@ public class WbemPollerImpl {
 				retries,
 				timeout,
 				cims);
-
+		System.out.println(table);
 	}
 }

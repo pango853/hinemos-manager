@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.infra.util;
@@ -28,26 +21,31 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.InfraManagementNotFound;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.ObjectPrivilege_InvalidRole;
-import com.clustercontrol.infra.model.FileTransferModuleInfoEntity;
-import com.clustercontrol.infra.model.InfraCheckResultEntity;
-import com.clustercontrol.infra.model.InfraFileEntity;
-import com.clustercontrol.infra.model.InfraManagementInfoEntity;
+import com.clustercontrol.infra.model.FileTransferModuleInfo;
+import com.clustercontrol.infra.model.InfraCheckResult;
+import com.clustercontrol.infra.model.InfraFileInfo;
+import com.clustercontrol.infra.model.InfraManagementInfo;
+import com.clustercontrol.infra.model.InfraManagementParamInfo;
+import com.clustercontrol.infra.model.InfraManagementParamInfoPK;
+import com.clustercontrol.infra.model.InfraModuleInfo;
+import com.clustercontrol.infra.model.InfraModuleInfoPK;
+import com.clustercontrol.infra.model.ReferManagementModuleInfo;
 
 public class QueryUtil {
 	/** ログ出力のインスタンス */
 	private static Log m_log = LogFactory.getLog( QueryUtil.class );
 
-	public static InfraManagementInfoEntity getInfraManagementInfoPK(String managementId) throws InfraManagementNotFound, InvalidRole {
+	public static InfraManagementInfo getInfraManagementInfoPK(String managementId) throws InfraManagementNotFound, InvalidRole {
 		return getInfraManagementInfoPK(managementId, ObjectPrivilegeMode.READ);
 	}
 
-	public static InfraManagementInfoEntity getInfraManagementInfoPK(String managementId, ObjectPrivilegeMode mode) throws InfraManagementNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		InfraManagementInfoEntity entity = null;
-		try {
-			entity = em.find(InfraManagementInfoEntity.class, managementId, mode);
+	public static InfraManagementInfo getInfraManagementInfoPK(String managementId, ObjectPrivilegeMode mode) throws InfraManagementNotFound, InvalidRole {
+		InfraManagementInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find(InfraManagementInfo.class, managementId, mode);
 			if (entity == null) {
-				InfraManagementNotFound e = new InfraManagementNotFound("InfraManagementInfoEntity.findByPrimaryKey"
+				InfraManagementNotFound e = new InfraManagementNotFound(managementId, "InfraManagementInfoEntity.findByPrimaryKey"
 						+ ", managementId = " + managementId);
 				m_log.info("getInfraManagementInfoPK() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
@@ -61,72 +59,216 @@ public class QueryUtil {
 		return entity;
 	}
 
-	public static List<InfraManagementInfoEntity> getAllInfraManagementInfo() {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<InfraManagementInfoEntity> list
-		= em.createNamedQuery("InfraManagementInfoEntity.findAll", InfraManagementInfoEntity.class)
-		.getResultList();
-		return list;
-	}
-
-	public static List<InfraManagementInfoEntity> getAllInfraManagementInfoOrderByInfraManagementId_OR(String ownerRoleId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<InfraManagementInfoEntity> list
-		= em.createNamedQuery_OR("InfraManagementInfoEntity.findAllOrderByInfraManagementId", InfraManagementInfoEntity.class, ownerRoleId)
-		.getResultList();
-		return list;
-	}
-
-	public static List<InfraManagementInfoEntity> getInfraManagementInfoFindByOwnerRoleId_NONE(String roleId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<InfraManagementInfoEntity> list
-		= em.createNamedQuery("InfraManagementInfoEntity.findByOwnerRoleId", InfraManagementInfoEntity.class, ObjectPrivilegeMode.NONE)
-		.setParameter("ownerRoleId", roleId)
-		.getResultList();
-		return list;
-	}
-
-	public static List<InfraFileEntity> getAllInfraFile() {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<InfraFileEntity> list
-			= em.createNamedQuery("InfraFileEntity.findAll", InfraFileEntity.class).getResultList();
-		return list;
-	}
-
-	public static List<InfraManagementInfoEntity> getInfraManagementInfoFindByFacilityId_NONE (String facilityId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<InfraManagementInfoEntity> list = null;
-
-		// ファシリティIDが使用されている設定を取得する。
-		list = em.createNamedQuery("InfraManagementInfoEntity.findByFacilityId", InfraManagementInfoEntity.class, ObjectPrivilegeMode.NONE)
-			.setParameter("facilityId", facilityId)
+	public static List<InfraManagementInfo> getAllInfraManagementInfo() {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<InfraManagementInfo> list
+			= em.createNamedQuery("InfraManagementInfoEntity.findAll", InfraManagementInfo.class)
 			.getResultList();
-		
-		return list;
+			return list;
+		}
+	}
+
+	public static List<InfraManagementInfo> getAllInfraManagementInfoOrderByInfraManagementId_OR(String ownerRoleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<InfraManagementInfo> list
+			= em.createNamedQuery_OR("InfraManagementInfoEntity.findAll", InfraManagementInfo.class, ownerRoleId)
+			.getResultList();
+			return list;
+		}
+	}
+
+	public static List<InfraManagementInfo> getInfraManagementInfoFindByOwnerRoleId_NONE(String roleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<InfraManagementInfo> list
+			= em.createNamedQuery("InfraManagementInfoEntity.findByOwnerRoleId", InfraManagementInfo.class, ObjectPrivilegeMode.NONE)
+			.setParameter("ownerRoleId", roleId)
+			.getResultList();
+			return list;
+		}
+	}
+
+	public static List<InfraFileInfo> getAllInfraFile() {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<InfraFileInfo> list
+				= em.createNamedQuery("InfraFileEntity.findAll", InfraFileInfo.class).getResultList();
+			return list;
+		}
+	}
+
+	public static List<InfraFileInfo> getAllInfraFile_OR(String ownerRoleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<InfraFileInfo> list
+				= em.createNamedQuery_OR("InfraFileEntity.findAll", InfraFileInfo.class, ownerRoleId).getResultList();
+			return list;
+		}
+	}
+
+	public static List<InfraManagementInfo> getInfraManagementInfoFindByFacilityId_NONE (String facilityId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<InfraManagementInfo> list = null;
+	
+			// ファシリティIDが使用されている設定を取得する。
+			list = em.createNamedQuery("InfraManagementInfoEntity.findByFacilityId", InfraManagementInfo.class, ObjectPrivilegeMode.NONE)
+				.setParameter("facilityId", facilityId)
+				.getResultList();
+			
+			return list;
+		}
 	}
 	
-	public static List<InfraCheckResultEntity> getInfraCheckResultFindByManagementId(String managementId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		TypedQuery<InfraCheckResultEntity> query = em.createNamedQuery("InfraCheckResultEntity.findByManagementId", InfraCheckResultEntity.class);
-		query.setParameter("managementId", managementId);
-		List<InfraCheckResultEntity> list = query.getResultList();
-		return list;
+	public static List<InfraCheckResult> getInfraCheckResultFindByManagementId(String managementId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			TypedQuery<InfraCheckResult> query = em.createNamedQuery("InfraCheckResultEntity.findByManagementId", InfraCheckResult.class);
+			query.setParameter("managementId", managementId);
+			List<InfraCheckResult> list = query.getResultList();
+			return list;
+		}
 	}
 	
-	public static List<InfraCheckResultEntity> getInfraCheckResultFindByModuleId(String managementId, String moduleId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		TypedQuery<InfraCheckResultEntity> query = em.createNamedQuery("InfraCheckResultEntity.findByModuleId", InfraCheckResultEntity.class);
-		query.setParameter("managementId", managementId);
-		query.setParameter("moduleId", moduleId);
-		List<InfraCheckResultEntity> list = query.getResultList();
-		return list;
+	public static List<InfraCheckResult> getInfraCheckResultFindByModuleId(String managementId, String moduleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			TypedQuery<InfraCheckResult> query = em.createNamedQuery("InfraCheckResultEntity.findByModuleId", InfraCheckResult.class);
+			query.setParameter("managementId", managementId);
+			query.setParameter("moduleId", moduleId);
+			List<InfraCheckResult> list = query.getResultList();
+			return list;
+		}
 	}
 
 	public static boolean isInfraFileReferredByFileTransferModuleInfoEntity(String fileId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		TypedQuery<FileTransferModuleInfoEntity> query = em.createNamedQuery("FileTransferModuleInfoEntity.findByFileId", FileTransferModuleInfoEntity.class);
-		query.setParameter("fileId", fileId);
-		query.setMaxResults(1);
-		return !query.getResultList().isEmpty();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			TypedQuery<FileTransferModuleInfo> query = em.createNamedQuery("FileTransferModuleInfoEntity.findByFileId", FileTransferModuleInfo.class);
+			query.setParameter("fileId", fileId);
+			query.setMaxResults(1);
+			return !query.getResultList().isEmpty();
+		}
+	}
+	
+	public static InfraManagementInfo getInfraManagementInfoPK_OR(String managementId, String ownerRoleId) throws InfraManagementNotFound, InvalidRole {
+		return getInfraManagementInfoPK_OR(managementId, ownerRoleId, ObjectPrivilegeMode.READ);
+	}
+	
+	public static InfraManagementInfo getInfraManagementInfoPK_OR(String managementId, String ownerRoleId, ObjectPrivilegeMode mode) throws InfraManagementNotFound, InvalidRole {
+		InfraManagementInfo info = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			info = em.find_OR(InfraManagementInfo.class, managementId, mode, ownerRoleId);
+			if (info == null) {
+				InfraManagementNotFound e = new InfraManagementNotFound(managementId);
+				m_log.info("getInfraManagementInfoPK_OR() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+		} catch (ObjectPrivilege_InvalidRole e) {
+			m_log.info("getInfraManagementInfoPK_OR() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage());
+			throw new InvalidRole(e.getMessage(), e);
+		}
+		return info;
+	}
+
+	public static InfraModuleInfo<?> getInfraModuleInfoPK(InfraModuleInfoPK pk)
+			throws InfraManagementNotFound, InvalidRole {
+		InfraModuleInfo<?> entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find(InfraModuleInfo.class, pk, ObjectPrivilegeMode.READ);
+			if (entity == null) {
+				InfraManagementNotFound e = new InfraManagementNotFound("InfraModuleInfoEntity.findByPrimaryKey"
+						+ ", pk = " + pk);
+				m_log.info("getInfraModuleInfoPK() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+		} catch (ObjectPrivilege_InvalidRole e) {
+			m_log.info("getInfraModuleInfoPK() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage());
+			throw new InvalidRole(e.getMessage(), e);
+		}
+		return entity;
+	}
+
+	public static InfraFileInfo getInfraFileInfoPK(String fileId, ObjectPrivilegeMode mode)
+			throws InfraManagementNotFound, InvalidRole {
+		InfraFileInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find(InfraFileInfo.class, fileId, mode);
+			if (entity == null) {
+				InfraManagementNotFound e = new InfraManagementNotFound("InfraFileInfoEntity.findByPrimaryKey"
+						+ ", fileId = " + fileId);
+				m_log.info("getInfraFileInfoPK() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+		} catch (ObjectPrivilege_InvalidRole e) {
+			m_log.info("getInfraFileInfoPK() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage());
+			throw new InvalidRole(e.getMessage(), e);
+		}
+		return entity;
+	}
+
+	public static InfraFileInfo getInfraFileInfoPK_OR(String fileId, ObjectPrivilegeMode mode, String ownerRoleId)
+			throws InfraManagementNotFound, InvalidRole {
+		InfraFileInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find_OR(InfraFileInfo.class, fileId, mode, ownerRoleId);
+			if (entity == null) {
+				InfraManagementNotFound e = new InfraManagementNotFound("InfraFileInfoEntity.findByPrimaryKey"
+						+ ", fileId = " + fileId
+						+ ", ownerRoleId = " + ownerRoleId);
+				m_log.info("getInfraFileInfoPK_OR() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+		} catch (ObjectPrivilege_InvalidRole e) {
+			m_log.info("getInfraFileInfoPK_OR() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage());
+			throw new InvalidRole(e.getMessage(), e);
+		}
+		return entity;
+	}
+
+	public static InfraManagementParamInfo getInfraManagementParamInfoPK(InfraManagementParamInfoPK pk)
+			throws InfraManagementNotFound, InvalidRole {
+		InfraManagementParamInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find(InfraManagementParamInfo.class, pk, ObjectPrivilegeMode.READ);
+			if (entity == null) {
+				InfraManagementNotFound e = new InfraManagementNotFound("InfraManagementParamInfo.findByPrimaryKey"
+						+ pk.toString());
+				m_log.info("getInfraManagementParamInfoPK() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+		} catch (ObjectPrivilege_InvalidRole e) {
+			m_log.info("getInfraFileInfoPK_OR() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage());
+			throw new InvalidRole(e.getMessage(), e);
+		}
+		return entity;
+	}
+
+	public static List<InfraManagementParamInfo> getInfraManagementParamListFindByManagementId(String managementId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<InfraManagementParamInfo> list
+				= em.createNamedQuery("InfraManagementParamInfo.findByManagementId", InfraManagementParamInfo.class)
+				.setParameter("managementId", managementId)
+				.getResultList();
+			return list;
+		}
 	}
 }

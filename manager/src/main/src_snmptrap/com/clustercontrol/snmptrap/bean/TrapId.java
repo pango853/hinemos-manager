@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.snmptrap.bean;
@@ -36,6 +29,11 @@ import com.clustercontrol.snmptrap.util.SnmpTrapConstants;
  */
 @XmlType(namespace = "http://monitor.ws.clustercontrol.com")
 public class TrapId implements Serializable {
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 
 	private static Logger logger = Logger.getLogger(TrapId.class);
 
@@ -242,7 +240,7 @@ public class TrapId implements Serializable {
 			}
 			else {
 				TrapId otherTrap = (TrapId)other;
-				if (this.enterpriseId.equals(otherTrap.enterpriseId) && this.enterpriseId == otherTrap.enterpriseId)
+				if (this.enterpriseId.equals(otherTrap.enterpriseId))
 					return true;
 			}
 			return false;
@@ -255,7 +253,7 @@ public class TrapId implements Serializable {
 			final int prime = 31;
 			int result = 1;
 			result = prime * result + version;
-			result = prime * result + enterpriseId == null ? 0 : enterpriseId.hashCode();
+			result = prime * result + ((enterpriseId == null) ? 0 : enterpriseId.hashCode());
 			result = prime * result + genericId;
 			result = prime * result + specificId;
 			return result;

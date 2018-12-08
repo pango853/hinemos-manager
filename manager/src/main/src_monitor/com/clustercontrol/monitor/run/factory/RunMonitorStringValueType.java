@@ -1,24 +1,13 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.run.factory;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -26,11 +15,10 @@ import java.util.regex.PatternSyntaxException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.monitor.run.bean.MonitorJudgementInfo;
-import com.clustercontrol.monitor.run.bean.MonitorStringValueInfo;
-import com.clustercontrol.monitor.run.model.MonitorStringValueInfoEntity;
+import com.clustercontrol.monitor.run.bean.MonitorTypeConstant;
+import com.clustercontrol.monitor.run.model.MonitorJudgementInfo;
+import com.clustercontrol.monitor.run.util.MonitorJudgementInfoCache;
 
 /**
  * 文字列監視を実行する抽象クラス<BR>
@@ -61,13 +49,18 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 	@Override
 	public abstract boolean collect(String facilityId) throws HinemosUnknown;
 
+	@Override
+	public int getCheckResult(boolean ret, Object value) {
+		throw new UnsupportedOperationException("forbidden to call getCheckResult() method");
+	}
+
 	/**
 	 * 判定結果を返します。
 	 * <p>
 	 * 判定情報マップにセットしてある各順序のパターンマッチ表現から、
 	 * 監視取得値がどのパターンマッチ表現にマッチするか判定し、マッチした順序を返します。
 	 * 
-	 * @see com.clustercontrol.monitor.run.ejb.entity.MonitorStringValueInfoBean#getOrderNo()
+	 * @see com.clustercontrol.monitor.run.ejb.entity.MonitorStringValueInfoBean#getOrder_no()
 	 * @see com.clustercontrol.monitor.run.bean.MonitorStringValueInfo
 	 */
 	@Override
@@ -83,16 +76,12 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 		}
 
 		// 値取得の成功時
-		MonitorStringValueInfo info = null;
 		Pattern pattern = null;
 		Matcher matcher = null;
 
 		int orderNo = 0;
 		// 文字列監視判定情報で順番にフィルタリング
-		Set<Integer> set = m_judgementInfoList.keySet();
-		for (Iterator<Integer> iter = set.iterator(); iter.hasNext();) {
-			Integer key = iter.next();
-			info = (MonitorStringValueInfo) m_judgementInfoList.get(key);
+		for (MonitorJudgementInfo info: m_judgementInfoList.values()) {
 
 			++orderNo;
 			if(m_log.isDebugEnabled()){
@@ -103,7 +92,7 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 			}
 
 			// この設定が有効な場合
-			if (info != null && info.isValidFlg()) {
+			if (info != null && info.getValidFlg()) {
 				try {
 					String patternText = info.getPattern();
 
@@ -116,9 +105,8 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 						pattern = Pattern.compile(patternText, Pattern.DOTALL);
 					}
 					if (m_value == null) {
-						m_log.warn("getCheckResult(): PatternSyntax is not valid." +
-								" description="+info.getDescription() +
-								", patternSyntax="+info.getPattern() + ", value=" + m_value);
+						m_log.debug("getCheckResult(): monitorId=" + info.getMonitorId() + ", facilityId=" + m_facilityId +
+								", value=null");
 						result = -1;
 						return result;
 					}
@@ -129,7 +117,7 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 						result = orderNo;
 
 						m_log.debug("getCheckResult() true : description=" + info.getDescription() + ", value=" + m_value);
-						m_log.debug("getCheckResult() true : messageId=" + info.getMessageId() + ", message=" + info.getMessage());
+						m_log.debug("getCheckResult() true : message=" + info.getMessage());
 
 						break;
 					}
@@ -160,48 +148,14 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 	 * <li>取得した文字列監視の判定情報を、順序をキーに判定情報マップにセットします。</li>
 	 * </ol>
 	 * 
-	 * @see com.clustercontrol.monitor.run.ejb.entity.MonitorStringValueInfoBean#getOrderNo()
+	 * @see com.clustercontrol.monitor.run.ejb.entity.MonitorStringValueInfoBean#getOrder_no()
 	 * @see com.clustercontrol.monitor.run.bean.MonitorStringValueInfo
 	 */
 	@Override
 	protected void setJudgementInfo() {
-		m_log.debug("setJudgementInfo() start");
-
 		// 文字列監視判定値、ログ出力メッセージ情報を取得
-		Collection<MonitorStringValueInfoEntity> ct = m_monitor.getMonitorStringValueInfoEntities();
-		Iterator<MonitorStringValueInfoEntity> itr = ct.iterator();
-
-		m_judgementInfoList = new TreeMap<Integer, MonitorJudgementInfo>();
-		MonitorStringValueInfoEntity entity = null;
-		while(itr.hasNext()){
-
-			entity = itr.next();
-			Integer order = entity.getId().getOrderNo().intValue();
-
-			MonitorStringValueInfo info = new MonitorStringValueInfo();
-			info.setDescription(entity.getDescription());
-			info.setPattern(entity.getPattern());
-			info.setProcessType(entity.getProcessType().intValue());
-			info.setPriority(entity.getPriority().intValue());
-			info.setMessage(entity.getMessage());
-			info.setCaseSensitivityFlg(ValidConstant.typeToBoolean(entity.getCaseSensitivityFlg().intValue()));
-			info.setValidFlg(ValidConstant.typeToBoolean(entity.getValidFlg().intValue()));
-
-			m_judgementInfoList.put(order, info);
-
-			if(m_log.isDebugEnabled()){
-				m_log.debug("setJudgementInfo() MonitorStringValue OrderNo = " + order.intValue());
-				m_log.debug("setJudgementInfo() MonitorStringValue Description = " + entity.getDescription());
-				m_log.debug("setJudgementInfo() MonitorStringValue Pattern = " + entity.getPattern());
-				m_log.debug("setJudgementInfo() MonitorStringValue ProcessType = " + entity.getProcessType().intValue());
-				m_log.debug("setJudgementInfo() MonitorStringValue Priority = " + entity.getPriority().intValue());
-				m_log.debug("setJudgementInfo() MonitorStringValue Message = " + entity.getMessage());
-				m_log.debug("setJudgementInfo() MonitorStringValue CaseSensitivityFlg = " + ValidConstant.typeToBoolean(entity.getCaseSensitivityFlg().intValue()));
-				m_log.debug("setJudgementInfo() MonitorStringValue ValidFlg = " + ValidConstant.typeToBoolean(entity.getValidFlg().intValue()));
-			}
-		}
-
-		m_log.debug("setJudgementInfo() end");
+		m_judgementInfoList = MonitorJudgementInfoCache.getMonitorJudgementMap(
+				m_monitorId, MonitorTypeConstant.TYPE_STRING);
 	}
 
 	/**
@@ -212,7 +166,7 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 	 * @since 4.0.0
 	 */
 	public String getPatternText(int key){
-		return ((MonitorStringValueInfo)m_judgementInfoList.get(key)).getPattern();
+		return m_judgementInfoList.get(key).getPattern();
 	}
 
 	/**
@@ -222,7 +176,7 @@ abstract public class RunMonitorStringValueType extends RunMonitor{
 	 * @return 処理タイプ
 	 * @since 4.0.0
 	 */
-	public int getProcessType(int key){
-		return ((MonitorStringValueInfo)m_judgementInfoList.get(key)).getProcessType();
+	public boolean getProcessType(int key){
+		return m_judgementInfoList.get(key).getProcessType();
 	}
 }

@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.monitor.run.bean;
 
 import java.io.Serializable;
@@ -8,7 +16,7 @@ import javax.xml.bind.annotation.XmlType;
  * 
  * 各監視の結果情報を格納するクラスです。
  * 
- * @version 4.0.0
+ * @version 6.1.0
  * @since 3.0.0
  */
 @XmlType(namespace = "http://monitor.ws.clustercontrol.com")
@@ -29,40 +37,55 @@ public class MonitorRunResultInfo implements Serializable {
 	private Boolean m_collectorResult = Boolean.TRUE;
 
 	/** 判定結果 */
-	private Integer m_checkResult = new Integer(0);
+	private Integer m_checkResult = 0;
 
 	/** 重要度 */
-	private Integer m_priority = new Integer(0);
+	private Integer m_priority = 0;
 
 	/** 収集項目ID */
 	private String m_itemCode;
 
+	/** 収集値表示名 */
+	private String m_itemName;
+	
 	/** 表示名 */
 	private String m_displayName;
 
 	/** メッセージ */
 	private String m_message;
 
-	/** メッセージID */
-	private String m_messageId;
-
 	/** オリジナルメッセージ */
 	private String m_messageOrg;
 
 	/** 監視値 **/
-	private Double m_value = new Double(0);
+	private Object m_value;
 
 	/** ノード 監視結果取得時刻 */
-	private Long m_nodeDate = new Long(0);
+	private Long m_nodeDate = 0l;
 
 	/** 通知グループID */
 	private String m_notifyGroupId;
+
+	/** アプリケーション名 */
+	private String m_application;
 
 	/** パターンマッチ表現（文字列監視の場合、監視結果を生じさせたパターンマッチ表現） */
 	private String m_patternText;
 
 	/** 処理タイプ **/
-	private Integer m_processType = new Integer(0);
+	private Boolean m_processType = false;
+
+	/** 今回取得したデータ（ジョブ監視で使用） **/
+	private Object m_curData = null;
+
+	/** 平均値 */
+	private Double m_average;
+
+	/** 標準偏差 */
+	private Double m_standardDeviation;
+
+	/** 数値監視の種別（数値監視以外はBASIC */
+	private MonitorNumericType m_monitorNumericType = MonitorNumericType.TYPE_BASIC;
 
 	/**
 	 * 監視結果の重要度を返す
@@ -113,22 +136,6 @@ public class MonitorRunResultInfo implements Serializable {
 	}
 
 	/**
-	 * メッセージIDを返す
-	 * @return メッセージID
-	 */
-	public String getMessageId() {
-		return m_messageId;
-	}
-
-	/**
-	 * メッセージIDを設定する
-	 * @param メッセージID
-	 */
-	public void setMessageId(String id) {
-		m_messageId = id;
-	}
-
-	/**
 	 * オリジナルメッセージを返す
 	 * @return オリジナルメッセージ
 	 */
@@ -158,6 +165,22 @@ public class MonitorRunResultInfo implements Serializable {
 	 */
 	public void setItemCode(String itemCode) {
 		m_itemCode = itemCode;
+	}
+
+	/**
+	 * 収集値表示名を返す
+	 * @return 収集値表示名
+	 */
+	public String getItemName() {
+		return m_itemName;
+	}
+
+	/**
+	 * 収集値表示名を設定する
+	 * @param 収集値表示名
+	 */
+	public void setItemName(String itemName) {
+		m_itemName = itemName;
 	}
 
 	/**
@@ -257,6 +280,22 @@ public class MonitorRunResultInfo implements Serializable {
 	}
 
 	/**
+	 * アプリケーション名を返す
+	 * @return アプリケーション名
+	 */
+	public String getApplication() {
+		return m_application;
+	}
+
+	/**
+	 * アプリケーション名を設定する
+	 * @param application
+	 */
+	public void setApplication(String application) {
+		this.m_application = application;
+	}
+
+	/**
 	 * 監視値を設定する
 	 * @param m_value
 	 */
@@ -265,11 +304,27 @@ public class MonitorRunResultInfo implements Serializable {
 	}
 
 	/**
-	 * 監視値を返す
+	 * 監視値を返す(Double)
 	 * @param m_value
 	 */
 	public Double getValue() {
-		return m_value;
+		return (Double)m_value;
+	}
+
+	/**
+	 * 監視値を設定する(String)
+	 * @param m_value
+	 */
+	public void setStringValue(String m_value) {
+		this.m_value = m_value;
+	}
+
+	/**
+	 * 監視値を返す(String)
+	 * @param m_value
+	 */
+	public String getStringValue() {
+		return (String)m_value;
 	}
 
 	/**
@@ -288,11 +343,11 @@ public class MonitorRunResultInfo implements Serializable {
 		return m_patternText;
 	}
 
-	public void setProcessType(Integer processType) {
+	public void setProcessType(Boolean processType) {
 		this.m_processType = processType;
 	}
 
-	public Integer getProcessType() {
+	public Boolean getProcessType() {
 		return m_processType;
 	}
 
@@ -315,5 +370,69 @@ public class MonitorRunResultInfo implements Serializable {
 			return false;
 		else
 			return this.m_collectorResult;
+	}
+
+	/**
+	 * 今回取得したデータ（ジョブ監視で使用）を返す
+	 * @return 今回取得したデータ（ジョブ監視で使用）
+	 */
+	public Object getCurData() {
+		return m_curData;
+	}
+
+	/**
+	 * 今回取得したデータ（ジョブ監視で使用）を設定する
+	 * @param 今回取得したデータ（ジョブ監視で使用）
+	 */
+	public void setCurData(Object curData) {
+		m_curData = curData;
+	}
+
+	/**
+	 * 平均値を返す（変化点監視で使用）
+	 * @return 平均値（変化点監視で使用）
+	 */
+	public Double getAverage() {
+		return m_average;
+	}
+
+	/**
+	 * 平均値を設定する（変化点監視で使用）
+	 * @param 平均値（変化点監視で使用）
+	 */
+	public void setAverage(Double average) {
+		m_average = average;
+	}
+	
+	/**
+	 * 標準偏差を返す（変化点監視で使用）
+	 * @return 標準偏差（変化点監視で使用）
+	 */
+	public Double getStandardDeviation() {
+		return m_standardDeviation;
+	}
+
+	/**
+	 * 標準偏差を設定する（変化点監視で使用）
+	 * @param 標準偏差（変化点監視で使用）
+	 */
+	public void setStandardDeviation(Double standardDeviation) {
+		m_standardDeviation = standardDeviation;
+	}
+	
+	/**
+	 * 数値監視種別を返す
+	 * @return 数値監視種別
+	 */
+	public MonitorNumericType getMonitorNumericType() {
+		return m_monitorNumericType;
+	}
+
+	/**
+	 * 数値監視種別を設定する
+	 * @param 数値監視種別
+	 */
+	public void setMonitorNumericType(MonitorNumericType monitorNumericType) {
+		m_monitorNumericType = monitorNumericType;
 	}
 }

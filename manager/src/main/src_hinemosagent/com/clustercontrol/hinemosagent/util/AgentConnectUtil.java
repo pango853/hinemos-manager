@@ -1,14 +1,9 @@
 /*
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.hinemosagent.util;
@@ -24,7 +19,6 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,9 +29,9 @@ import java.util.Set;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.commons.util.AbstractCacheManager;
 import com.clustercontrol.commons.util.CacheManagerFactory;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
@@ -49,18 +43,15 @@ import com.clustercontrol.hinemosagent.bean.AgentInfo;
 import com.clustercontrol.hinemosagent.bean.TopicInfo;
 import com.clustercontrol.jobmanagement.bean.RunInstructionInfo;
 import com.clustercontrol.jobmanagement.factory.JobSessionNodeImpl;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 import com.clustercontrol.monitor.run.util.QueryUtil;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
 import com.clustercontrol.notify.factory.NotifyEventTaskFactory;
 import com.clustercontrol.plugin.impl.AsyncWorkerPlugin;
-import com.clustercontrol.repository.bean.NodeInfo;
 import com.clustercontrol.repository.factory.FacilitySelector;
 import com.clustercontrol.repository.factory.NodeProperty;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.util.Messages;
-
 
 public class AgentConnectUtil {
 
@@ -191,7 +182,7 @@ public class AgentConnectUtil {
 			}
 		}
 		if (flag) {
-			m_log.info("setTopic : " + facilityId + ", " + info);
+			m_log.debug("setTopic : " + facilityId + ", " + info);
 			subSetTopic(facilityId, info);
 			awakeAgent(facilityId);
 		} else {
@@ -227,7 +218,8 @@ public class AgentConnectUtil {
 			HashMap<String, List<TopicInfo>> topicMap = getAgentTopicCache();
 			infoList = topicMap.get(facilityId);
 			if (infoList != null && infoList.contains(info)) {
-				m_log.info("subSetTopic(): same topic. Maybe, agent timeout error occured.");
+				m_log.info("subSetTopic(): same topic. Maybe, agent timeout error occured. "
+						+ "facilityId = " + facilityId);
 				return;
 			}
 			
@@ -238,12 +230,13 @@ public class AgentConnectUtil {
 			
 			// Topicのリストに同一のものがある場合は、追加しない。
 			if (infoList.contains(info)) {
-				m_log.info("subSetTopic(): same topic. Maybe, agent timeout error occured.");
+				m_log.info("subSetTopic(): same topic. Maybe, agent timeout error occured. "
+						+ "facilityId = " + facilityId);
 			} else {
 				infoList.add(info);
 				if (infoList.size() > 10) {
 					m_log.info("subSetTopic(): topicList is too large : size=" +
-							infoList.size());
+							infoList.size() + ", facilityId = " + facilityId);
 				}
 			}
 			
@@ -306,10 +299,14 @@ public class AgentConnectUtil {
 			ipAddress = info.getAvailableIpAddress();
 			port = info.getAgentAwakePort();
 		} catch (FacilityNotFound e) {
+			m_log.debug(e.getMessage(), e);
 			return;
 		} catch (Exception e) {
-			m_log.warn("awakeAgent " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			m_log.warn("awakeAgent facilityId=" + facilityId + " " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			return;
+		}
+		if (port < 1 || 65535 < port) {
+			m_log.info("awakeAgent : invalid port " + port + "(" + facilityId + ")");
 		}
 		m_log.debug("awakeAgent ipaddress=" + ipAddress);
 
@@ -320,7 +317,7 @@ public class AgentConnectUtil {
 		try {
 			sAddr = InetAddress.getByName(ipAddress);
 		} catch (UnknownHostException e) {
-			m_log.warn("awakeAgent " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			m_log.warn("awakeAgent facilityId=" + facilityId + " " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			return;
 		}
 		DatagramPacket sendPacket = new DatagramPacket(buf, BUFSIZE, sAddr, port);
@@ -329,9 +326,9 @@ public class AgentConnectUtil {
 			soc = new DatagramSocket();
 			soc.send(sendPacket);
 		} catch (SocketException e) {
-			m_log.warn("awakeAgent " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			m_log.warn("awakeAgent facilityId=" + facilityId + " " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 		} catch (IOException e) {
-			m_log.warn("awakeAgent " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			m_log.warn("awakeAgent facilityId=" + facilityId + " " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 		} finally {
 			if (soc != null) {
 				soc.close();
@@ -343,15 +340,15 @@ public class AgentConnectUtil {
 		if (!m_log.isDebugEnabled()) {
 			return;
 		}
-		String str = "";
 		if (topicInfoList == null) {
 			m_log.debug("printRunInstructionInfo JobOrder : " + facilityId + ", infoList is null");
 			return;
 		}
+		StringBuilder str = new StringBuilder();
 		for (TopicInfo topicInfo : topicInfoList) {
 			if (topicInfo.getRunInstructionInfo() != null) {
-				str += topicInfo.getRunInstructionInfo().getJobId() + ", "
-						+ topicInfo.getRunInstructionInfo().getSessionId() + ", ";
+				str.append(topicInfo.getRunInstructionInfo().getJobId()).append(", ")
+						.append(topicInfo.getRunInstructionInfo().getSessionId()).append(", ");
 			}
 		}
 		m_log.debug("printRunInstructionInfo JobOrder : " + facilityId + ", " + str);
@@ -422,32 +419,12 @@ public class AgentConnectUtil {
 			 * 「同一ファシリティIDのエージェントが存在します。」
 			 * というメッセージを出力させる。
 			 */
-			m_log.info("agents are duplicate : " + facilityId + "[" +
+			if (cacheInfo.getInstanceId().equals(agentInfo.getInstanceId())) {
+				m_log.warn("agents are duplicate : " + facilityId + "[" +
 					cacheInfo.toString() + "->" + agentInfo.toString() + "]");
-			OutputBasicInfo outputBasicInfo = new OutputBasicInfo();
-			outputBasicInfo.setApplication("agent");
-			outputBasicInfo.setFacilityId(facilityId);
-			outputBasicInfo.setGenerationDate(new Date().getTime());
-			String[] args = {facilityId};
-			outputBasicInfo.setMessage(Messages.getString("message.agent.3", args));
-			outputBasicInfo.setMessageId("001");
-			outputBasicInfo.setMessageOrg(Messages.getString("message.agent.3", args));
-			outputBasicInfo.setMonitorId("SYS");
-			outputBasicInfo.setPluginId("001");
-			outputBasicInfo.setPriority(PriorityConstant.TYPE_CRITICAL);
-			outputBasicInfo.setScopeText(facilityId);
-			try {
-				ArrayList<String> facilityIdList = new ArrayList<String>();
-				facilityIdList.add(facilityId);
-				sendMessageLocal(outputBasicInfo, facilityIdList);
-			} catch (HinemosUnknown e) {
-				m_log.info("pubAgentMap " + e.getClass().getSimpleName() + e.getMessage());
-			} catch (FacilityNotFound e) {
-				m_log.info("pubAgentMap " + e.getClass().getSimpleName() + e.getMessage());
-			}
-			if (!facilityId.equals(agentInfo.getFacilityId())){
-				// ここは通らないはず。
-				m_log.info("facilityId=" + facilityId + ", f2=" + agentInfo.getFacilityId());
+			} else {
+				m_log.debug("agents are duplicate : " + facilityId + "[" +
+					cacheInfo.toString() + "->" + agentInfo.toString() + "]");
 			}
 			
 			try {
@@ -477,13 +454,8 @@ public class AgentConnectUtil {
 			Set<AgentInfo> removedSet = new HashSet<AgentInfo>();
 			for (Entry<String, AgentInfo> entry : new HashSet<Entry<String, AgentInfo>>(agentMap.entrySet())) {
 				if (! entry.getValue().isValid()) {
-					AgentInfo agentInfo = agentMap.remove(entry.getKey()); 
-					removedSet.add(agentInfo);
-					if (agentInfo != null) {
-						m_log.info("remove " + agentInfo);
-					} else {
-						m_log.warn("agentInfo is null");
-					}
+					removedSet.add(agentMap.remove(entry.getKey()));
+					m_log.info("remove " + entry.getValue());
 				}
 			}
 			if (removedSet.size() > 0) {
@@ -522,7 +494,7 @@ public class AgentConnectUtil {
 			
 			AgentInfo agentInfo = agentMap.get(facilityId);
 			if (agentInfo != null) {
-				valid = true;
+				valid = agentInfo.isValid();
 			}
 		} finally {
 			_agentCacheLock.readUnlock();
@@ -681,7 +653,7 @@ public class AgentConnectUtil {
 		ArrayList<String> facilityList = null;
 		if (!"SYS".equals(outputBasicInfo.getMonitorId())) {
 			try {
-				MonitorInfoEntity entity = QueryUtil.getMonitorInfoPK_NONE(outputBasicInfo.getMonitorId());
+				MonitorInfo entity = QueryUtil.getMonitorInfoPK_NONE(outputBasicInfo.getMonitorId());
 				String monitorFacilityId = entity.getFacilityId();
 				facilityList = FacilitySelector.getFacilityIdList(monitorFacilityId, entity.getOwnerRoleId(), 0, false, false);
 			} catch (MonitorNotFound e) {
@@ -726,20 +698,18 @@ public class AgentConnectUtil {
 		int pingPort;
 
 		// 接続先ポートの決定（プロパティファイルから読み込み、正しくないポートレンジの場合には何も実施せず終了する
-		pingPort = HinemosPropertyUtil.getHinemosPropertyNum("common.agent.discovery.pingport", 24005);
+		pingPort = HinemosPropertyCommon.common_agent_discovery_pingport.getIntegerValue();
 		if (pingPort < 1 || pingPort > 65535) {
 			return false;
 		}
 		// エージェントが接続するためのマネージャのIPを調べる
 		try {
 			// DNS名接続の場合(agent.connection.dnsnameに文字列が指定) Hinemos ver 4.0.2以降対応
-			managerIpAddr = HinemosPropertyUtil.getHinemosPropertyStr("agent.connection.dnsname","");
+			managerIpAddr = HinemosPropertyCommon.agent_connection_dnsname.getStringValue();
 			
 			// IPアドレス接続の場合(agent.connection.dnsnameが未指定)
 			if(managerIpAddr == null || "".equals(managerIpAddr)){
-				managerIpAddr = HinemosPropertyUtil.getHinemosPropertyStr(
-						"agent.connection.ipaddres", InetAddress.getLocalHost()
-						.getHostAddress());
+				managerIpAddr = HinemosPropertyCommon.agent_connection_ipaddres.getAgentConnectionIpaddres();
 			}
 		} catch (UnknownHostException e) {
 			throw e;

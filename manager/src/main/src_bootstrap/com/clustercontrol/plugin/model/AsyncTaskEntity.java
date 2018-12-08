@@ -1,31 +1,20 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.plugin.model;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 
 import javax.persistence.Cacheable;
 import javax.persistence.Column;
 import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
 import javax.persistence.Table;
-
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
 
 
 /**
@@ -38,7 +27,7 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 public class AsyncTaskEntity implements Serializable {
 	private static final long serialVersionUID = 1L;
 	private AsyncTaskEntityPK id;
-	private Timestamp createDatetime;
+	private Long createDatetime;
 	private byte[] param;
 
 	@Deprecated
@@ -47,8 +36,6 @@ public class AsyncTaskEntity implements Serializable {
 
 	public AsyncTaskEntity(AsyncTaskEntityPK pk) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
 	}
 
 	public AsyncTaskEntity(String worker, Long taskId) {
@@ -67,15 +54,16 @@ public class AsyncTaskEntity implements Serializable {
 
 
 	@Column(name="create_datetime")
-	public Timestamp getCreateDatetime() {
+	public Long getCreateDatetime() {
 		return this.createDatetime;
 	}
 
-	public void setCreateDatetime(Timestamp createDatetime) {
+	public void setCreateDatetime(Long createDatetime) {
 		this.createDatetime = createDatetime;
 	}
 
 
+	@Column(name="param")
 	public byte[] getParam() {
 		return this.param;
 	}

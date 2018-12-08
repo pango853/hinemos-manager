@@ -1,18 +1,11 @@
 /*
- * Copyright 2008 Arne Limburg
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Hinemos (http://www.hinemos.info/)
  *
- *	 http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions
- * and limitations under the License.
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.accesscontrol.jpql.compile;
 
 import net.sf.jpasecurity.jpql.parser.JpqlAbstractSchemaName;
@@ -42,8 +35,9 @@ import net.sf.jpasecurity.jpql.parser.JpqlWhere;
 import net.sf.jpasecurity.jpql.parser.Node;
 import net.sf.jpasecurity.jpql.parser.ToStringVisitor;
 
-import com.clustercontrol.accesscontrol.model.ObjectPrivilegeEntity;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.jobmanagement.factory.CreateJobSession;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
 
 
@@ -221,13 +215,13 @@ public class QueryPreparator {
 		JpqlExists node1 = createExists(
 								createSubselect(
 								createSelectClause(privilegeAlias),
-								createFrom(ObjectPrivilegeEntity.class.getSimpleName(), privilegeAlias),
+								createFrom(ObjectPrivilegeInfo.class.getSimpleName(), privilegeAlias),
 								createWhere(createAnd(createAnd(createAnd(equals1, equals2), equals3), in))));
 
 		JpqlIn node2 = createIn(createPath(objectAlias + ".ownerRoleId"), createNamedParameter("roleIds"));
 		Node node = null;
 		if (objectType.equals(HinemosModuleConstant.JOB_MST)) {
-			JpqlEquals equals7 = createEquals(createPath(objectAlias + ".id.jobunitId"), createStringLiteral("ROOT"));
+			JpqlEquals equals7 = createEquals(createPath(objectAlias + ".id.jobunitId"), createStringLiteral(CreateJobSession.TOP_JOBUNIT_ID));
 			node = createBrackets(createOr(createOr(node1, node2), equals7));
 		} else {
 			node = createBrackets(createOr(node1, node2));
@@ -255,13 +249,13 @@ public class QueryPreparator {
 		JpqlExists node1 = createExists(
 				createSubselect(
 						createSelectClause(privilegeAlias),
-						createFrom(ObjectPrivilegeEntity.class.getSimpleName(), privilegeAlias),
+						createFrom(ObjectPrivilegeInfo.class.getSimpleName(), privilegeAlias),
 						createWhere(createAnd(createAnd(createAnd(equals1, equals2), equals3), equals4))));
 
 		JpqlEquals node2 = createEquals(createPath(objectAlias + ".ownerRoleId"), createStringLiteral(ownerRoleId));
 		Node node = null;
 		if (objectType.equals(HinemosModuleConstant.JOB_MST)) {
-			JpqlEquals equals7 = createEquals(createPath(objectAlias + ".id.jobunitId"), createStringLiteral("ROOT"));
+			JpqlEquals equals7 = createEquals(createPath(objectAlias + ".id.jobunitId"), createStringLiteral(CreateJobSession.TOP_JOBUNIT_ID));
 			node = createBrackets(createOr(createOr(node1, node2), equals7));
 		} else {
 			node = createBrackets(createOr(node1, node2));

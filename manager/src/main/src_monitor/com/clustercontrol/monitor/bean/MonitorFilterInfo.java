@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2009 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.bean;
@@ -37,13 +30,13 @@ public class MonitorFilterInfo implements Serializable {
 	private String facilityId = null;	// ファシリティID
 	private String calendarId = null;	// カレンダ
 	private String regUser = null;		// 新規作成者
-	private Long regFromDate = new Long(0);			// 作成日時(From)
-	private Long regToDate = new Long(0);			// 作成日時(To)
+	private Long regFromDate = 0l;			// 作成日時(From)
+	private Long regToDate = 0l;			// 作成日時(To)
 	private String updateUser = null;	// 最終変更者
-	private Long updateFromDate = new Long(0);		// 最終変更日時(From)
-	private Long updateToDate = new Long(0);		// 最終変更日時(To)
-	private Integer monitorFlg = -1;		// 監視有効フラグ(ValidConstant.TYPE_VALID)
-	private Integer collectorFlg = -1;	// 監視無効フラグ(ValidConstant.TYPE_INVALID)
+	private Long updateFromDate = 0l;		// 最終変更日時(From)
+	private Long updateToDate = 0l;		// 最終変更日時(To)
+	private Boolean monitorFlg = null;		// 監視有効フラグ
+	private Boolean collectorFlg = null;	// 収集有効フラグ
 	private String ownerRoleId = null;	// オーナーロールID
 
 	public String getMonitorId() {
@@ -88,16 +81,16 @@ public class MonitorFilterInfo implements Serializable {
 	public void setUpdateUser(String updateUser) {
 		this.updateUser = updateUser;
 	}
-	public Integer getMonitorFlg() {
+	public Boolean getMonitorFlg() {
 		return monitorFlg;
 	}
-	public void setMonitorFlg(Integer monitorFlg) {
+	public void setMonitorFlg(Boolean monitorFlg) {
 		this.monitorFlg = monitorFlg;
 	}
-	public Integer getCollectorFlg() {
+	public Boolean getCollectorFlg() {
 		return collectorFlg;
 	}
-	public void setCollectorFlg(Integer collectorFlg) {
+	public void setCollectorFlg(Boolean collectorFlg) {
 		this.collectorFlg = collectorFlg;
 	}
 	public Long getRegFromDate() {

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.util;
@@ -36,6 +29,7 @@ import com.clustercontrol.commons.util.LockManagerFactory;
 import com.clustercontrol.notify.entity.MonitorStatusPK;
 import com.clustercontrol.notify.model.MonitorStatusEntity;
 import com.clustercontrol.notify.model.MonitorStatusEntityPK;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * MonitorStatusEntityをキャッシュするクラス
@@ -46,7 +40,7 @@ public class MonitorStatusCache {
 	static {
 		Set<MonitorStatusEntityPK> keySet = cacheKeys();
 		
-		if (keySet == null) {
+		if (keySet == null || keySet.size() == 0) {
 			init();
 		}
 	}
@@ -80,19 +74,30 @@ public class MonitorStatusCache {
 	private static Set<MonitorStatusEntityPK> cacheKeys() {
 		ICacheManager cm = CacheManagerFactory.instance().create();
 		Set<MonitorStatusEntityPK> cacheKeys = cm.getKeySet(MonitorStatusEntityPK.class);
-		return Collections.unmodifiableSet(cacheKeys);
+		return cacheKeys != null ? Collections.unmodifiableSet(cacheKeys): null;
 	}
 
 	public static void init() {
-		List<MonitorStatusEntity> entities = QueryUtil.getAllMonitorStatus();
-		for (MonitorStatusEntity entity : entities) {
-			ILock lock = getLock(entity.getId());
-			try {
-				lock.writeLock();
-				
-				storeCache(entity.getId(), entity);
-			} finally {
-				lock.writeUnlock();
+		JpaTransactionManager jtm = null;
+		try {
+			jtm = new JpaTransactionManager();
+			jtm.getEntityManager().clear();
+			List<MonitorStatusEntity> entities = QueryUtil.getAllMonitorStatus();
+			long start = System.currentTimeMillis();
+			for (MonitorStatusEntity entity : entities) {
+				ILock lock = getLock(entity.getId());
+				try {
+					lock.writeLock();
+					
+					storeCache(entity.getId(), entity);
+				} finally {
+					lock.writeUnlock();
+				}
+			}
+			log.info("init MonitorStatusCache " + (System.currentTimeMillis() - start) + "ms. size=" + cacheKeys().size());
+		} finally {
+			if(jtm != null) {
+				jtm.close();
 			}
 		}
 	}
@@ -158,10 +163,10 @@ public class MonitorStatusCache {
 		
 		return resultList;
 	}
-
+	
 	public static List<MonitorStatusEntity> getByPluginIdAndMonitorMap(
 			String pluginId, Map<String, String> monitorMap) {
-		List<MonitorStatusEntity> resultList = new ArrayList<MonitorStatusEntity>();
+		List<MonitorStatusEntity> resultList = new ArrayList<>();
 		
 		Set<MonitorStatusEntityPK> keySet = cacheKeys();
 		for (MonitorStatusEntityPK key : keySet) {
@@ -224,51 +229,60 @@ public class MonitorStatusCache {
 		}
 	}
 
+	// persist が多重で動作しないように修正
+	private static boolean persistSkip = false;
+	
+	@SuppressWarnings("deprecation")
 	public static void persist() {
-		long start = System.currentTimeMillis();
-		
-		List<MonitorStatusEntity> entityList = new ArrayList<MonitorStatusEntity>();
-		
-		Set<MonitorStatusEntityPK> keySet = cacheKeys();
-		for (MonitorStatusEntityPK key : keySet) {
-			ILock lock = getLock(key);
-			try {
-				lock.readLock();
-				
-				MonitorStatusEntity cache = getCache(key);
-				if (cache != null) {
-					entityList.add(cache);
-				}
-			} finally {
-				lock.readUnlock();
-			}
+		if (persistSkip) {
+			log.warn("persist skip");
+			return;
 		}
-		
-		JpaTransactionManager jtm = new JpaTransactionManager();
 		try {
-			HinemosEntityManager em = jtm.getEntityManager();
-			jtm.begin();
-
-			//削除
-			em.createQuery("delete from MonitorStatusEntity").executeUpdate();
-			
-			em.flush();
-
-			//作成
-			for (MonitorStatusEntity entity : entityList) {
-				/* MonitorStatusEntityを直接persistすると、eclipselinkのクラスにおいて、MonitorStatusEntity同士の参照が生まれ、
-				 * GCされずにリークしてしまうので、deep copyをpersistする。
-				 */
-				em.persist(entity.clone());
+			persistSkip = true;
+			long start = HinemosTime.currentTimeMillis();
+			List<MonitorStatusEntity> entityList = new ArrayList<MonitorStatusEntity>();
+			Set<MonitorStatusEntityPK> keySet = cacheKeys();
+			for (MonitorStatusEntityPK key : keySet) {
+				ILock lock = getLock(key);
+				try {
+					lock.readLock();
+					
+					MonitorStatusEntity cache = getCache(key);
+					if (cache != null) {
+						entityList.add(cache);
+					}
+				} finally {
+					lock.readUnlock();
+				}
 			}
-			jtm.commit();
-		} catch (Exception e) {
-			log.error(e);
-			jtm.rollback();
+			JpaTransactionManager jtm = new JpaTransactionManager();
+			try {
+				HinemosEntityManager em = jtm.getEntityManager();
+				jtm.begin();
+	
+				//削除
+				em.createQuery("delete from MonitorStatusEntity").executeUpdate();
+				
+				em.flush();
+	
+				//作成
+				for (MonitorStatusEntity entity : entityList) {
+					/* MonitorStatusEntityを直接persistすると、eclipselinkのクラスにおいて、MonitorStatusEntity同士の参照が生まれ、
+					 * GCで回収されないため、deep copyをpersistする
+					 */
+					em.persist(entity.clone());
+				}
+				jtm.commit();
+			} catch (Exception e) {
+				log.error(e);
+				jtm.rollback();
+			} finally {
+				jtm.close();
+			}
+			log.info(String.format("persist: %dms, size=%d", HinemosTime.currentTimeMillis() - start, entityList.size()));
 		} finally {
-			jtm.close();
+			persistSkip = false;
 		}
-		
-		log.info(String.format("persist: %dms, size=%d", System.currentTimeMillis() - start, entityList.size()));
 	}
 }

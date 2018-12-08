@@ -1,24 +1,12 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
-package com.clustercontrol.winservice.util;
 
-import intel.management.wsman.ManagedInstance;
-import intel.management.wsman.ManagedReference;
-import intel.management.wsman.WsmanConnection;
-import intel.management.wsman.WsmanException;
-import intel.management.wsman.WsmanUtils;
+package com.clustercontrol.winservice.util;
 
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -27,16 +15,23 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 
-import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.X509TrustManager;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
+
+import intel.management.wsman.ManagedInstance;
+import intel.management.wsman.ManagedReference;
+import intel.management.wsman.WsmanConnection;
+import intel.management.wsman.WsmanException;
+import intel.management.wsman.WsmanUtils;
 
 /**
  * WinRMを使用したWindowsサービス監視実行クラス
@@ -128,8 +123,7 @@ public class RequestWinRM {
 		m_con.setUserpassword(userPassword);
 		m_con.setTimeout(timeout);
 
-		
-		boolean sslTrustall = HinemosPropertyUtil.getHinemosPropertyBool("monitor.winservice.ssl.trustall", true);
+		boolean sslTrustall = HinemosPropertyCommon.monitor_winservice_ssl_trustall.getBooleanValue();
 		if(sslTrustall) {
 			X509TrustManager tm = new X509TrustManager() {
 				@Override
@@ -149,10 +143,10 @@ public class RequestWinRM {
 			};
 
 			m_con.setTrustManager(tm);
-			m_con.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+			m_con.setHostnameVerifier(NoopHostnameVerifier.INSTANCE);
 		} else {
 			// HTTP監視で使用しているライブラリ common-httpclient の HostnameVerifier を使用する
-			m_con.setHostnameVerifier(SSLSocketFactory.STRICT_HOSTNAME_VERIFIER);
+			m_con.setHostnameVerifier(SSLConnectionSocketFactory.getDefaultHostnameVerifier());
 		}
 
 		// URIの設定
@@ -185,7 +179,7 @@ public class RequestWinRM {
 					// [OK]
 					m_message = m_serviceName + " Service is " + STATE_RUNNING;
 					m_messageOrg = m_serviceName + " Service is " + STATE_RUNNING;
-					m_date = System.currentTimeMillis();
+					m_date = HinemosTime.currentTimeMillis();
 
 					break;
 				}
@@ -193,14 +187,13 @@ public class RequestWinRM {
 					// [NG]
 					m_message = m_serviceName + " Service is not " + STATE_RUNNING;
 					m_messageOrg = m_serviceName + " Service is another state : " + m_state;
-					m_date = System.currentTimeMillis();
+					m_date = HinemosTime.currentTimeMillis();
 
 					return false;
 				}
 
 			} catch (WsmanException e) {
-				m_log.info("polling() " + count + " " + e.getMessage() + ", " + e.getReason());
-				m_log.debug("polling() ", e);
+				m_log.debug("polling() url=" + m_url + ", count=" + count + " " + e.getMessage() + ", " + e.getReason());
 
 				lastException = e; // 最後の例外を返却
 				count++;
@@ -223,16 +216,16 @@ public class RequestWinRM {
 			if(lastException != null){
 				m_messageOrg = m_messageOrg + " : " + lastException.getMessage();
 			}
-			m_date = System.currentTimeMillis();
+			m_date = HinemosTime.currentTimeMillis();
 
 			if(lastException != null){
-				m_log.info("winservice message=" + lastException.getMessage() +
+				m_log.info("winservice url=" + m_url + ", message=" + lastException.getMessage() +
 						", reason=" + lastException.getReason());
 				if(lastException.getMessage() == null){
-					throw new HinemosUnknown(Messages.getString("message.winservice.3") + " : " + lastException.getReason());
+					throw new HinemosUnknown(MessageConstant.MESSAGE_WINSERVICE_NAME_NOT_EXIST_OR_NOT_REFERENCE_AUTHORITY_TO_WINRM.getMessage() + " : " + lastException.getReason());
 				}else{
 					if(lastException.getMessage().indexOf("HTTP response code: 401") != -1){
-						throw new HinemosUnknown(Messages.getString("message.winservice.2"));
+						throw new HinemosUnknown(MessageConstant.MESSAGE_FAIL_AT_WINRM_ID_OR_PASSWORD_OR_LOGINAUTH_ERR.getMessage());
 					}
 				}
 				throw lastException;

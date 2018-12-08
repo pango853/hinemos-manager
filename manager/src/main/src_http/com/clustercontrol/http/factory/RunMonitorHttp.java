@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.http.factory;
@@ -22,16 +15,15 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.PriorityConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.http.model.MonitorHttpInfoEntity;
+import com.clustercontrol.http.model.HttpCheckInfo;
 import com.clustercontrol.http.util.GetHttpResponse;
 import com.clustercontrol.http.util.QueryUtil;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorNumericValueType;
 import com.clustercontrol.repository.util.RepositoryUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.StringBinder;
 
 /**
@@ -44,11 +36,6 @@ public class RunMonitorHttp extends RunMonitorNumericValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorHttp.class );
 
-	private static final String MESSAGE_ID_INFO = "001";
-	private static final String MESSAGE_ID_WARNING = "002";
-	private static final String MESSAGE_ID_CRITICAL = "003";
-	private static final String MESSAGE_ID_UNKNOWN = "004";
-
 	//	/** ノード ネットワーク情報 */
 	//	private static final ArrayList<String> m_attributeList = new ArrayList<String>();
 	//	static{
@@ -57,7 +44,7 @@ public class RunMonitorHttp extends RunMonitorNumericValueType {
 	//	}
 
 	/** HTTP監視情報 */
-	private MonitorHttpInfoEntity m_http = null;
+	private HttpCheckInfo m_http = null;
 
 	/** URL */
 	private String m_requestUrl = null;
@@ -83,7 +70,7 @@ public class RunMonitorHttp extends RunMonitorNumericValueType {
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -103,7 +90,6 @@ public class RunMonitorHttp extends RunMonitorNumericValueType {
 		if (m_now != null){
 			m_nodeDate = m_now.getTime();
 		}
-		m_value = 0;
 		m_message = "";
 		m_messageOrg = "";
 
@@ -122,35 +108,35 @@ public class RunMonitorHttp extends RunMonitorNumericValueType {
 		try (GetHttpResponse m_request = GetHttpResponse.custom()
 				.setConnectTimeout(m_httpTimeout)
 				.setRequestTimeout(m_httpTimeout)
-				.setNeedAuthSSLCert(! HinemosPropertyUtil.getHinemosPropertyBool("monitor.http.ssl.trustall", true))
+				.setNeedAuthSSLCert(! HinemosPropertyCommon.monitor_http_ssl_trustall.getBooleanValue())
 				.build()) {
 			result = m_request.execute(url);
 			if(result){
-				m_value = m_request.getResponseTime();
+				m_value = (double) m_request.getResponseTime();
 
-				m_message = Messages.getString("response.time.milli.sec") + " : " + NumberFormat.getNumberInstance().format(m_value);
+				m_message = MessageConstant.RESPONSE_TIME_MILLI_SEC.getMessage() + " : " + NumberFormat.getNumberInstance().format(m_value);
 
 				StringBuffer response = new StringBuffer();
-				response.append(Messages.getString("request.url") + " : " + url);
-				response.append("\n" + Messages.getString("status.code") + " : " + m_request.getStatusCode());
+				response.append(MessageConstant.REQUEST_URL.getMessage() + " : " + url);
+				response.append("\n" + MessageConstant.STATUS_CODE.getMessage() + " : " + m_request.getStatusCode());
 				if(m_request.getHeaderString() != null && !"".equals(m_request.getHeaderString().trim())){
-					response.append("\n" + Messages.getString("header") + " :\n" + m_request.getHeaderString().trim());
+					response.append("\n" + MessageConstant.HEADER.getMessage() + " :\n" + m_request.getHeaderString().trim());
 				}
 				if(m_request.getResponseBody() != null && !"".equals(m_request.getResponseBody().trim())){
-					response.append("\n" + Messages.getString("response.body") + " :\n" + m_request.getResponseBody().trim());
+					response.append("\n" + MessageConstant.RESPONSE_BODY.getMessage() + " :\n" + m_request.getResponseBody().trim());
 				}
 				m_messageOrg = response.toString();
 			}
 			else{
-				m_message = Messages.getString("message.http.3");
+				m_message = MessageConstant.MESSAGE_COULD_NOT_GET_VALUE_HTTP.getMessage();
 
 				StringBuffer response = new StringBuffer();
 				response.append(m_request.getErrorMessage());
 				response.append("\n");
-				response.append("\n" + Messages.getString("request.url") + " : " + url);
-				response.append("\n" + Messages.getString("status.code") + " : " + m_request.getStatusCode());
+				response.append("\n" + MessageConstant.REQUEST_URL.getMessage() + " : " + url);
+				response.append("\n" + MessageConstant.STATUS_CODE.getMessage() + " : " + m_request.getStatusCode());
 				if(m_request.getHeaderString() != null && !"".equals(m_request.getHeaderString().trim())){
-					response.append("\n" + Messages.getString("header") + " :\n" + m_request.getHeaderString().trim());
+					response.append("\n" + MessageConstant.HEADER.getMessage() + " :\n" + m_request.getHeaderString().trim());
 				}
 				m_messageOrg = response.toString();
 			}
@@ -169,31 +155,14 @@ public class RunMonitorHttp extends RunMonitorNumericValueType {
 	protected void setCheckInfo() throws MonitorNotFound {
 		if(m_http == null){
 			// HTTP監視情報を取得
-			m_http = QueryUtil.getMonitorHttpInfoPK(m_monitorId);
+			if (!m_isMonitorJob) {
+				m_http = QueryUtil.getMonitorHttpInfoPK(m_monitorId);
+			} else {
+				m_http = QueryUtil.getMonitorHttpInfoPK(m_monitor.getMonitorId());
+			}
 			// HTTP監視情報を設定
 			m_requestUrl = m_http.getRequestUrl().trim();
 			m_httpTimeout = m_http.getTimeout().intValue();
-		}
-	}
-
-	/* (非 Javadoc)
-	 * ノード用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#getMessageId(int)
-	 */
-	@Override
-	public String getMessageId(int id) {
-
-		if(id == PriorityConstant.TYPE_INFO){
-			return MESSAGE_ID_INFO;
-		}
-		else if(id == PriorityConstant.TYPE_WARNING){
-			return MESSAGE_ID_WARNING;
-		}
-		else if(id == PriorityConstant.TYPE_CRITICAL){
-			return MESSAGE_ID_CRITICAL;
-		}
-		else{
-			return MESSAGE_ID_UNKNOWN;
 		}
 	}
 
@@ -213,5 +182,16 @@ public class RunMonitorHttp extends RunMonitorNumericValueType {
 	@Override
 	public String getMessageOrg(int id) {
 		return m_messageOrg;
+	}
+
+	@Override
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		if (m_monitor == null || m_monitor.getHttpCheckInfo() == null) {
+			return "";
+		}
+		String[] args = {String.valueOf(m_monitor.getHttpCheckInfo().getTimeout())};
+		return MessageConstant.MESSAGE_JOB_MONITOR_ORGMSG_HTTP.getMessage(args)
+				+ "\n" + orgMsg
+				+ "\n" + msg;
 	}
 }

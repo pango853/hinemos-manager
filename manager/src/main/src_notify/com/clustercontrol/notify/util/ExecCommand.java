@@ -1,23 +1,18 @@
 /*
-
-Copyright (C) 2009 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.util;
 
+import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -25,19 +20,20 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.bean.PriorityConstant;
-import com.clustercontrol.bean.ValidConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.MonitoredThreadPoolExecutor;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.NotifyNotFound;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.notify.bean.NotifyRequestMessage;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
-import com.clustercontrol.notify.model.NotifyCommandInfoEntity;
-import com.clustercontrol.notify.model.NotifyCommandInfoEntityPK;
+import com.clustercontrol.notify.model.NotifyCommandInfo;
+import com.clustercontrol.platform.HinemosPropertyDefault;
 import com.clustercontrol.util.CommandCreator;
 import com.clustercontrol.util.CommandExecutor;
 import com.clustercontrol.util.CommandExecutor.CommandResult;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.StringBinder;
 import com.clustercontrol.util.apllog.AplLogger;
 
@@ -51,13 +47,6 @@ public class ExecCommand implements Notifier {
 	/** ログ出力のインスタンス。 */
 	private static Log m_log = LogFactory.getLog( ExecCommand.class );
 
-	private static final String THREAD_POOL_COUNT_KEY="notify.command.thread.pool.count";
-	private static final int THREAD_POOL_COUNT_DEFAULT=8;
-
-	private static final String COMMAND_CREATE_MODE="notify.command.create.mode";
-	private static final String COMMAND_SUCCESS_EXIT="notify.command.success.exit";
-	private static final int COMMAND_SUCCESS_EXIT_DEFAULT=0;
-
 	// コマンド実行にタイムアウトを設けるため、2段のExecutorの構成とする
 	// 1.「コマンドを実行するスレッド（CommandTask）」を実行するExecutor
 	//   （スレッド起動後直ぐに制御を戻す）
@@ -70,8 +59,7 @@ public class ExecCommand implements Notifier {
 
 	static {
 	// hinemos.propertiesからスレッドプール数を取得する
-		int threadPoolCount = HinemosPropertyUtil.getHinemosPropertyNum(
-				THREAD_POOL_COUNT_KEY, THREAD_POOL_COUNT_DEFAULT);
+		int threadPoolCount = HinemosPropertyCommon.notify_command_thread_pool_count.getIntegerValue();
 
 		_callerExecutorService = new MonitoredThreadPoolExecutor(threadPoolCount, threadPoolCount,
 				0L, TimeUnit.MICROSECONDS, new LinkedBlockingQueue<Runnable>(),
@@ -96,13 +84,13 @@ public class ExecCommand implements Notifier {
 	}
 
 	// 文字列を置換する
-	private String getCommandString(OutputBasicInfo outputInfo, NotifyCommandInfoEntity commandInfo, int priority){
+	private String getCommandString(OutputBasicInfo outputInfo, NotifyCommandInfo commandInfo, int priority){
 		// 文字列を置換する
 		try {
 			Map<String, String> param = NotifyUtil.createParameter(outputInfo,
 					commandInfo.getNotifyInfoEntity());
 			StringBinder binder = new StringBinder(param);
-			return binder.bindParam(getCommand(commandInfo, priority));
+			return binder.replace(getCommand(commandInfo, priority));
 		} catch (Exception e) {
 			m_log.warn("notify() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
@@ -112,7 +100,7 @@ public class ExecCommand implements Notifier {
 		}
 	}
 
-	private String getCommand(NotifyCommandInfoEntity commandInfo, int priority) {
+	private String getCommand(NotifyCommandInfo commandInfo, int priority) {
 		switch (priority) {
 		case PriorityConstant.TYPE_INFO:
 			return commandInfo.getInfoCommand();
@@ -142,11 +130,9 @@ public class ExecCommand implements Notifier {
 			m_log.debug("executeCommand() " + outputInfo);
 		}
 
-		NotifyCommandInfoEntity commandInfo;
+		NotifyCommandInfo commandInfo;
 		try {
-			NotifyCommandInfoEntityPK commandInfoPk
-			= new NotifyCommandInfoEntityPK(notifyId);
-			commandInfo = QueryUtil.getNotifyCommandInfoPK(commandInfoPk);
+			commandInfo = QueryUtil.getNotifyCommandInfoPK(notifyId);
 
 			// 「commandInfo.getCommand()」と「command」の違いに注意が必要。
 			// 「commandInfo.getCommand()」は、設定時の実行コマンドで、
@@ -161,26 +147,26 @@ public class ExecCommand implements Notifier {
 			String sysUserName = System.getProperty("user.name");
 			String effectiveUser = getEffectiveUser(commandInfo, outputInfo.getPriority());
 			boolean setEnvFlag;
-			if(commandInfo.getSetEnvironment() == ValidConstant.TYPE_VALID){
+			if(commandInfo.getSetEnvironment().booleanValue()){
 				setEnvFlag = true;
 			} else {
 				setEnvFlag = false;
 			}
-			long commadTimeout = commandInfo.getCommandTimeout();
+			long commadTimeout = commandInfo.getTimeout();
 
 			// Hinemos Managerの起動ユーザがroot以外の場合で、
 			// 起動ユーザとコマンド実行ユーザが異なる場合は、コマンド実行しない
-			if ((!sysUserName.equals("root")) && (!sysUserName.equals(effectiveUser))) {
+			if ((!effectiveUser.isEmpty()) && (!sysUserName.equals("root")) && (!sysUserName.equals(effectiveUser))) {
 				// 起動失敗
 				String detailMsg = "The execution user of the command and hinemos manager's user are different.";
 				m_log.info(detailMsg);
-				internalErrorNotify(notifyId, "007", detailMsg);
+				internalErrorNotify(PriorityConstant.TYPE_CRITICAL, notifyId, MessageConstant.MESSAGE_SYS_007_NOTIFY, detailMsg);
 				return;
 			} else {
 				m_log.debug("NotifyCommand Submit : " + outputInfo + " command=" + command);
 
 				// 並列でコマンド実行
-				_callerExecutorService.submit(
+				Future<Long> ret = _callerExecutorService.submit(
 						new CommandCallerTask(
 								effectiveUser,
 								command,
@@ -188,16 +174,19 @@ public class ExecCommand implements Notifier {
 								notifyId,
 								outputInfo,
 								commadTimeout));
+				
+				if (ret.isCancelled())
+					m_log.debug("Cancelled NotifyCommand Submit : " + outputInfo + " command=" + command);
 			}
 		} catch (NotifyNotFound e) {
 			String detailMsg = e.getMessage();
 			m_log.info("executeCommand() " + detailMsg + " : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			internalErrorNotify(notifyId, "007", detailMsg);
+			internalErrorNotify(PriorityConstant.TYPE_CRITICAL, notifyId, MessageConstant.MESSAGE_SYS_007_NOTIFY, detailMsg);
 		}
 	}
 
-	private String getEffectiveUser(NotifyCommandInfoEntity commandInfo,
+	private String getEffectiveUser(NotifyCommandInfo commandInfo,
 			int priority) {
 		switch (priority) {
 		case PriorityConstant.TYPE_INFO:
@@ -248,17 +237,25 @@ public class ExecCommand implements Notifier {
 			// 初期値（コマンドが時間内に終了せずリターンコードが取得できない場合は、この値が返る）
 			long returnValue = Long.MIN_VALUE;
 
+			// コマンドのエンコーディングを設定
+			String charset =  HinemosPropertyDefault.notify_command_charset.getStringValue();
+
 			// コマンド作成モードをプロパティから取得する
-			String _mode = HinemosPropertyUtil.getHinemosPropertyStr(COMMAND_CREATE_MODE, "auto");
+			String _mode = HinemosPropertyCommon.notify_command_create_mode.getStringValue();
 			CommandCreator.PlatformType _modeType = CommandCreator.convertPlatform(_mode);
 
-			// コマンドを実行する
-			String[] cmd = CommandCreator.createCommand(_effectiveUser, _execCommand, _modeType);
+			String[] cmd;
+			// コマンドを実行する(実効ユーザが空欄の場合はマネージャ起動ユーザで実行)
+			if (_effectiveUser.isEmpty()) {
+				cmd = CommandCreator.createCommand(_effectiveUser, _execCommand, _modeType, false);
+			} else {
+				cmd = CommandCreator.createCommand(_effectiveUser, _execCommand, _modeType);
+			}
 
 			m_log.info("call() excuting command. (effectiveUser = " + _effectiveUser + ", command = " + _execCommand + ", mode = " + _modeType + ", timeout = " + _commadTimeout + ")");
 
 			// 戻り値を格納する
-			CommandExecutor cmdExec = new CommandExecutor(cmd, _commadTimeout);
+			CommandExecutor cmdExec = new CommandExecutor(cmd, Charset.forName(charset), _commadTimeout);
 			cmdExec.execute();
 			CommandResult ret = cmdExec.getResult();
 
@@ -267,14 +264,14 @@ public class ExecCommand implements Notifier {
 			}
 
 			if (ret == null || ret.exitCode == null) {
-				internalErrorNotify(_notifyId, "007", "command execution failure (timeout). [command = " + _execCommand + "]");
+				internalErrorNotify(PriorityConstant.TYPE_CRITICAL, _notifyId, MessageConstant.MESSAGE_SYS_007_NOTIFY, "command execution failure (timeout). [command = " + _execCommand + "]");
 			} else {
 				returnValue = ret.exitCode;
 				// コマンドの成功時の終了値をDBから取得する
-				int _successExitCode = HinemosPropertyUtil.getHinemosPropertyNum(COMMAND_SUCCESS_EXIT, COMMAND_SUCCESS_EXIT_DEFAULT);
+				int _successExitCode = HinemosPropertyCommon.notify_commandsuccess_exit.getIntegerValue();
 
 				if (returnValue != _successExitCode) {
-					internalErrorNotify(_notifyId, "007", "command execution failure. [command = "
+					internalErrorNotify(PriorityConstant.TYPE_CRITICAL, _notifyId, MessageConstant.MESSAGE_SYS_007_NOTIFY, "command execution failure. [command = "
 							+ _execCommand + ", exit code = " +  returnValue + ", stdout = " + ret.stdout + ", stderr = " + ret.stderr + "]");
 				}
 			}
@@ -297,10 +294,9 @@ public class ExecCommand implements Notifier {
 	 * 通知失敗時の内部エラー通知を定義します
 	 */
 	@Override
-	public void internalErrorNotify(String notifyId, String msgID, String detailMsg) {
-		AplLogger apllog = new AplLogger("NOTIFY", "notify");
+	public void internalErrorNotify(int priority, String notifyId, MessageConstant msgCode, String detailMsg) {
 		String[] args = { notifyId };
 		// 通知失敗メッセージを出力
-		apllog.put("SYS", msgID, args, detailMsg);
+		AplLogger.put(priority, HinemosModuleConstant.PLATFORM_NOTIFY, msgCode, args, detailMsg);
 	}
 }

@@ -1,64 +1,63 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.plugin.impl;
 
 import java.io.Serializable;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.quartz.CronScheduleBuilder;
-import org.quartz.JobBuilder;
-import org.quartz.JobDetail;
-import org.quartz.JobKey;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.SimpleScheduleBuilder;
-import org.quartz.Trigger;
-import org.quartz.Trigger.TriggerState;
-import org.quartz.TriggerBuilder;
-import org.quartz.TriggerKey;
-import org.quartz.impl.StdSchedulerFactory;
-import org.quartz.impl.matchers.GroupMatcher;
 
-import com.clustercontrol.HinemosManagerMain;
-import com.clustercontrol.HinemosManagerMain.StartupMode;
-import com.clustercontrol.HinemosManagerMain.StartupTask;
+import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.commons.quartz.job.ReflectionInvokerJob;
-import com.clustercontrol.commons.util.JpaPersistenceConfig;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.HinemosException;
 import com.clustercontrol.fault.HinemosUnknown;
+import com.clustercontrol.fault.InvalidRole;
+import com.clustercontrol.fault.LogTransferNotFound;
+import com.clustercontrol.hub.model.TransferInfo;
+import com.clustercontrol.hub.model.TransferInfo.TransferType;
+import com.clustercontrol.HinemosManagerMain;
+import com.clustercontrol.HinemosManagerMain.StartupMode;
+import com.clustercontrol.HinemosManagerMain.StartupTask;
+import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
 import com.clustercontrol.jobmanagement.session.JobRunManagementBean;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.monitor.run.factory.ModifySchedule;
+import com.clustercontrol.monitor.run.util.NodeMonitorPollerController;
+import com.clustercontrol.monitor.run.util.NodeToMonitorCache;
 import com.clustercontrol.monitor.session.MonitorControllerBean;
-import com.clustercontrol.performance.util.code.PerformanceRestartManager;
 import com.clustercontrol.plugin.api.HinemosPlugin;
-import com.clustercontrol.plugin.util.DbAccountProperties;
+import com.clustercontrol.plugin.factory.ModifyDbmsScheduler;
+import com.clustercontrol.plugin.model.DbmsSchedulerEntity;
+import com.clustercontrol.plugin.util.scheduler.AbstractTrigger;
+import com.clustercontrol.plugin.util.scheduler.CronExpression;
+import com.clustercontrol.plugin.util.scheduler.CronTriggerBuilder;
+import com.clustercontrol.plugin.util.scheduler.HinemosScheduler;
+import com.clustercontrol.plugin.util.scheduler.JobBuilder;
+import com.clustercontrol.plugin.util.scheduler.JobDetail;
+import com.clustercontrol.plugin.util.scheduler.JobKey;
+import com.clustercontrol.plugin.util.scheduler.SchedulerException;
+import com.clustercontrol.plugin.util.scheduler.SimpleTriggerBuilder;
+import com.clustercontrol.plugin.util.scheduler.Trigger;
+import com.clustercontrol.plugin.util.scheduler.TriggerState;
+import com.clustercontrol.plugin.util.QueryUtil;
 import com.clustercontrol.repository.session.RepositoryRunManagementBean;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * 内部スケジューラを管理するプラグインサービス
@@ -71,10 +70,37 @@ public class SchedulerPlugin implements HinemosPlugin {
 	public static enum TriggerType { CRON, SIMPLE, NONE };
 
 	// スケジューラ情報の保持種別(RAM : オンメモリで管理、DBMS : DBで永続化管理)
-	public static enum SchedulerType { RAM, DBMS };
+	public static enum SchedulerType {
+		RAM( "ram",  HinemosPropertyCommon.scheduler_ram_threadPool_size, HinemosPropertyCommon.scheduler_ram_misfireThreshold),
+		DBMS("dbms", HinemosPropertyCommon.scheduler_dbms_threadPool_size, HinemosPropertyCommon.scheduler_dbms_misfireThreshold);
+
+		SchedulerType(String name, HinemosPropertyCommon HinemosPropertySize, HinemosPropertyCommon HinemosPropertyMisfireThreashold) {
+			mainThreadName = "HinemosScheduler-" + name + "-dispatcher";
+			workerThreadNameBase = "HinemosScheduler-" + name + "-worker-";
+			poolSize = HinemosPropertySize.getIntegerValue();
+			misfireThreshold = HinemosPropertyMisfireThreashold.getIntegerValue();
+		}
+		private final String mainThreadName;
+		public String getMainThreadName() {
+			return mainThreadName; 
+		}
+		private final String workerThreadNameBase;
+		public String getWorkerThreadNameBase() {
+			return workerThreadNameBase;
+		}
+		private final int poolSize;
+		public int getPoolSize() {
+			return poolSize;
+		}
+		private final int misfireThreshold;
+		public int getMisfireThreshold() {
+			return misfireThreshold;
+		}
+		
+	};
 
 	private static final Object _schedulerLock = new Object();
-	private static final Map<SchedulerType, Scheduler> _scheduler = new ConcurrentHashMap<SchedulerType, Scheduler>(2);
+	private static final Map<SchedulerType, HinemosScheduler> _scheduler = new ConcurrentHashMap<SchedulerType, HinemosScheduler>(2);
 
 	@Override
 	public Set<String> getDependency() {
@@ -84,54 +110,27 @@ public class SchedulerPlugin implements HinemosPlugin {
 	}
 
 	@Override
+	public Set<String> getRequiredKeys() {
+		return null;
+	}
+
+	@Override
 	public void create() {
 		try {
 			synchronized (_schedulerLock) {
-
-				Properties dbmsProp = new Properties();
-				dbmsProp.setProperty("org.quartz.scheduler.skipUpdateCheck", "true");
-				dbmsProp.setProperty("org.quartz.dataSource.SchedulerDS.driver", HinemosPropertyUtil.getHinemosPropertyStr("quartz.dataSource.SchedulerDS.driver", "org.postgresql.Driver"));
-				dbmsProp.setProperty("org.quartz.dataSource.SchedulerDS.maxConnections", Integer.toString(HinemosPropertyUtil.getHinemosPropertyNum("quartz.dataSource.SchedulerDS.maxConnections", 16)));
-				dbmsProp.setProperty("org.quartz.dataSource.SchedulerDS.password", DbAccountProperties.getHinemosQuartzPass());
-				dbmsProp.setProperty("org.quartz.dataSource.SchedulerDS.URL", JpaPersistenceConfig.getHinemosJdbcUrl());
-				dbmsProp.setProperty("org.quartz.dataSource.SchedulerDS.user", DbAccountProperties.getHinemosQuartzUser());
-				dbmsProp.setProperty("org.quartz.dataSource.SchedulerDS.validationQuery", HinemosPropertyUtil.getHinemosPropertyStr("quartz.dataSource.SchedulerDS.validationQuery", "SELECT 1 FOR UPDATE"));
-				dbmsProp.setProperty("org.quartz.jobStore.class", HinemosPropertyUtil.getHinemosPropertyStr("quartz.jobStore.dbms.class", "org.quartz.impl.jdbcjobstore.JobStoreTX"));
-				dbmsProp.setProperty("org.quartz.jobStore.dataSource", HinemosPropertyUtil.getHinemosPropertyStr("quartz.jobStore.dataSource", "SchedulerDS"));
-				dbmsProp.setProperty("org.quartz.jobStore.driverDelegateClass", HinemosPropertyUtil.getHinemosPropertyStr("quartz.jobStore.driverDelegateClass", "org.quartz.impl.jdbcjobstore.PostgreSQLDelegate"));
-				dbmsProp.setProperty("org.quartz.jobStore.misfireThreshold", Integer.toString(HinemosPropertyUtil.getHinemosPropertyNum("quartz.dbms.jobStore.misfireThreshold", 3600000)));
-				dbmsProp.setProperty("org.quartz.jobStore.tablePrefix", HinemosPropertyUtil.getHinemosPropertyStr("quartz.jobStore.tablePrefix", "setting.QRTZ_"));
-				dbmsProp.setProperty("org.quartz.scheduler.instanceName", HinemosPropertyUtil.getHinemosPropertyStr("quartz.dbms.scheduler.instanceName", "DBMSScheduler"));
-				dbmsProp.setProperty("org.quartz.threadPool.class", HinemosPropertyUtil.getHinemosPropertyStr("quartz.dbms.threadPool.class", "org.quartz.simpl.SimpleThreadPool"));
-				dbmsProp.setProperty("org.quartz.threadPool.threadCount", Integer.toString(HinemosPropertyUtil.getHinemosPropertyNum("quartz.dbms.threadPool.threadCount", 8)));
-				dbmsProp.setProperty("org.quartz.threadPool.threadPriority", Integer.toString(HinemosPropertyUtil.getHinemosPropertyNum("quartz.dbms.threadPool.threadPriority", 5)));
-
-				Properties ramProp = new Properties();
-				ramProp.setProperty("org.quartz.scheduler.skipUpdateCheck", "true");
-				ramProp.setProperty("org.quartz.jobStore.class", HinemosPropertyUtil.getHinemosPropertyStr("quartz.jobStore.ram.class", "com.clustercontrol.plugin.impl.HinemosRAMJobStore"));
-				ramProp.setProperty("org.quartz.jobStore.misfireThreshold", Integer.toString(HinemosPropertyUtil.getHinemosPropertyNum("quartz.ram.jobStore.misfireThreshold", 3600000)));
-				ramProp.setProperty("org.quartz.scheduler.instanceName", HinemosPropertyUtil.getHinemosPropertyStr("quartz.ram.scheduler.instanceName", "RAMScheduler"));
-				ramProp.setProperty("org.quartz.threadPool.class", HinemosPropertyUtil.getHinemosPropertyStr("quartz.ram.threadPool.class", "org.quartz.simpl.SimpleThreadPool"));
-				ramProp.setProperty("org.quartz.threadPool.threadCount", Integer.toString(HinemosPropertyUtil.getHinemosPropertyNum("quartz.ram.threadPool.threadCount", 32)));
-				ramProp.setProperty("org.quartz.threadPool.threadPriority", Integer.toString(HinemosPropertyUtil.getHinemosPropertyNum("quartz.ram.threadPool.threadPriority", 5)));
-
-				int delaySec = HinemosPropertyUtil.getHinemosPropertyNum("common.scheduler.startup.delay", 60);
+				int delaySec = HinemosPropertyCommon.common_scheduler_startup_delay.getIntegerValue();
 				log.info("initializing SchedulerPlugin : properties (delaySec = " + delaySec + ")");
-
-				StdSchedulerFactory ramSf = new StdSchedulerFactory();
-				ramSf.initialize(ramProp);
-
-				StdSchedulerFactory dbmsSf = new StdSchedulerFactory();
-				dbmsSf.initialize(dbmsProp);
-
-				_scheduler.put(SchedulerType.RAM, ramSf.getScheduler());
-				_scheduler.put(SchedulerType.DBMS, dbmsSf.getScheduler());
+				
+				HinemosScheduler ram = new HinemosScheduler(SchedulerType.RAM);
+				HinemosScheduler dbms = new HinemosScheduler(SchedulerType.DBMS);
+				_scheduler.put(SchedulerType.RAM, ram);
+				_scheduler.put(SchedulerType.DBMS, dbms);
 			}
 			
 			if (HinemosManagerMain._startupMode != StartupMode.MAINTENANCE) {
 				initTrigger();
 			}
-		} catch (SchedulerException e) {
+		} catch (com.clustercontrol.plugin.util.scheduler.SchedulerException e) {
 			log.error("initialization failure : SchedulerPlugin", e);
 		} catch (HinemosException e) {
 			log.error("initialization failure : SchedulerPlugin", e);
@@ -152,11 +151,13 @@ public class SchedulerPlugin implements HinemosPlugin {
 			return;
 		}
 
-		for (Entry<SchedulerType, Scheduler> entry : _scheduler.entrySet()) {
+		// Hinemos時刻(スケジューラが管理している現在時刻)の設定は、HinemosManagerMainでのpluginサービス起動前に事前に行うこと。
+		
+		for (Entry<SchedulerType, HinemosScheduler> entry : _scheduler.entrySet()) {
 			try {
 				log.debug("activate scheduler name=" + entry.getValue().getSchedulerName());
-				int delaySec = HinemosPropertyUtil.getHinemosPropertyNum("common.scheduler.startup.delay", 60);
-				entry.getValue().startDelayed(delaySec);
+				int delaySec = HinemosPropertyCommon.common_scheduler_startup_delay.getIntegerValue();
+				entry.getValue().start(delaySec * 1000);
 			} catch (SchedulerException e) {
 				log.error("activation failure : SchedulerPlugin", e);
 			}
@@ -164,7 +165,7 @@ public class SchedulerPlugin implements HinemosPlugin {
 
 	}
 
-	public class SchedulerStartupTask implements StartupTask {
+	public static class SchedulerStartupTask implements StartupTask {
 		
 		private final SchedulerPlugin _plugin;
 		
@@ -180,10 +181,12 @@ public class SchedulerPlugin implements HinemosPlugin {
 				log.error("initialization failure : SchedulerPlugin", e);
 			}
 			
-			for (Entry<SchedulerType, Scheduler> entry : _scheduler.entrySet()) {
+			// Hinemos時刻(スケジューラが管理している現在時刻)の設定は、HinemosManagerMainでのpluginサービス起動前に事前に行うこと。
+			
+			for (Entry<SchedulerType, HinemosScheduler> entry : _scheduler.entrySet()) {
 				try {
 					log.info("activate scheduler name=" + entry.getValue().getSchedulerName());
-					entry.getValue().start();
+					entry.getValue().start(0);
 				} catch (SchedulerException e) {
 					log.error("activation failure : SchedulerPlugin", e);
 				}
@@ -203,16 +206,16 @@ public class SchedulerPlugin implements HinemosPlugin {
 			return;
 		}
 
-		for (Entry<SchedulerType, Scheduler> entry : _scheduler.entrySet()) {
+		for (Entry<SchedulerType, HinemosScheduler> entry : _scheduler.entrySet()) {
 			try {
 				log.debug("shutdown scheduler name=" + entry.getValue().getSchedulerName());
-				entry.getValue().shutdown(false);
+				entry.getValue().shutdown();
 			} catch (SchedulerException e) {
 				log.error("shutdown failure : SchedulerPlugin", e);
 			}
 		}
 	}
-
+	
 	/**
 	 * <pre>
 	 * 単に定期実行するだけのジョブをスケジューリングするためのメソッド。<br/>
@@ -232,17 +235,17 @@ public class SchedulerPlugin implements HinemosPlugin {
 	 * @throws HinemosUnknown
 	 */
 	public static void scheduleSimpleJob(SchedulerType type, String name, String group,
-			Date startTime, int intervalSec, boolean rstOnRestart,
+			long startTimeMillis, int intervalSec, boolean rstOnRestart,
 			String className, String methodName, Class<? extends Serializable>[] argsType, Serializable[] args) throws HinemosUnknown {
 
-		log.debug("scheduleSimpleJob() name=" + name + ", group=" + group + ", startTime=" + startTime
+		log.debug("scheduleSimpleJob() name=" + name + ", group=" + group + ", startTime=" + startTimeMillis
 				+ ", rstOnRestart=" + rstOnRestart + ", className=" + className + ", methodName=" + methodName);
 
 		// ジョブ定義の作成
 		JobDetail job = JobBuilder.newJob(ReflectionInvokerJob.class)
 				.withIdentity(name, group)
 				.storeDurably(true)		// ジョブ完了時に削除されない設定を反映
-				.requestRecovery(false)	// ジョブ実行が失敗した際に再実行しない設定を反映(JVM起動中に再実行が繰り返される可能性を回避するため)
+//				.requestRecovery(false)	// ジョブ実行が失敗した際に再実行しない設定を反映(JVM起動中に再実行が繰り返される可能性を回避するため)
 				.usingJobData(ReflectionInvokerJob.KEY_CLASS_NAME, className)	// ジョブから呼び出すクラス名を反映
 				.usingJobData(ReflectionInvokerJob.KEY_METHOD_NAME, methodName)	// ジョブから呼び出すメソッドを反映
 				.usingJobData(ReflectionInvokerJob.KEY_RESET_ON_RESTART, rstOnRestart)	// 再起動時にtriggerをリセット()するかどうかを反映
@@ -261,42 +264,75 @@ public class SchedulerPlugin implements HinemosPlugin {
 		if (args.length != argsType.length) {
 			throw new IndexOutOfBoundsException("list's length is not same between args and argsType.");
 		}
+		if (args.length > 15) {
+			throw new IndexOutOfBoundsException("list's length is out of bounds.");
+		}
 		job.getJobDataMap().put(ReflectionInvokerJob.KEY_ARGS_TYPE, argsType);
 		job.getJobDataMap().put(ReflectionInvokerJob.KEY_ARGS, args);
 
 		// ジョブ実行定義となるtriggerを作成
-		SimpleScheduleBuilder scheduleBuilder = null;
+		SimpleTriggerBuilder triggerBuilder = SimpleTriggerBuilder.newTrigger().withIdentity(name, group);
 		if (rstOnRestart) {
-			log.debug("scheduleSimpleJob() name=" + name + ", misfireHandlingInstruction=NextWithRemainingCount");
-			scheduleBuilder = SimpleScheduleBuilder.simpleSchedule().withIntervalInSeconds(intervalSec).repeatForever().withMisfireHandlingInstructionNextWithRemainingCount();
+			log.debug("scheduleSimpleJob() name=" + name + ", misfireHandlingInstruction=DoNothing");
+			triggerBuilder.setPeriod(intervalSec * 1000).withMisfireHandlingInstructionDoNothing();
 		} else {
 			log.debug("scheduleSimpleJob() name=" + name + ", misfireHandlingInstruction=IgnoreMisfires");
-			scheduleBuilder = SimpleScheduleBuilder.simpleSchedule().withIntervalInSeconds(intervalSec).repeatForever().withMisfireHandlingInstructionIgnoreMisfires();
+			triggerBuilder.setPeriod(intervalSec * 1000).withMisfireHandlingInstructionIgnoreMisfires();
 		}
 
-		Trigger trigger = TriggerBuilder.newTrigger()
-				.withIdentity(name, group)
-				.startAt(startTime)
-				.withSchedule(scheduleBuilder)
+		Trigger trigger = triggerBuilder
+				.startAt(startTimeMillis)
+//				.withSchedule(scheduleBuilder)
 				.build();
-
-		// ジョブが既に存在する場合は削除
-		log.debug("deleteJob() name=" + name + ", group=" + group);
-		deleteJob(type, name, group);
-
-		// ジョブスケジューラを作成
-		try {
-			synchronized (_schedulerLock) {
-				log.debug("scheduleJob() name=" + name + ", group=" + group);
-				_scheduler.get(type).scheduleJob(job, trigger);
+		
+		if(type == SchedulerPlugin.SchedulerType.DBMS){
+			// DBMSスケジューラの場合、存在チェックの上、DBへ登録または更新処理を呼ぶ
+			// 同じレコードへの削除/登録は1トランザクションでは連続で出来ないため
+			try {
+				ModifyDbmsScheduler dbms = new ModifyDbmsScheduler();
+				if (_scheduler.get(type).checkExists(new JobKey(name, group))) {
+					// 登録済みの場合は、DB側は更新処理を呼ぶ
+					log.trace("scheduleSimpleJob() : modifyDbmsScheduler() call.");
+					dbms.modifyDbmsScheduler(job, trigger);
+					
+					synchronized (_schedulerLock) {
+						// rescheduleJob()ではTrigger情報のみしか更新しないため、RAM側は再登録処理が必要
+						_scheduler.get(type).deleteJob(new JobKey(name, group));
+						log.debug("scheduleJob() name=" + name + ", group=" + group);
+						_scheduler.get(type).scheduleJob(job, trigger);
+					}
+				} else {
+					// 未登録の場合は、DB登録処理を呼ぶ
+					log.trace("scheduleSimpleJob() : addDbmsScheduler() call.");
+					dbms.addDbmsScheduler(job, trigger);
+					
+					synchronized (_schedulerLock) {
+						log.debug("scheduleJob() name=" + name + ", group=" + group);
+						_scheduler.get(type).scheduleJob(job, trigger);
+					}
+				}
+			} catch (Exception e) {
+				log.error("scheduleSimpleJob() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+				throw new HinemosUnknown("failed scheduling DBMS job. (name = " + name + ", group = " + group + ")", e);
 			}
-		} catch (SchedulerException e) {
-			throw new HinemosUnknown("failed scheduling job. (name = " + name + ", group = " + group + ")", e);
+		} else {
+			// RAMスケジューラの場合は、存在有無に関わらず削除処理を呼ぶ
+			deleteJob(type, name, group);
+			// ジョブスケジューラを作成
+			try {
+				synchronized (_schedulerLock) {
+					log.debug("scheduleJob() name=" + name + ", group=" + group);
+					_scheduler.get(type).scheduleJob(job, trigger);
+				}
+			} catch (SchedulerException e) {
+				throw new HinemosUnknown("failed scheduling job. (name = " + name + ", group = " + group + ")", e);
+			}
 		}
 	}
 
 	public static void scheduleCronJob(SchedulerType type, String name, String group,
-			Date startTime, String cronExpression, boolean rstOnRestart,
+			long startTime, String cronExpression, boolean rstOnRestart,
 			String className, String methodName, Class<? extends Serializable>[] argsType, Serializable[] args) throws HinemosUnknown {
 
 		log.debug("scheduleCronJob() name=" + name + ", group=" + group + ", startTime=" + startTime + ", cronExpression=" + cronExpression
@@ -306,7 +342,7 @@ public class SchedulerPlugin implements HinemosPlugin {
 		JobDetail job = JobBuilder.newJob(ReflectionInvokerJob.class)
 				.withIdentity(name, group)
 				.storeDurably(true)		// ジョブ完了時に削除されない設定を反映
-				.requestRecovery(false)	// ジョブ実行が失敗した際に再実行しない設定を反映(JVM起動中に再実行が繰り返される可能性を回避するため)
+//				.requestRecovery(false)	// ジョブ実行が失敗した際に再実行しない設定を反映(JVM起動中に再実行が繰り返される可能性を回避するため)
 				.usingJobData(ReflectionInvokerJob.KEY_CLASS_NAME, className)	// ジョブから呼び出すクラス名を反映
 				.usingJobData(ReflectionInvokerJob.KEY_METHOD_NAME, methodName)	// ジョブから呼び出すメソッドを反映
 				.usingJobData(ReflectionInvokerJob.KEY_RESET_ON_RESTART, rstOnRestart)	// 再起動時にtriggerをリセット()するかどうかを反映
@@ -325,57 +361,73 @@ public class SchedulerPlugin implements HinemosPlugin {
 		if (args.length != argsType.length) {
 			throw new IndexOutOfBoundsException("list's length is not same between args and argsType.");
 		}
+		if (args.length > 15) {
+			throw new IndexOutOfBoundsException("list's length is out of bounds.");
+		}
+		
 		job.getJobDataMap().put(ReflectionInvokerJob.KEY_ARGS_TYPE, argsType);
 		job.getJobDataMap().put(ReflectionInvokerJob.KEY_ARGS, args);
 
 		// ジョブ実行定義となるtriggerを作成
-		CronScheduleBuilder schedulerBuilder = null;
+		CronTriggerBuilder triggerBuilder = CronTriggerBuilder.newTrigger();
 		if (rstOnRestart) {
 			log.debug("scheduleCronJob() name=" + name + ", misfireHandlingInstruction=DoNothing");
-			schedulerBuilder = CronScheduleBuilder.cronSchedule(cronExpression).withMisfireHandlingInstructionDoNothing();
+			triggerBuilder.cronSchedule(cronExpression).withMisfireHandlingInstructionDoNothing();
 		} else {
 			log.debug("scheduleCronJob() name=" + name + ", misfireHandlingInstruction=IgnoreMisfires");
-			schedulerBuilder = CronScheduleBuilder.cronSchedule(cronExpression).withMisfireHandlingInstructionIgnoreMisfires();
+			triggerBuilder.cronSchedule(cronExpression).withMisfireHandlingInstructionIgnoreMisfires();
 		}
 
-		Trigger trigger = TriggerBuilder.newTrigger()
+		Trigger trigger = triggerBuilder
 				.withIdentity(name, group)
 				.startAt(startTime)
-				.withSchedule(schedulerBuilder)
+//				.withSchedule(schedulerBuilder)
 				.build();
-
-		// ジョブが既に存在する場合は削除
-		log.debug("deleteJob() name=" + name + ", group=" + group);
-		deleteJob(type, name, group);
-
-
-		// ジョブスケジューラを作成
-		try {
-			synchronized (_schedulerLock) {
-				log.debug("scheduleJob() name=" + name + ", group=" + group);
-				_scheduler.get(type).scheduleJob(job, trigger);
+		
+		if(type == SchedulerPlugin.SchedulerType.DBMS){
+			// DBMSスケジューラの場合、存在チェックの上、DBへ登録または更新処理を呼ぶ
+			// 同じレコードへの削除/登録は1トランザクション内では出来ないため
+			try {
+				ModifyDbmsScheduler dbms = new ModifyDbmsScheduler();
+				if (_scheduler.get(type).checkExists(new JobKey(name, group))) {
+					// 登録済みの場合は、DB側は更新処理を呼ぶ
+					log.trace("scheduleCronJob() : modifyDbmsScheduler() call.");
+					dbms.modifyDbmsScheduler(job, trigger);
+					
+					synchronized (_schedulerLock) {
+						// rescheduleJob()ではTrigger情報のみしか更新しないため、RAM側は再登録処理が必要
+						_scheduler.get(type).deleteJob(new JobKey(name, group));
+						log.debug("scheduleJob() name=" + name + ", group=" + group);
+						_scheduler.get(type).scheduleJob(job, trigger);
+					}
+				} else {
+					// 未登録の場合は、DB登録処理を呼ぶ
+					log.trace("scheduleCronJob() : addDbmsScheduler() call.");
+					dbms.addDbmsScheduler(job, trigger);
+					
+					synchronized (_schedulerLock) {
+						log.debug("scheduleJob() name=" + name + ", group=" + group);
+						_scheduler.get(type).scheduleJob(job, trigger);
+					}
+				}
+			} catch (Exception e) {
+				log.error("scheduleCronJob() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+				throw new HinemosUnknown("failed scheduling DBMS job. (name = " + name + ", group = " + group + ")", e);
 			}
-		} catch (SchedulerException e) {
-			throw new HinemosUnknown("failed scheduling job. (name = " + name + ", group = " + group + ")", e);
-		}
-	}
-
-	/**
-	 * <pre>
-	 * 実行中のジョブを停止する。<br/>
-	 * </pre>
-	 * @param type スケジューラ定義の保持型
-	 * @param name ジョブの名前
-	 * @param group ジョブのグループ名
-	 * @throws HinemosException 予期せぬ内部エラー
-	 */
-	public static void pauseJob(SchedulerType type, String name, String group) throws HinemosUnknown {
-		try {
-			synchronized (_schedulerLock) {
-				_scheduler.get(type).pauseJob(new JobKey(name, group));
+		} else {
+			// RAMスケジューラの場合は、存在有無に関わらず削除処理を呼ぶ
+			deleteJob(type, name, group);
+			
+			// ジョブスケジューラを作成
+			try {
+				synchronized (_schedulerLock) {
+					log.debug("scheduleJob() name=" + name + ", group=" + group);
+					_scheduler.get(type).scheduleJob(job, trigger);
+				}
+			} catch (SchedulerException e) {
+				throw new HinemosUnknown("failed scheduling job. (name = " + name + ", group = " + group + ")", e);
 			}
-		} catch (SchedulerException e) {
-			throw new HinemosUnknown("failed pausing job. (name = " + name + ", group = " + group + ")", e);
 		}
 	}
 
@@ -390,6 +442,18 @@ public class SchedulerPlugin implements HinemosPlugin {
 	 * @throws HinemosUnknown 予期せぬ内部エラー
 	 */
 	public static void deleteJob(SchedulerType type, String name, String group) throws HinemosUnknown {
+		if (log.isDebugEnabled()) log.debug("deleteJob() name:" + name + ", group:" + group);
+		
+		if(type == SchedulerPlugin.SchedulerType.DBMS){
+			try {
+				log.trace("deleteJob() : deleteDbmsScheduler() call.");
+				ModifyDbmsScheduler dbms = new ModifyDbmsScheduler();
+				dbms.deleteDbmsScheduler(name, group);
+			} catch (Exception e){
+				throw new HinemosUnknown("failed removing DBMS job. (name = " + name + ", group = " + group + ")", e);
+			}
+		}
+		
 		try {
 			synchronized (_schedulerLock) {
 				_scheduler.get(type).deleteJob(new JobKey(name, group));
@@ -399,59 +463,13 @@ public class SchedulerPlugin implements HinemosPlugin {
 		}
 	}
 
-	/**
-	 * <pre>
-	 * cron型のジョブの実行タイミングを変更する。<br/>
-	 * </pre>
-	 * @param type
-	 * @param name
-	 * @param group
-	 * @param cronExpression
-	 * @throws HinemosUnknown
-	 */
-	public static void updateCronJob(SchedulerType type, String name, String group, String cronExpression) throws HinemosUnknown {
-		log.debug("updateCronJob() name=" + name + ", group=" + group + ", cronExpression=" + cronExpression);
-
-		try {
-			synchronized (_schedulerLock) {
-				Trigger trigger = TriggerBuilder.newTrigger()
-						.withIdentity(name, group)
-						.startAt(new Date())
-						.withSchedule(CronScheduleBuilder.cronSchedule(cronExpression).withMisfireHandlingInstructionDoNothing())
-						.build();
-
-				_scheduler.get(type).rescheduleJob(new TriggerKey(name, group), trigger);
-			}
-		} catch (SchedulerException e) {
-			throw new HinemosUnknown("failed updating job. (name = " + name + ", group = " + group + ", cronExpression = " + cronExpression + ")", e);
-		}
-	}
-
-	public static void updateSimpleJob(SchedulerType type, String name, String group, int intervalSec) throws HinemosUnknown {
-		log.debug("updateSimpleJob() name=" + name + ", group=" + group);
-
-		try {
-			synchronized (_schedulerLock) {
-				Trigger trigger = TriggerBuilder.newTrigger()
-						.withIdentity(name, group)
-						.startAt(new Date())
-						.withSchedule(SimpleScheduleBuilder.simpleSchedule().withIntervalInSeconds(intervalSec).repeatForever())
-						.build();
-
-				_scheduler.get(type).rescheduleJob(new TriggerKey(name, group), trigger);
-			}
-		} catch (SchedulerException e) {
-			throw new HinemosUnknown("failed updating job. (name = " + name + ", group = " + group + ", intervalSec = " + intervalSec + ")", e);
-		}
-	}
-
+	@SuppressWarnings("unchecked")
 	private void initTrigger() throws HinemosUnknown {
 		// setup Job for Status Notification Management
 		try {
 			if (! _scheduler.get(SchedulerType.RAM).checkExists(new JobKey("MonitorController", "MON"))) {
 				scheduleCronJob(SchedulerType.RAM, "MonitorController", "MON",
-						new Date(), HinemosPropertyUtil.getHinemosPropertyStr(
-								"scheduler.monitor.cron", "0 */5 * * * ? *"),
+						HinemosTime.currentTimeMillis(), HinemosPropertyCommon.scheduler_monitor_cron.getStringValue(),
 						true, MonitorControllerBean.class.getName(),
 						"manageStatus", new Class[0], new Serializable[0]);
 			}
@@ -463,9 +481,8 @@ public class SchedulerPlugin implements HinemosPlugin {
 		try {
 			if (! _scheduler.get(SchedulerType.RAM).checkExists(new JobKey("JobRunManagement", "JOB_MANAGEMENT"))) {
 				scheduleCronJob(SchedulerType.RAM, "JobRunManagement",
-						"JOB_MANAGEMENT", new Date(),
-						HinemosPropertyUtil.getHinemosPropertyStr("scheduler.job.cron",
-								"0 */1 * * * ? *"), true,
+						"JOB_MANAGEMENT", HinemosTime.currentTimeMillis(),
+						HinemosPropertyCommon.scheduler_job_cron.getStringValue(), true,
 						JobRunManagementBean.class.getName(), "run",
 						new Class[0], new Serializable[0]);
 			}
@@ -477,9 +494,8 @@ public class SchedulerPlugin implements HinemosPlugin {
 		try {
 			if (! _scheduler.get(SchedulerType.RAM).checkExists(new JobKey("RepositoryRunManagement", "REPOSITORY_MANAGEMENT"))) {
 				scheduleCronJob(SchedulerType.RAM, "RepositoryRunManagement",
-						"REPOSITORY_MANAGEMENT", new Date(),
-						HinemosPropertyUtil.getHinemosPropertyStr("scheduler.repository.cron",
-								"40 */1 * * * ? *"), true,
+						"REPOSITORY_MANAGEMENT", HinemosTime.currentTimeMillis(),
+						HinemosPropertyCommon.scheduler_repository_cron.getStringValue(), true,
 						RepositoryRunManagementBean.class.getName(), "run",
 						new Class[0], new Serializable[0]);
 			}
@@ -491,10 +507,8 @@ public class SchedulerPlugin implements HinemosPlugin {
 		try {
 			if (! _scheduler.get(SchedulerType.RAM).checkExists(new JobKey("MonitorStatusManagement", "MONITOR_STATUS_MANAGEMENT"))) {
 				scheduleCronJob(SchedulerType.RAM, "MonitorStatusManagement",
-						"MONITOR_STATUS_MANAGEMENT", new Date(),
-						HinemosPropertyUtil.getHinemosPropertyStr(
-								"scheduler.monitor.status.cron",
-								"50 3/10 * * * ? *"), true,
+						"MONITOR_STATUS_MANAGEMENT", HinemosTime.currentTimeMillis(),
+						HinemosPropertyCommon.scheduler_monitor_status_cron.getStringValue(), true,
 						MonitorControllerBean.class.getName(),
 						"persistMonitorStatusCache", new Class[0],
 						new Serializable[0]);
@@ -507,33 +521,245 @@ public class SchedulerPlugin implements HinemosPlugin {
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
-			// 性能管理機能の全ての収集を再開する
-			new PerformanceRestartManager().restartAll();
-
+			// リソース監視・プロセス監視について、Nodeから監視項目への辞書作成を行なう
+			NodeToMonitorCache.getInstance(HinemosModuleConstant.MONITOR_PROCESS).refresh();
+			NodeToMonitorCache.getInstance(HinemosModuleConstant.MONITOR_PERFORMANCE).refresh();
+			
+			// リソース監視・プロセス監視のノード単位のポーラーをスケジュールする
+			NodeMonitorPollerController.init();
+			
 			// 監視をリスケジューリングする。
 			new ModifySchedule().updateScheduleAll();
+
+			initDbmsScheduler();
+			
 			jtm.commit();
 		} catch (Exception e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			log.warn("failed to start schedulers.", e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
+
+	private void initDbmsScheduler() throws HinemosUnknown {
+		log.debug("initDbmsScheduler() start.");
+		Throwable exception = null;
+		
+		//収集蓄積機能の対応(転送設定に関するHinemosプロパティの最新値を取得)
+		String propCron = null;
+		String propBaseTime= null;
+		propCron = HinemosPropertyCommon.hub_transfer_delay_interval.getStringValue();
+		log.debug("propCron:" + propCron);
+		try {
+			CronExpression.validateExpression(propCron);
+		} catch (ParseException e){
+			log.warn(HinemosPropertyCommon.hub_transfer_delay_interval.message_invalid(propCron));
+			//書式不正の場合、DB情報更新しない
+			propCron = null;
+		}
+		propBaseTime = HinemosPropertyCommon.hub_transfer_batch_basetime.getStringValue();
+		log.debug("propBaseTime:" + propBaseTime);
+		
+		
+		List<DbmsSchedulerEntity> entityList = null;
+		entityList = QueryUtil.getAllDbmsScheduler();
+		
+		for (DbmsSchedulerEntity entity : entityList) {
+			if (log.isDebugEnabled()) log.debug("entity:" + entity.getId().getJobId());
+			try {
+				boolean isMisfire = entity.getMisfireInstr() == Trigger.MISFIRE_INSTRUCTION_DO_NOTHING ? true : false;
+				
+				//メソッドの引数を設定
+				Serializable[] jdArgs = new Serializable[entity.getJobArgNum()];
+				@SuppressWarnings("unchecked")
+				Class<? extends Serializable>[] jdArgsType = new Class[entity.getJobArgNum()];
+				
+				for (int i=0; i < entity.getJobArgNum(); i++){
+					
+					String strArg = null;
+					
+					switch (i) {
+					case 0  : strArg = entity.getJobArg00(); break;
+					case 1  : strArg = entity.getJobArg01(); break;
+					case 2  : strArg = entity.getJobArg02(); break;
+					case 3  : strArg = entity.getJobArg03(); break;
+					case 4  : strArg = entity.getJobArg04(); break;
+					case 5  : strArg = entity.getJobArg05(); break;
+					case 6  : strArg = entity.getJobArg06(); break;
+					case 7  : strArg = entity.getJobArg07(); break;
+					case 8  : strArg = entity.getJobArg08(); break;
+					case 9  : strArg = entity.getJobArg09(); break;
+					case 10 : strArg = entity.getJobArg10(); break;
+					case 11 : strArg = entity.getJobArg11(); break;
+					case 12 : strArg = entity.getJobArg12(); break;
+					case 13 : strArg = entity.getJobArg13(); break;
+					case 14 : strArg = entity.getJobArg14(); break;
+					default: log.debug("arg count ng.");
+					}
+					
+					if (log.isDebugEnabled()) log.debug("strArg[" + i + "]:" + strArg);
+					
+					if (strArg != null) {
+						String[] splitArg = strArg.split(":", 2);
+						
+						if (splitArg[0].equals("String")){
+							jdArgsType[i] = String.class;
+							jdArgs[i] = splitArg[1];
+						} else if (splitArg[0].equals("Boolean")){
+							jdArgsType[i] = Boolean.class;
+							jdArgs[i] = Boolean.parseBoolean(splitArg[1]);
+						} else if (splitArg[0].equals("Integer")){
+							jdArgsType[i] = Integer.class;
+							jdArgs[i] = Integer.parseInt(splitArg[1]);
+						} else if (splitArg[0].equals("Long")){
+							jdArgsType[i] = Long.class;
+							jdArgs[i] = Long.parseLong(splitArg[1]);
+						} else if (splitArg[0].equals("Short")){
+							jdArgsType[i] = Short.class;
+							jdArgs[i] = Short.parseShort(splitArg[1]);
+						} else if (splitArg[0].equals("Float")){
+							jdArgsType[i] = Float.class;
+							jdArgs[i] = Float.parseFloat(splitArg[1]);
+						} else if (splitArg[0].equals("Double")){
+							jdArgsType[i] = Double.class;
+							jdArgs[i] = Double.parseDouble(splitArg[1]);
+						} else if (splitArg[0].equals("nullString")){
+							jdArgsType[i] = String.class;
+							jdArgs[i] = null;
+						} else {
+							log.debug("not support class");
+						}
+						if (log.isDebugEnabled()) log.debug("jdArgs[" + i + "]:" + jdArgs[i]);
+					}
+				}
+				// ジョブ定義の作成
+				JobDetail job = JobBuilder.newJob(ReflectionInvokerJob.class)
+						.withIdentity(entity.getId().getJobId(), entity.getId().getJobGroup())
+						.storeDurably(true)		// ジョブ完了時に削除されない設定を反映
+						.usingJobData(ReflectionInvokerJob.KEY_CLASS_NAME, entity.getJobClassName())	// ジョブから呼び出すクラス名を反映
+						.usingJobData(ReflectionInvokerJob.KEY_METHOD_NAME, entity.getJobMethodName())	// ジョブから呼び出すメソッドを反映
+						.usingJobData(ReflectionInvokerJob.KEY_RESET_ON_RESTART, isMisfire)	// 再起動時にtriggerをリセット()するかどうかを反映
+						.build();
+				
+				job.getJobDataMap().put(ReflectionInvokerJob.KEY_ARGS_TYPE, jdArgsType);
+				job.getJobDataMap().put(ReflectionInvokerJob.KEY_ARGS, jdArgs);
+				
+				// ジョブ実行定義となるtriggerを作成
+				Trigger trigger = null;
+				if(entity.getTriggerType().equals(SchedulerPlugin.TriggerType.CRON.name())){
+					CronTriggerBuilder triggerBuilder = CronTriggerBuilder.newTrigger().withIdentity(entity.getId().getJobId(), entity.getId().getJobGroup());
+					if (isMisfire) {
+						triggerBuilder.withMisfireHandlingInstructionDoNothing();
+					} else {
+						triggerBuilder.withMisfireHandlingInstructionIgnoreMisfires();
+					}
+					// 現在時刻を一度ミリ秒単位を落として取得する
+					long nowTime = (HinemosTime.currentTimeMillis() / 1000) * 1000;
+					log.debug("start_time : " + nowTime);
+					trigger = triggerBuilder.cronSchedule(entity.getCronExpression()).startAt(nowTime).endAt(entity.getEndTime()).build();
+					((AbstractTrigger)trigger).setNextFireTime(entity.getNextFireTime());
+					((AbstractTrigger)trigger).setPreviousFireTime(entity.getPrevFireTime());
+					
+				} else if (entity.getTriggerType().equals(SchedulerPlugin.TriggerType.SIMPLE.name())){
+					SimpleTriggerBuilder triggerBuilder = SimpleTriggerBuilder.newTrigger().withIdentity(entity.getId().getJobId(), entity.getId().getJobGroup());
+					if (isMisfire) {
+						triggerBuilder.withMisfireHandlingInstructionDoNothing();
+					} else {
+						triggerBuilder.withMisfireHandlingInstructionIgnoreMisfires();
+					}
+					trigger = triggerBuilder.setPeriod(entity.getRepeatInterval()).startAt(entity.getStartTime()).endAt(entity.getEndTime()).build();
+					((AbstractTrigger)trigger).setNextFireTime(entity.getNextFireTime());
+					((AbstractTrigger)trigger).setPreviousFireTime(entity.getPrevFireTime());
+				}
+				
+				//収集蓄積機能の対応(転送設定に関するHinemosプロパティの情報を反映)
+				if(entity.getId().getJobGroup().equals(com.clustercontrol.hub.bean.QuartzConstant.GROUP_NAME)) {
+					//収集蓄積のDB設定情報を取得
+					TransferInfo ti = null;
+					try {
+						ti = com.clustercontrol.hub.util.QueryUtil.getTransferInfo(entity.getId().getJobId(), ObjectPrivilegeMode.MODIFY);
+					} catch (LogTransferNotFound e){
+						log.warn("Not Found TransferInfo:" + entity.getId().getJobId());
+					} catch (InvalidRole e){
+						log.warn("Failed to get TransferInfo for InvalidRole:" + entity.getId().getJobId());
+					}
+					//収集蓄積の設定情報を元にtrigger情報生成
+					if(ti != null){
+						if(propCron != null && ti.getTransType() == TransferType.delay){
+							CronTriggerBuilder triggerBuilder = CronTriggerBuilder.newTrigger().withIdentity(entity.getId().getJobId(), entity.getId().getJobGroup());
+							if (isMisfire) {
+								triggerBuilder.withMisfireHandlingInstructionDoNothing();
+							} else {
+								triggerBuilder.withMisfireHandlingInstructionIgnoreMisfires();
+							}
+							trigger = triggerBuilder.cronSchedule(propCron).startAt(HinemosTime.currentTimeMillis() + 15 * 1000).build();
+						}else if(propBaseTime != null && ti.getTransType() == TransferType.batch){
+							
+							int intervalSec = ti.getInterval() * 60 * 60;
+							long baseTime = com.clustercontrol.hub.factory.ModifySchedule.getBaseTime(propBaseTime, intervalSec);
+							log.debug("baseTime:" + baseTime);
+							SimpleTriggerBuilder triggerBuilder = SimpleTriggerBuilder.newTrigger().withIdentity(entity.getId().getJobId(), entity.getId().getJobGroup());
+							if (isMisfire) {
+								triggerBuilder.withMisfireHandlingInstructionDoNothing();
+							} else {
+								triggerBuilder.withMisfireHandlingInstructionIgnoreMisfires();
+							}
+							trigger = triggerBuilder.setPeriod(intervalSec * 1000).startAt(baseTime).build();
+						}
+					}
+					//スケジューラのDB情報を更新
+					try {
+						ModifyDbmsScheduler dbms = new ModifyDbmsScheduler();
+						dbms.modifyDbmsScheduler(job, trigger);
+						trigger.computeFirstFireTime(HinemosTime.currentTimeMillis());
+						dbms.modifyDbmsSchedulerInternal(job, trigger, TriggerState.SCHEDULED.name());
+					} catch (Exception e){
+						log.warn("hub setting init err. entity : jobId = " + entity.getId().getJobId()
+								+ ", " + entity.getId().getJobGroup()
+								+ ", " + e.getClass().getSimpleName() + ", " + e.getMessage());
+						exception = e;
+					}
+				}
+				
+				if (log.isDebugEnabled()) {
+					log.debug("getNextFireTime=" + trigger.getNextFireTime() + ", getPreviousFireTime=" + trigger.getPreviousFireTime());
+				}
+				// ジョブスケジューラを作成
+				synchronized (_schedulerLock) {
+					if (log.isDebugEnabled()) log.debug("scheduleJob() name=" + entity.getId().getJobId() + ", group=" + entity.getId().getJobGroup());
+					// DBには登録済みのため、RAMへの展開/登録のみ実施する関数を呼ぶ
+					_scheduler.get(SchedulerPlugin.SchedulerType.DBMS).initDbmsScheduleJob(job, trigger, entity.getTriggerState());
+				}
+			} catch (RuntimeException e) {
+				log.warn("initDbmsScheduler() entity : jobId = " + entity.getId().getJobId()
+						+ ", " + entity.getId().getJobGroup()
+						+ ", " + e.getClass().getSimpleName() + ", " + e.getMessage());
+				// 次の設定を処理するため、throwはしない。
+				exception = e;
+			}
+		}
+		
+		if (exception != null) {
+			throw new HinemosUnknown("failed dbms scheduler:", exception);
+		}
+		log.debug("initDbmsScheduler() end.");
+	}
+	
 
 	public static List<SchedulerInfo> getSchedulerList(SchedulerType type) throws HinemosUnknown {
 		List<SchedulerInfo> list = new ArrayList<SchedulerInfo>();
 
 		try {
 			synchronized (_schedulerLock) {
-				for (String group : _scheduler.get(type).getTriggerGroupNames()) {
-					for (TriggerKey key : _scheduler.get(type).getTriggerKeys(GroupMatcher.triggerGroupEquals(group))) {
-						Trigger trigger = _scheduler.get(type).getTrigger(key);
-
-						list.add(new SchedulerInfo(key.getName(), key.getGroup(),
-								trigger.getStartTime(), trigger.getPreviousFireTime(), trigger.getNextFireTime(),
-								_scheduler.get(type).getTriggerState(key) == TriggerState.PAUSED ? true : false));
-					}
+				for (Map.Entry<JobKey, Trigger> entry : _scheduler.get(type).getAllTrigger().entrySet()) {
+					JobKey key = entry.getKey();
+					Trigger trigger = entry.getValue();
+					list.add(new SchedulerInfo(key.getName(), key.getGroup(),
+							trigger.getStartTime(), trigger.getPreviousFireTime(), trigger.getNextFireTime(),
+							_scheduler.get(type).getTriggerState(key) == TriggerState.PAUSED ? true : false));
 				}
 			}
 		} catch (SchedulerException e) {
@@ -543,12 +769,18 @@ public class SchedulerPlugin implements HinemosPlugin {
 		return Collections.unmodifiableList(list);
 	}
 
-	public static Date getNextFireTime(SchedulerType type, String name, String group) throws HinemosUnknown {
-		Date nextFireTime = null;
+	public static String schedulerSummary(SchedulerType type) {
+		synchronized (_schedulerLock) {
+			return "QueueSize=" + _scheduler.get(type).getQueueSize() + ", TriggerSize=" + _scheduler.get(type).getTriggerSize();
+		}
+	}
+	
+	public static long getNextFireTime(SchedulerType type, String name, String group) throws HinemosUnknown {
+		long nextFireTime = -1;
 
 		try {
 			synchronized (_schedulerLock) {
-				Trigger trigger = _scheduler.get(type).getTrigger(new TriggerKey(name, group));
+				Trigger trigger = _scheduler.get(type).getTrigger(name, group);
 				nextFireTime = trigger.getNextFireTime();
 			}
 		} catch (SchedulerException e) {
@@ -557,40 +789,6 @@ public class SchedulerPlugin implements HinemosPlugin {
 
 		log.debug("getNextFireTime() : " + nextFireTime);
 		return nextFireTime;
-	}
-
-	public static String getScheduledList(SchedulerType type) throws HinemosUnknown {
-		String str = "";
-		String lineSeparator = System.getProperty("line.separator");
-
-		try {
-			synchronized (_schedulerLock) {
-				for (String group : _scheduler.get(type).getTriggerGroupNames()) {
-					for (TriggerKey key : _scheduler.get(type).getTriggerKeys(GroupMatcher.triggerGroupEquals(group))) {
-						Trigger trigger = _scheduler.get(type).getTrigger(key);
-
-						Trigger.TriggerState state = _scheduler.get(type).getTriggerState(key);
-						String startFireTime = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.getStartTime());
-						String prevFireTime = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.getPreviousFireTime());
-						String nextFireTime = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.getNextFireTime());
-
-						str = str + String.format("%s (in %s) :", key.getName(), key.getGroup()) + lineSeparator;
-						str = str + String.format("   start fire time - %s", startFireTime) + lineSeparator;
-						str = str + String.format("   last fire time  - %s", prevFireTime) + lineSeparator;
-						str = str + String.format("   next fire time  - %s", nextFireTime) + lineSeparator;
-						str = str + String.format("   current state   - %s", state) + lineSeparator;
-
-						str = str + lineSeparator;
-					}
-				}
-
-			}
-		} catch (SchedulerException e) {
-			throw new HinemosUnknown("failed getting list of scheduled jobs.", e);
-		}
-
-		log.debug("getScheduledList() : " + str);
-		return str;
 	}
 
 	public static boolean isSchedulerRunning(SchedulerType type) throws HinemosUnknown {
@@ -602,5 +800,4 @@ public class SchedulerPlugin implements HinemosPlugin {
 			throw new HinemosUnknown("failed getting state of scheduler.", e);
 		}
 	}
-
 }

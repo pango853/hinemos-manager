@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.custom.bean;
@@ -19,14 +12,16 @@ import java.util.List;
 
 import javax.xml.bind.annotation.XmlType;
 
+import com.clustercontrol.calendar.model.CalendarInfo;
 import com.clustercontrol.fault.CustomInvalid;
-import com.clustercontrol.calendar.bean.CalendarInfo;
+import com.clustercontrol.jobmanagement.bean.RunInstructionInfo;
 
 /**
  * 情報収集に利用するコマンド実行情報の格納クラス<BR />
  * エージェントのJava VM上で、監視設定1つに対して1つのWSインスタンスが存在する。<BR />
  * 
- * @since 4.0
+ * @version 6.0.0
+ * @since 4.0.0
  */
 @XmlType(namespace = "http://monitor.ws.clustercontrol.com")
 public class CommandExecuteDTO {
@@ -34,16 +29,25 @@ public class CommandExecuteDTO {
 	// コマンド実行に起因する監視項目ID
 	private String monitorId;
 
+	// コマンド実行に起因するファシリティID
+	private String facilityId;
+
 	// コマンドの実効ユーザ
-	private Integer specifyUser;
+	private Boolean specifyUser;
 	private String effectiveUser;
 	// コマンド文字列(変数込み)
 	private String command;
-	private Integer timeout = new Integer(0);
+	private Integer timeout = 0;
 
-	private Integer interval = new Integer(0);
+	private Integer interval = 0;
 	private CalendarInfo calendar;
 
+	// 監視ジョブ指示情報
+	private RunInstructionInfo runInstructionInfo = null;
+
+	// 種別（数値・文字列）
+	private Type type;
+	
 	// 対象となっているノード情報のハッシュ(facilityId -> hash of variables)
 	//   ノードごとに実行する場合 : 1セットのみ
 	//   特定のノードでまとめて実行する場合 : 監視対象スコープに含まれるノード数分のセット
@@ -60,9 +64,20 @@ public class CommandExecuteDTO {
 	 * コンストラクタ
 	 * @throws CustomInvalid メンバ変数に不整合が存在する場合
 	 */
-	public CommandExecuteDTO(String monitorId, Integer specifyUser, String effectiveUser, String command, Integer timeout,
-			Integer interval, CalendarInfo calendar, List<CommandVariableDTO> variables) throws CustomInvalid {
+	public CommandExecuteDTO(String monitorId, String facilityId, Boolean specifyUser, String effectiveUser, String command, Integer timeout,
+			Integer interval, CalendarInfo calendar, List<CommandVariableDTO> variables, Type type) throws CustomInvalid {
+		this(monitorId, facilityId, specifyUser, effectiveUser, command, timeout,
+				interval, calendar, variables, null,type);
+	}
+
+	/**
+	 * コンストラクタ
+	 * @throws CustomInvalid メンバ変数に不整合が存在する場合
+	 */
+	public CommandExecuteDTO(String monitorId, String facilityId, Boolean specifyUser, String effectiveUser, String command, Integer timeout,
+			Integer interval, CalendarInfo calendar, List<CommandVariableDTO> variables, RunInstructionInfo runInstructionInfo, Type type) throws CustomInvalid {
 		this.monitorId = monitorId;
+		this.facilityId = facilityId;
 		this.specifyUser = specifyUser;
 		this.effectiveUser = effectiveUser;
 		this.command = command;
@@ -70,6 +85,8 @@ public class CommandExecuteDTO {
 		this.interval = interval;
 		this.calendar = calendar;
 		this.variables = variables;
+		this.runInstructionInfo = runInstructionInfo;
+		this.type = type;
 
 		validate();
 	}
@@ -91,10 +108,26 @@ public class CommandExecuteDTO {
 	}
 
 	/**
+	 * コマンド実行情報に対応するファシリティIDを付与する。<br/>
+	 * @param facilityId ファシリティID
+	 */
+	public void setFacilityId(String facilityId) {
+		this.facilityId = facilityId;
+	}
+
+	/**
+	 * コマンド実行情報に対応するファシリティIDを返す。<br/>
+	 * @return ファシリティID
+	 */
+	public String getFacilityId() {
+		return facilityId;
+	}
+
+	/**
 	 * 実効ユーザの種別を付与する。<br/>
 	 * @param specifyUser 実効ユーザ種別
 	 */
-	public void setSpecifyUser(Integer specifyUser) {
+	public void setSpecifyUser(Boolean specifyUser) {
 		this.specifyUser = specifyUser;
 	}
 
@@ -102,7 +135,7 @@ public class CommandExecuteDTO {
 	 * 実効ユーザの種別を返す。<br/>
 	 * @return 実効ユーザ種別
 	 */
-	public Integer getSpecifyUser() {
+	public Boolean isSpecifyUser() {
 		return specifyUser;
 	}
 
@@ -204,6 +237,30 @@ public class CommandExecuteDTO {
 	}
 
 	/**
+	 * 監視ジョブ指示情報を付与する。<br/>
+	 * @param runInstructionInfo 監視ジョブ指示情報
+	 */
+	public void setRunInstructionInfo(RunInstructionInfo runInstructionInfo) {
+		this.runInstructionInfo = runInstructionInfo;
+	}
+
+	/**
+	 * 監視ジョブ指示情報を返す。<br/>
+	 * @return runInstructionInfo 監視ジョブ指示情報
+	 */
+	public RunInstructionInfo getRunInstructionInfo() {
+		return runInstructionInfo;
+	}
+
+	public void setType(Type type){
+		this.type = type;
+	}
+
+	public Type getType(){
+		return type;
+	}
+	
+	/**
 	 * メンバ変数の妥当性を確認する。<br/>
 	 * @throws CustomInvalid 妥当でない値が含まれる場合
 	 */
@@ -240,10 +297,12 @@ public class CommandExecuteDTO {
 		}
 
 		return this.getClass().getCanonicalName() + " [monitorId = " + monitorId
+				+ ", facilityID = " + facilityId
 				+ ", effectiveUser = " + effectiveUser
 				+ ", command = " + command
 				+ ", timeout = " + timeout
 				+ ", interval = " + interval
+				+ (runInstructionInfo != null ? "monitorJob" : "")
 				+ "]";
 	}
 

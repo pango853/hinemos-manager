@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.jobmanagement.bean;
 
 import javax.xml.bind.annotation.XmlType;
@@ -39,7 +33,7 @@ public class JobHistory implements java.io.Serializable {
 	private Long scheduleDate = null;
 	private Long startDate = null;
 	private Long endDate = null;
-	private String jobTriggerType = null;
+	private Integer jobTriggerType = null;
 	private String triggerInfo = null;
 	private String managerName = null;
 
@@ -49,7 +43,7 @@ public class JobHistory implements java.io.Serializable {
 			Integer jobType, String facilityId, String scope,
 			String ownerRoleId,
 			Long scheduleDate, Long startDate, Long endDate,
-			String jobTriggerType, String triggerInfo, String managerName) {
+			Integer jobTriggerType, String triggerInfo, String managerName) {
 		super();
 		this.status = status;
 		this.endStatus = endStatus;
@@ -154,10 +148,10 @@ public class JobHistory implements java.io.Serializable {
 	public void setEndDate(Long endDate) {
 		this.endDate = endDate;
 	}
-	public String getJobTriggerType() {
+	public Integer getJobTriggerType() {
 		return jobTriggerType;
 	}
-	public void setJobTriggerType(String jobTriggerType) {
+	public void setJobTriggerType(Integer jobTriggerType) {
 		this.jobTriggerType = jobTriggerType;
 	}
 	public String getTriggerInfo() {

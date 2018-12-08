@@ -1,22 +1,13 @@
 /*
-
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.plugin.impl;
 
-import java.sql.Timestamp;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -30,9 +21,12 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.plugin.api.HinemosPlugin;
 import com.clustercontrol.repository.bean.FacilityTreeAttributeConstant;
 import com.clustercontrol.repository.model.CollectorPlatformMstEntity;
-import com.clustercontrol.repository.model.FacilityEntity;
+import com.clustercontrol.repository.model.FacilityInfo;
 import com.clustercontrol.repository.model.FacilityRelationEntity;
+import com.clustercontrol.repository.model.ScopeInfo;
 import com.clustercontrol.repository.util.QueryUtil;
+import com.clustercontrol.repository.util.FacilityTreeCache;
+import com.clustercontrol.util.HinemosTime;
 
 public class OsScopeInitializerPlugin implements HinemosPlugin {
 	public static final Log log = LogFactory.getLog(OsScopeInitializerPlugin.class);
@@ -42,7 +36,13 @@ public class OsScopeInitializerPlugin implements HinemosPlugin {
 	public Set<String> getDependency() {
 		Set<String> dependency = new HashSet<String>();
 		dependency.add(Log4jReloadPlugin.class.getName());
+		dependency.add(CacheInitializerPlugin.class.getName());
 		return dependency;
+	}
+
+	@Override
+	public Set<String> getRequiredKeys() {
+		return null;
 	}
 
 	@Override
@@ -63,7 +63,7 @@ public class OsScopeInitializerPlugin implements HinemosPlugin {
 				platformMap.put(platformId, platformMstEntity);
 			}
 
-			for (FacilityEntity facilityEntity : QueryUtil.getChildFacilityEntity(osParentFacilityId)) {
+			for (FacilityInfo facilityEntity : QueryUtil.getChildFacilityEntity(osParentFacilityId)) {
 				osFacilityIdSet.add(facilityEntity.getFacilityId());
 			}
 			builtinScopeFacilityIdSet.addAll(osFacilityIdSet);
@@ -84,32 +84,42 @@ public class OsScopeInitializerPlugin implements HinemosPlugin {
 			Set<String> facilityIdToAddSet = new HashSet<String>(platformIdSet);
 			facilityIdToAddSet.removeAll(osFacilityIdSet);
 
-			Timestamp now = new Timestamp(new Date().getTime());
-			FacilityEntity osParentFacilityEntity = QueryUtil.getFacilityPK_NONE(osParentFacilityId);
-			for (String facilityIdToAdd : facilityIdToAddSet) {
-				CollectorPlatformMstEntity platformMstEntity = platformMap.get(facilityIdToAdd);
+			HinemosEntityManager em = jtm.getEntityManager();
 
-				FacilityEntity facilityEntityToAdd = new FacilityEntity(facilityIdToAdd);
-
-				facilityEntityToAdd.setFacilityName(platformMstEntity.getPlatformName());
-				facilityEntityToAdd.setDescription(platformMstEntity.getPlatformName());
-				facilityEntityToAdd.setDisplaySortOrder(platformMstEntity.getOrderNo());
-
-				facilityEntityToAdd.setFacilityType(osParentFacilityEntity.getFacilityType());
-				facilityEntityToAdd.setIconImage(osParentFacilityEntity.getIconImage());
-				facilityEntityToAdd.setValid(osParentFacilityEntity.getValid());
-				facilityEntityToAdd.setOwnerRoleId(osParentFacilityEntity.getOwnerRoleId());
-				facilityEntityToAdd.setCreateUserId(osParentFacilityEntity.getCreateUserId());
-				facilityEntityToAdd.setCreateDatetime(now);
-				facilityEntityToAdd.setModifyUserId(osParentFacilityEntity.getModifyUserId());
-				facilityEntityToAdd.setModifyDatetime(now);
-
-				log.info(String.format("The OS scope %s will be added.", facilityIdToAdd));
-				new FacilityRelationEntity(osParentFacilityId, facilityIdToAdd);
+			long now = HinemosTime.currentTimeMillis();
+			FacilityInfo osParentFacilityEntity = QueryUtil.getFacilityPK_NONE(osParentFacilityId);
+			synchronized( FacilityTreeCache.class ){ //FacilityTreeCache更新との排他制御
+				for (String facilityIdToAdd : facilityIdToAddSet) {
+					CollectorPlatformMstEntity platformMstEntity = platformMap.get(facilityIdToAdd);
+	
+					ScopeInfo facilityEntityToAdd = new ScopeInfo(facilityIdToAdd);
+	
+					facilityEntityToAdd.setFacilityName(platformMstEntity.getPlatformName());
+					facilityEntityToAdd.setDescription(platformMstEntity.getPlatformName());
+					facilityEntityToAdd.setDisplaySortOrder(platformMstEntity.getOrderNo());
+	
+					facilityEntityToAdd.setFacilityType(osParentFacilityEntity.getFacilityType());
+					facilityEntityToAdd.setIconImage(osParentFacilityEntity.getIconImage());
+					facilityEntityToAdd.setValid(osParentFacilityEntity.getValid());
+					facilityEntityToAdd.setOwnerRoleId(osParentFacilityEntity.getOwnerRoleId());
+					facilityEntityToAdd.setCreateUserId(osParentFacilityEntity.getCreateUserId());
+					facilityEntityToAdd.setCreateDatetime(now);
+					facilityEntityToAdd.setModifyUserId(osParentFacilityEntity.getModifyUserId());
+					facilityEntityToAdd.setModifyDatetime(now);
+					
+					facilityEntityToAdd.persistSelf();
+					em.persist(facilityEntityToAdd);
+					
+					em.flush();
+	
+					log.info(String.format("The OS scope %s will be added.", facilityIdToAdd));
+					FacilityRelationEntity relation = new FacilityRelationEntity(osParentFacilityId, facilityIdToAdd);
+					em.persist(relation);
+				}
 			}
 
 			jtm.commit();
-
+			FacilityTreeCache.refresh();
 			if (!facilityIdToAddSet.isEmpty()) {
 				builtinScopeFacilityIdSet.addAll(facilityIdToAddSet);
 				osScopeIdSet.addAll(facilityIdToAddSet);
@@ -140,7 +150,7 @@ public class OsScopeInitializerPlugin implements HinemosPlugin {
 				FacilityRelationEntity facilityRelationEntityToRemove = QueryUtil.getFacilityRelationPk(osParentFacilityId, facilityIdToRemove);
 				em.remove(facilityRelationEntityToRemove);
 
-				FacilityEntity facilityEntityToRemove = QueryUtil.getFacilityPK_NONE(facilityIdToRemove);
+				FacilityInfo facilityEntityToRemove = QueryUtil.getFacilityPK_NONE(facilityIdToRemove);
 				log.info(String.format("The OS scope %s will be removed.", facilityIdToRemove));
 				em.remove(facilityEntityToRemove);
 

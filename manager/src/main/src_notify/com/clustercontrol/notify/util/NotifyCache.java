@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.notify.util;
 
 import java.io.Serializable;
@@ -9,20 +17,15 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.commons.util.AbstractCacheManager;
 import com.clustercontrol.commons.util.CacheManagerFactory;
+import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
-import com.clustercontrol.notify.bean.NotifyInfo;
-import com.clustercontrol.notify.bean.NotifyInfoDetail;
-import com.clustercontrol.notify.bean.NotifyTypeConstant;
-import com.clustercontrol.notify.model.NotifyCommandInfoEntity;
-import com.clustercontrol.notify.model.NotifyEventInfoEntity;
-import com.clustercontrol.notify.model.NotifyInfoEntity;
-import com.clustercontrol.notify.model.NotifyJobInfoEntity;
-import com.clustercontrol.notify.model.NotifyLogEscalateInfoEntity;
-import com.clustercontrol.notify.model.NotifyMailInfoEntity;
-import com.clustercontrol.notify.model.NotifyStatusInfoEntity;
+import com.clustercontrol.notify.model.NotifyInfo;
+import com.clustercontrol.notify.model.NotifyInfoDetail;
+import com.clustercontrol.util.HinemosTime;
 
 public class NotifyCache {
 	private static Log m_log = LogFactory.getLog( NotifyCache.class );
@@ -80,41 +83,27 @@ public class NotifyCache {
 	 * 通知の登録、変更、削除時に呼ぶ。
 	 */
 	public static void refresh() {
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			_lock.writeLock();
 			
-			long start = System.currentTimeMillis();
+			long start = HinemosTime.currentTimeMillis();
+			em.clear();
 			HashMap<String, NotifyInfo> notifyMap = new HashMap<String, NotifyInfo>();
 			HashMap<String, NotifyInfoDetail> notifyDetailMap = new HashMap<String, NotifyInfoDetail>();
 			
-			List<NotifyInfoEntity> c = QueryUtil.getAllNotifyInfo_NONE();
-			for (NotifyInfoEntity entity : c) {
-				NotifyInfo info = new NotifyInfo();
+			List<NotifyInfo> c = QueryUtil.getAllNotifyInfo_NONE();
+			for (NotifyInfo entity : c) {
 				String notifyId = entity.getNotifyId();
-				info.setNotifyId(notifyId);
-				// info.setDescription(local.getDescription());
-				info.setNotifyType(entity.getNotifyType());
-				info.setInitialCount(entity.getInitialCount());
-				info.setNotFirstNotify(entity.getNotFirstNotify());
-				info.setRenotifyType(entity.getRenotifyType());
-				info.setRenotifyPeriod(entity.getRenotifyPeriod());
-				// info.setRegDate(local.getRegDate().getTime());
-				// info.setUpdateDate(local.getUpdateDate().getTime());
-				// info.setRegUser(local.getRegUser());
-				// info.setUpdateUser(local.getUpdateUser());
-				info.setValidFlg(entity.getValidFlg());
-				info.setCalendarId(entity.getCalendarId());
-				notifyMap.put(notifyId, info);
+				notifyMap.put(notifyId, entity);
 
 				m_log.debug("refresh() notifyInfo(notifyId=" + notifyId + ") cache is refreshed");
 
-				NotifyInfoDetail notifyInfoDetail = new NotifyInfoDetail();
-				notifyInfoDetail.setNotifyId(notifyId);
-				setValidFlgtoDetail(entity, notifyInfoDetail);
+				NotifyInfoDetail notifyInfoDetail =  entity.getNotifyInfoDetail();
 				notifyDetailMap.put(notifyId, notifyInfoDetail);
 			}
 			
-			m_log.info("refresh NotifyCache " + (System.currentTimeMillis() - start) + "ms. size=" + notifyDetailMap.size());
+			m_log.info("refresh NotifyCache " + (HinemosTime.currentTimeMillis() - start) + "ms. size=" + notifyDetailMap.size());
 			
 			storeNotifyInfoCache(notifyMap);
 			storeNotifyDetailCache(notifyDetailMap);
@@ -161,64 +150,5 @@ public class NotifyCache {
 			m_log.info("getNotifyInfoDetail() notifyInfoDetail is null");
 		}
 		return notifyInfoDetail;
-	}
-
-	/**
-	 * 重要度毎の有効無効フラグを設定します。
-	 *
-	 */
-	private static void setValidFlgtoDetail(NotifyInfoEntity entity, NotifyInfoDetail detail) {
-		switch (entity.getNotifyType()) {
-		case NotifyTypeConstant.TYPE_EVENT:
-			NotifyEventInfoEntity event = entity.getNotifyEventInfoEntity();
-			detail.setInfoValidFlg(event.getInfoEventNormalFlg());
-			detail.setWarnValidFlg(event.getWarnEventNormalFlg());
-			detail.setCriticalValidFlg(event.getCriticalEventNormalFlg());
-			detail.setUnknownValidFlg(event.getUnknownEventNormalFlg());
-			break;
-
-		case NotifyTypeConstant.TYPE_STATUS:
-			NotifyStatusInfoEntity status = entity.getNotifyStatusInfoEntity();
-			detail.setInfoValidFlg(status.getInfoStatusFlg());
-			detail.setWarnValidFlg(status.getWarnStatusFlg());
-			detail.setCriticalValidFlg(status.getCriticalStatusFlg());
-			detail.setUnknownValidFlg(status.getUnknownStatusFlg());
-			break;
-
-		case NotifyTypeConstant.TYPE_MAIL:
-			NotifyMailInfoEntity mail = entity.getNotifyMailInfoEntity();
-			detail.setInfoValidFlg(mail.getInfoMailFlg());
-			detail.setWarnValidFlg(mail.getWarnMailFlg());
-			detail.setCriticalValidFlg(mail.getCriticalMailFlg());
-			detail.setUnknownValidFlg(mail.getUnknownMailFlg());
-			break;
-
-		case NotifyTypeConstant.TYPE_JOB:
-			NotifyJobInfoEntity job = entity.getNotifyJobInfoEntity();
-			detail.setInfoValidFlg(job.getInfoJobRun());
-			detail.setWarnValidFlg(job.getWarnJobRun());
-			detail.setCriticalValidFlg(job.getCriticalJobRun());
-			detail.setUnknownValidFlg(job.getUnknownJobRun());
-			break;
-
-		case NotifyTypeConstant.TYPE_LOG_ESCALATE:
-			NotifyLogEscalateInfoEntity log = entity.getNotifyLogEscalateInfoEntity();
-			detail.setInfoValidFlg(log.getInfoEscalateFlg());
-			detail.setWarnValidFlg(log.getWarnEscalateFlg());
-			detail.setCriticalValidFlg(log.getCriticalEscalateFlg());
-			detail.setUnknownValidFlg(log.getUnknownEscalateFlg());
-			break;
-
-		case NotifyTypeConstant.TYPE_COMMAND:
-			NotifyCommandInfoEntity command = entity.getNotifyCommandInfoEntity();
-			detail.setInfoValidFlg(command.getInfoValidFlg());
-			detail.setWarnValidFlg(command.getWarnValidFlg());
-			detail.setCriticalValidFlg(command.getCriticalValidFlg());
-			detail.setUnknownValidFlg(command.getUnknownValidFlg());
-			break;
-
-		default:
-			m_log.info("setValidFlgtoDetail() notify type mismatch. " + entity.getNotifyId() + "  type = " + entity.getNotifyType());
-		}
 	}
 }

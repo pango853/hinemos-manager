@@ -1,22 +1,17 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.commons.bean;
 
 import java.io.Serializable;
 
+import javax.persistence.Column;
+import javax.persistence.Embeddable;
 import javax.xml.bind.annotation.XmlType;
 
 
@@ -27,6 +22,7 @@ import javax.xml.bind.annotation.XmlType;
  * @since 1.0.0
  */
 @XmlType(namespace = "http://common.ws.clustercontrol.com")
+@Embeddable
 public class Schedule implements Serializable {
 
 	private static final long serialVersionUID = -4329164675366707838L;
@@ -59,6 +55,7 @@ public class Schedule implements Serializable {
 
 	private Integer minute = null;
 
+	@Column(name="schedule_type")
 	public int getType() {
 		return type;
 	}
@@ -67,6 +64,7 @@ public class Schedule implements Serializable {
 		this.type = type;
 	}
 
+	@Column(name="month")
 	public Integer getMonth() {
 		return month;
 	}
@@ -75,6 +73,7 @@ public class Schedule implements Serializable {
 		this.month = month;
 	}
 
+	@Column(name="day")
 	public Integer getDay() {
 		return day;
 	}
@@ -83,6 +82,7 @@ public class Schedule implements Serializable {
 		this.day = day;
 	}
 
+	@Column(name="week")
 	public Integer getWeek() {
 		return week;
 	}
@@ -91,6 +91,7 @@ public class Schedule implements Serializable {
 		this.week = week;
 	}
 
+	@Column(name="hour")
 	public Integer getHour() {
 		return hour;
 	}
@@ -99,6 +100,7 @@ public class Schedule implements Serializable {
 		this.hour = hour;
 	}
 
+	@Column(name="minute")
 	public Integer getMinute() {
 		return minute;
 	}

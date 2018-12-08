@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -24,7 +17,7 @@ import javax.xml.bind.annotation.XmlType;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.notify.bean.NotifyRelationInfo;
+import com.clustercontrol.notify.model.NotifyRelationInfo;
 
 /**
  * ジョブの基本情報を保持するクラス
@@ -64,7 +57,7 @@ public class JobInfo implements Serializable {
 	private String m_name;
 
 	/** ジョブ種別 com.clustercontrol.bean.JobConstant */
-	private Integer m_type = new Integer(0);
+	private Integer m_type = 0;
 
 	/** ジョブ待ち条件情報 */
 	private JobWaitRuleInfo m_waitRule;
@@ -74,6 +67,9 @@ public class JobInfo implements Serializable {
 
 	/** ジョブファイル転送情報 */
 	private JobFileInfo m_file;
+
+	/** 監視ジョブコ情報 */
+	private MonitorJobInfo m_monitor;
 
 	/** ジョブ終了状態情報 */
 	private ArrayList<JobEndStatusInfo> m_endStatus;
@@ -86,6 +82,12 @@ public class JobInfo implements Serializable {
 
 	/** 参照先ジョブID */
 	private String m_referJobId;
+
+	/** アイコンID */
+	private String m_iconId;
+
+	/** 参照ジョブ選択種別 */
+	private Integer m_referJobSelectType = 0;
 
 	/** 作成日時 */
 	private Long m_createTime;
@@ -104,7 +106,28 @@ public class JobInfo implements Serializable {
 
 	/** オーナーロールID */
 	private String m_ownerRoleId = "";
-
+	
+	/** モジュール登録済フラグ */
+	private boolean m_registered = false;
+	
+	/** 承認依頼先ロールID */
+	private String m_approvalReqRoleId = "";
+	
+	/** 承認依頼先ユーザID */
+	private String m_approvalReqUserId = "";
+	
+	/** 承認依頼文 */
+	private String m_approvalReqSentence = "";
+	
+	/** 承認依頼メール件名 */
+	private String m_approvalReqMailTitle = "";
+	
+	/** 承認依頼メール本文 */
+	private String m_approvalReqMailBody = "";
+	
+	/** 承認依頼文の利用有無フラグ */
+	private boolean m_isUseApprovalReqSentence = false;
+	
 	//ジョブ通知関連
 	private Integer beginPriority = 0;
 	private Integer normalPriority = 0;
@@ -204,6 +227,26 @@ public class JobInfo implements Serializable {
 		this.m_file = file;
 	}
 
+	/**
+	 * 監視ジョブ情報を返す。<BR>
+	 * 
+	 * @return 監視ジョブ情報
+	 * @see com.clustercontrol.jobmanagement.bean.MonitorJobInfo
+	 */
+	public MonitorJobInfo getMonitor() {
+		return m_monitor;
+	}
+
+	/**
+	 * 監視ジョブ情報を設定する。<BR>
+	 * 
+	 * @param monitor 監視ジョブ情報
+	 * @see com.clustercontrol.jobmanagement.bean.MonitorJobInfo
+	 */
+	public void setMonitor(MonitorJobInfo monitor) {
+		this.m_monitor = monitor;
+	}
+
 
 	/**
 	 * 所属ジョブユニットのジョブIDを返す。
@@ -298,6 +341,24 @@ public class JobInfo implements Serializable {
 	}
 
 	/**
+	 * モジュール登録済フラグを返す。<BR>
+	 * 
+	 * @return モジュール登録済フラグ
+	 */
+	public boolean isRegisteredModule() {
+		return m_registered;
+	}
+
+	/**
+	 * モジュール登録済フラグを設定する。<BR>
+	 * 
+	 * @param regist モジュール登録済フラグ
+	 */
+	public void setRegisteredModule(boolean regist) {
+		this.m_registered = regist;
+	}
+	
+	/**
 	 * ジョブ待ち条件情報を返す。<BR>
 	 * 
 	 * @return ジョブ待ち条件情報
@@ -364,6 +425,36 @@ public class JobInfo implements Serializable {
 	 */
 	public void setReferJobId(String referJobId) {
 		this.m_referJobId = referJobId;
+	}
+
+	/**
+	 * アイコンIDを返す。<BR>
+	 * @return アイコンID
+	 */
+	public String getIconId() {
+		return m_iconId;
+	}
+	/**
+	 * アイコンIDを設定する。<BR>
+	 * @param iconId アイコンID
+	 */
+	public void setIconId(String iconId) {
+		this.m_iconId = iconId;
+	}
+
+	/**
+	 * 参照ジョブ選択種別を返す。<BR>
+	 * @return 参照ジョブ選択種別
+	 */
+	public Integer getReferJobSelectType() {
+		return m_referJobSelectType;
+	}
+	/**
+	 * 参照ジョブ選択種別を設定する。<BR>
+	 * @param selectType 参照ジョブ選択種別
+	 */
+	public void setReferJobSelectType(Integer selectType) {
+		this.m_referJobSelectType = selectType;
 	}
 
 	/**
@@ -462,6 +553,114 @@ public class JobInfo implements Serializable {
 		this.m_ownerRoleId = ownerRoleId;
 	}
 
+	/**
+	 * 承認依頼先ロールIDを返す。<BR>
+	 * 
+	 * @return 承認依頼先ロールID
+	 */
+	public String getApprovalReqRoleId() {
+		return m_approvalReqRoleId;
+	}
+
+	/**
+	 * 承認依頼先ロールIDを設定する。<BR>
+	 * 
+	 * @param approvalReqSentence 承認依頼先ロールID
+	 */
+	public void setApprovalReqRoleId(String approvalReqRoleId) {
+		this.m_approvalReqRoleId = approvalReqRoleId;
+	}
+
+	/**
+	 * 承認依頼先ユーザIDを返す。<BR>
+	 * 
+	 * @return 承認依頼先ユーザID
+	 */
+	public String getApprovalReqUserId() {
+		return m_approvalReqUserId;
+	}
+
+	/**
+	 * 承認依頼先ユーザIDを設定する。<BR>
+	 * 
+	 * @param approvalReqSentence 承認依頼先ユーザID
+	 */
+	public void setApprovalReqUserId(String approvalReqUserId) {
+		this.m_approvalReqUserId = approvalReqUserId;
+	}
+
+	/**
+	 * 承認依頼文を返す。<BR>
+	 * 
+	 * @return 承認依頼文
+	 */
+	public String getApprovalReqSentence() {
+		return m_approvalReqSentence;
+	}
+
+	/**
+	 * 承認依頼文を設定する。<BR>
+	 * 
+	 * @param approvalReqSentence 承認依頼文
+	 */
+	public void setApprovalReqSentence(String approvalReqSentence) {
+		this.m_approvalReqSentence = approvalReqSentence;
+	}
+
+	/**
+	 * 承認依頼メール件名を返す。<BR>
+	 * 
+	 * @return 承認依頼メール件名
+	 */
+	public String getApprovalReqMailTitle() {
+		return m_approvalReqMailTitle;
+	}
+
+	/**
+	 * 承認依頼メール件名を設定する。<BR>
+	 * 
+	 * @param approvalReqMailTitle 承認依頼メール件名
+	 */
+	public void setApprovalReqMailTitle(String approvalReqMailTitle) {
+		this.m_approvalReqMailTitle = approvalReqMailTitle;
+	}
+
+	/**
+	 * 承認依頼メール本文を返す。<BR>
+	 * 
+	 * @return 承認依頼メール本文
+	 */
+	public String getApprovalReqMailBody() {
+		return m_approvalReqMailBody;
+	}
+
+	/**
+	 * 承認依頼メール本文を設定する。<BR>
+	 * 
+	 * @param approvalRequesMailBody 承認依頼メール本文
+	 */
+	public void setApprovalReqMailBody(String approvalReqMailBody) {
+		this.m_approvalReqMailBody = approvalReqMailBody;
+	}
+
+	/**
+	 * 承認依頼文の利用有無フラグを返す。<BR>
+	 * 
+	 * @return 承認依頼文の利用有無フラグ
+	 */
+	public boolean isUseApprovalReqSentence() {
+		return m_isUseApprovalReqSentence;
+	}
+
+	/**
+	 * 承認依頼文の利用有無フラグを設定する。<BR>
+	 * 
+	 * @param isUseRequestSentence 承認依頼文の利用有無フラグ
+	 */
+	public void setUseApprovalReqSentence(boolean isUseApprovalReqSentence) {
+		this.m_isUseApprovalReqSentence = isUseApprovalReqSentence;
+	}
+
 	public Integer getBeginPriority() {
 		return beginPriority;
 	}
@@ -535,21 +734,31 @@ public class JobInfo implements Serializable {
 				equalsSub(o1.getCommand(), o2.getCommand()) &&
 				equalsSub(o1.getDescription(), o2.getDescription()) &&
 				equalsSub(o1.getFile(), o2.getFile()) &&
+				equalsSub(o1.getMonitor(), o2.getMonitor()) &&
 				equalsSub(o1.getJobunitId(), o2.getJobunitId()) &&
 				equalsSub(o1.getParentId(), o2.getParentId()) &&
 				equalsSub(o1.getName(), o2.getName()) &&
 				equalsSub(o1.getReferJobId(), o2.getReferJobId()) &&
 				equalsSub(o1.getReferJobUnitId(), o2.getReferJobUnitId()) &&
+				equalsSub(o1.isRegisteredModule(), o2.isRegisteredModule()) &&
+				equalsSub(o1.getReferJobSelectType(), o2.getReferJobSelectType()) &&
 				equalsSub(o1.getType(), o2.getType()) &&
 				equalsSub(o1.getWaitRule(), o2.getWaitRule()) &&
 				equalsSub(o1.getOwnerRoleId(), o2.getOwnerRoleId()) &&
 				equalsArray(o1.getEndStatus(), o2.getEndStatus()) &&
 				equalsArray(o1.getParam(), o2.getParam()) &&
 				equalsSub(o1.getType(), o2.getType()) &&
+				equalsSub(o1.getApprovalReqRoleId(), o2.getApprovalReqRoleId()) &&
+				equalsSub(o1.getApprovalReqUserId(), o2.getApprovalReqUserId()) &&
+				equalsSub(o1.getApprovalReqSentence(), o2.getApprovalReqSentence()) &&
+				equalsSub(o1.getApprovalReqMailTitle(), o2.getApprovalReqMailTitle()) &&
+				equalsSub(o1.getApprovalReqMailBody(), o2.getApprovalReqMailBody()) &&
+				equalsSub(o1.isUseApprovalReqSentence(), o2.isUseApprovalReqSentence()) &&
 				equalsSub(o1.getBeginPriority(), o2.getBeginPriority()) &&
 				equalsSub(o1.getNormalPriority(), o2.getNormalPriority()) &&
 				equalsSub(o1.getWarnPriority(), o2.getWarnPriority()) &&
 				equalsSub(o1.getAbnormalPriority(), o2.getAbnormalPriority()) &&
+				equalsSub(o1.getIconId(), o2.getIconId()) &&
 				equalsArray(o1.getNotifyRelationInfos(), o2.getNotifyRelationInfos());
 
 		if (!ret && o1.getId().equals(o2.getId())) {
@@ -559,15 +768,12 @@ public class JobInfo implements Serializable {
 	}
 
 	private boolean equalsSub(Object o1, Object o2) {
-		if (o1 == null && o2 == null) {
+		if (o1 == o2)
 			return true;
-		}
-		if (o1 != null && o2 == null) {
+		
+		if (o1 == null)
 			return false;
-		}
-		if (o1 == null && o2 != null) {
-			return false;
-		}
+		
 		boolean ret = o1.equals(o2);
 		if (!ret) {
 			if (m_log.isTraceEnabled()) {
@@ -578,34 +784,29 @@ public class JobInfo implements Serializable {
 	}
 
 	private boolean equalsArray(ArrayList<?> list1, ArrayList<?> list2) {
-		if ((list1 == null || list1.size() == 0) && (list2 == null || list2.size() == 0)) {
+		if (list1 != null && !list1.isEmpty()) {
+			if (list2 != null && list1.size() == list2.size()) {
+				Object[] ary1 = list1.toArray();
+				Object[] ary2 = list2.toArray();
+				Arrays.sort(ary1);
+				Arrays.sort(ary2);
+
+				for (int i = 0; i < ary1.length; i++) {
+					if (!ary1[i].equals(ary2[i])) {
+						if (m_log.isTraceEnabled()) {
+							m_log.trace("equalsArray : " + ary1[i] + "!=" + ary2[i]);
+						}
+						return false;
+					}
+				}
+				return true;
+			}
+		} else if (list2 == null || list2.isEmpty()) {
 			return true;
 		}
-		if (list1 != null && list2 == null) {
-			return false;
-		}
-		if (list1 == null && list2 != null) {
-			return false;
-		}
-		if (list1.size() != list2.size()) {
-			return false;
-		}
-
-		Object[] ary1 = list1.toArray();
-		Object[] ary2 = list2.toArray();
-		Arrays.sort(ary1);
-		Arrays.sort(ary2);
-
-		for (int i = 0; i < ary1.length; i++) {
-			if (!ary1[i].equals(ary2[i])) {
-				if (m_log.isTraceEnabled()) {
-					m_log.trace("equalsArray : " + ary1[i] + "!=" + ary2[i]);
-				}
-				return false;
-			}
-		}
-		return true;
+		return false;
 	}
+	
 	/**
 	 * 単体テスト用
 	 * @param args
@@ -634,24 +835,25 @@ public class JobInfo implements Serializable {
 				"ManagementUser",
 				"Notifications",
 				"Param",
-				"ParentId"
+				"ParentId",
+				"IconId"
 		};
 		/**
 		 * 比較するパラメータの回数繰り返す
 		 * カウントアップするごとに、パラメータの値を変える。
 		 * 常に、いずれか１つのパラメータがcreateSampleInfo()にて作成されたデータと違う
 		 */
-		for (int i = 0; i < 15 ; i++) {
+		for (int i = 0; i < 16 ; i++) {
 			info2 = createSampleInfo();
 			switch(i) {
 			case 0 :
-				info2.getCommand().setMessageRetryEndFlg(1);
+				info2.getCommand().setMessageRetryEndFlg(true);
 				break;
 			case 1 :
 				info2.setDescription("description_001");
 				break;
 			case 2 :
-				info2.getFile().setCheckFlg(1);
+				info2.getFile().setCheckFlg(true);
 				break;
 			case 3 :
 				info2.setId("job_Id");
@@ -672,7 +874,7 @@ public class JobInfo implements Serializable {
 				info2.setType(1);
 				break;
 			case 9 :
-				info2.getWaitRule().setCalendar(2);
+				info2.getWaitRule().setCalendar(true);
 				break;
 			case 10 :
 				info2.setOwnerRoleId("ALL_USERS");
@@ -695,6 +897,11 @@ public class JobInfo implements Serializable {
 				break;
 			case 14 :
 				info2.setParentId("Parent_Id");
+				break;
+			case 15 :
+				info2.setParentId("Icon_Id");
+				break;
+			default:
 				break;
 			}
 
@@ -737,6 +944,8 @@ public class JobInfo implements Serializable {
 
 		info.setOwnerRoleId("ALL_USERS");
 		info.setParentId("ParentId");
+
+		info.setIconId("IconId");
 
 		JobCommandInfo command = JobCommandInfo.createSampleInfo();
 

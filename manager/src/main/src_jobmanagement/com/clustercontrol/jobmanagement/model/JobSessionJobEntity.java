@@ -1,7 +1,14 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.jobmanagement.model;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -17,12 +24,7 @@ import javax.persistence.OneToMany;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
-import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.jobmanagement.bean.DelayNotifyConstant;
-import com.clustercontrol.jobmanagement.factory.CreateJobSession;
 
 
 /**
@@ -36,8 +38,8 @@ public class JobSessionJobEntity  implements Serializable {
 	private JobSessionJobEntityPK id;
 	private String scopeText						=	null;
 	private Integer status							=	null;
-	private Timestamp startDate					=	null;
-	private Timestamp endDate						=	null;
+	private Long startDate					=	null;
+	private Long endDate						=	null;
 	private Integer endValue						=	null;
 	private Integer endStatus						=	null;
 	private String result							=	null;
@@ -49,38 +51,22 @@ public class JobSessionJobEntity  implements Serializable {
 	private String parentJobunitId;
 	private String parentJobId;
 	private String ownerRoleId;
+	private Boolean waitCheckFlg				= null;
+	private Integer runCount 				= 0;
 
 	@Deprecated
 	public JobSessionJobEntity() {
 	}
 
-	public JobSessionJobEntity(JobSessionJobEntityPK pk,
-			JobSessionEntity jobSessionEntity) {
+	public JobSessionJobEntity(JobSessionJobEntityPK pk) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
-
-		// オブジェクト権限チェックのため、cc_job_mstのowner_role_idを設定する
-		if (CreateJobSession.TOP_JOBUNIT_ID.equals(this.getId().getJobunitId())) {
-			this.setOwnerRoleId(RoleIdConstant.ALL_USERS);
-		} else {
-			JobMstEntity jobMstEntity
-			= em.find(JobMstEntity.class,
-					new JobMstEntityPK(this.getId().getJobunitId(), this.getId().getJobunitId()), ObjectPrivilegeMode.NONE);
-			if (jobMstEntity != null && jobMstEntity.getOwnerRoleId() != null) {
-				this.setOwnerRoleId(jobMstEntity.getOwnerRoleId());
-			} else {
-				this.setOwnerRoleId(RoleIdConstant.INTERNAL);
-			}
-		}
-		this.relateToJobSessionEntity(jobSessionEntity);
 	}
 
 	public JobSessionJobEntity(JobSessionEntity jobSessionEntity, String jobunitId, String jobId) {
 		this(new JobSessionJobEntityPK(
 				jobSessionEntity.getSessionId(),
 				jobunitId,
-				jobId), jobSessionEntity);
+				jobId));
 	}
 
 	@EmbeddedId
@@ -104,11 +90,11 @@ public class JobSessionJobEntity  implements Serializable {
 
 
 	@Column(name="end_date")
-	public Timestamp getEndDate() {
+	public Long getEndDate() {
 		return this.endDate;
 	}
 
-	public void setEndDate(Timestamp endDate) {
+	public void setEndDate(Long endDate) {
 		this.endDate = endDate;
 	}
 
@@ -143,6 +129,7 @@ public class JobSessionJobEntity  implements Serializable {
 	}
 
 
+	@Column(name="result")
 	public String getResult() {
 		return this.result;
 	}
@@ -163,15 +150,16 @@ public class JobSessionJobEntity  implements Serializable {
 
 
 	@Column(name="start_date")
-	public Timestamp getStartDate() {
+	public Long getStartDate() {
 		return this.startDate;
 	}
 
-	public void setStartDate(Timestamp startDate) {
+	public void setStartDate(Long startDate) {
 		this.startDate = startDate;
 	}
 
 
+	@Column(name="status")
 	public Integer getStatus() {
 		return this.status;
 	}
@@ -205,6 +193,24 @@ public class JobSessionJobEntity  implements Serializable {
 
 	public void setOwnerRoleId(String ownerRoleId) {
 		this.ownerRoleId = ownerRoleId;
+	}
+
+	@Column(name="wait_check_flg")
+	public Boolean getWaitCheckFlg() {
+		return waitCheckFlg;
+	}
+
+	public void setWaitCheckFlg(Boolean waitCheckFlg) {
+		this.waitCheckFlg = waitCheckFlg;
+	}
+
+	@Column(name="run_count")
+	public Integer getRunCount() {
+		return runCount;
+	}
+
+	public void setRunCount(Integer runCount) {
+		this.runCount = runCount;
 	}
 
 	//bi-directional one-to-one association to JobInfoEntity

@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.poller.impl;
@@ -32,20 +25,20 @@ import org.snmp4j.smi.VariableBinding;
 import org.snmp4j.util.AbstractSnmpUtility;
 import org.snmp4j.util.DefaultPDUFactory;
 
+import com.clustercontrol.util.MessageConstant;
+
 public class MultipleOidsUtils extends AbstractSnmpUtility {
 	
 	private final static Log log = LogFactory.getLog( MultipleOidsUtils.class );
 
-	private Snmp snmp;
 	private DefaultPDUFactory factory;
 
 	public MultipleOidsUtils(Snmp snmp, DefaultPDUFactory factory) {
 		super(snmp, factory);
-		this.snmp = snmp;
 		this.factory = factory;
 	}
 
-	public Collection<VariableBinding> query(Target target, OID[] rootOids) {
+	public Collection<VariableBinding> query(Target target, OID[] rootOids) throws IOException {
 		HashMap<OID, VariableBinding> result = new HashMap<OID, VariableBinding>();
 
 		if ((rootOids == null) || (rootOids.length == 0)) {
@@ -70,7 +63,11 @@ public class MultipleOidsUtils extends AbstractSnmpUtility {
 			PDU response = sendRequest(request, target, oidList);
 			requestCounter ++;
 			if (response == null) {
-				log.debug(target.getAddress() + " response is null : result.size=" + result.values().size());
+				log.info(target.getAddress() + " response is null : result.size=" + result.values().size());
+				if (result.values().size() == 0) {
+					// 1件も取得できなかった場合は応答なしとする。
+					throw new IOException(MessageConstant.MESSAGE_RESPONSE_NOT_FOUND.getMessage());
+				}
 				return result.values();
 			}
 			
@@ -123,7 +120,7 @@ public class MultipleOidsUtils extends AbstractSnmpUtility {
 		return result.values();
 	}
 
-	private PDU sendRequest(PDU request, Target target, ArrayList<OID> oidList) {
+	private PDU sendRequest(PDU request, Target target, ArrayList<OID> oidList) throws IOException {
 		request.clear();
 		for (OID oid : oidList) {
 			VariableBinding vb = new VariableBinding(oid);
@@ -142,6 +139,7 @@ public class MultipleOidsUtils extends AbstractSnmpUtility {
 			}
 		} catch (IOException e) {
 			log.warn(target.getAddress() + " sendRequest : " + e.getMessage());
+			throw new IOException(MessageConstant.MESSAGE_TIME_OUT.getMessage());
 		} catch (Exception e) {
 			log.warn(target.getAddress() + " sendRequest : " + e.getClass().getName() + ", " + e.getMessage());
 		}

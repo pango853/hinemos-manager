@@ -1,31 +1,28 @@
 /*
-
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.custom.bean;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import javax.xml.bind.annotation.XmlType;
 
 import com.clustercontrol.fault.HinemosUnknown;
+import com.clustercontrol.jobmanagement.bean.RunInstructionInfo;
 import com.clustercontrol.fault.CustomInvalid;
+import com.clustercontrol.custom.bean.Type;
 
 /**
  * コマンド監視におけるコマンドの実行結果を格納するDTOクラス<br/>
  * 
- * @since 4.0
+ * @version 6.0.0
+ * @since 4.0.0
  */
 @XmlType(namespace = "http://monitor.ws.clustercontrol.com")
 public class CommandResultDTO {
@@ -52,7 +49,7 @@ public class CommandResultDTO {
 	// コマンド実行時に生じた標準エラー
 	private String stderr = null;
 	// 標準出力をパースし、キー(デバイス名)・ 値(監視対象値)で格納したハッシュ
-	private HashMap<String, Double> results = null;
+	private HashMap<String, Object> results = null;
 	// 標準出力をパースし、不正な行(2カラムでない、デバイス名が重複)をキー(行番号)/値(行の文字列)で格納したハッシュ
 	private HashMap<Integer, String> invalidLines = null;
 
@@ -64,6 +61,12 @@ public class CommandResultDTO {
 
 	// コマンドの終了日時(厳密には、コマンドが終了した or タイムアウトした直後の日時)
 	private Long exitDate = null;
+
+	// 監視ジョブ指示情報
+	private RunInstructionInfo runInstructionInfo;
+
+	// 種別（数値・文字列）
+	private Type type = Type.NUMBER;
 
 	/**
 	 * コンストラクタ(no-argument for JAXB)<br/>
@@ -108,7 +111,7 @@ public class CommandResultDTO {
 	 * ハッシュ(デバイス名 => 監視対象値)を格納する。<br/>
 	 * @param results ハッシュ(デバイス名 => 監視対象値)
 	 */
-	public void setResults(HashMap<String, Double> results) {
+	public void setResults(HashMap<String, Object> results) {
 		this.results = results;
 	}
 
@@ -116,7 +119,7 @@ public class CommandResultDTO {
 	 * ハッシュ(デバイス名 => 監視対象値)を返す。<br/>
 	 * @return ハッシュ(デバイス名 => 監視対象値)
 	 */
-	public HashMap<String, Double> getResults() {
+	public HashMap<String, Object> getResults() {
 		return results;
 	}
 
@@ -283,6 +286,38 @@ public class CommandResultDTO {
 	}
 
 	/**
+	 * 監視ジョブ指示情報を格納する。<br/>
+	 * @param runInstructionInfo 監視ジョブ指示情報
+	 */
+	public void setRunInstructionInfo(RunInstructionInfo runInstructionInfo) {
+		this.runInstructionInfo = runInstructionInfo;
+	}
+
+	/**
+	 * 監視ジョブ指示情報を返す。<br/>
+	 * @return 監視ジョブ指示情報
+	 */
+	public RunInstructionInfo getRunInstructionInfo() {
+		return runInstructionInfo;
+	}
+
+	/**
+	 * コマンドの種別を格納する。<br/>
+	 * @param type コマンドの種別
+	 */	
+	public void setType(Type type){
+		this.type = type;
+	}
+
+	/**
+	 * コマンドの種別を返す。<br/>
+	 * @return コマンドの種別
+	 */
+	public Type getType(){
+		return type;
+	}
+	
+	/**
 	 * DTO内のメンバ変数の整合性をチェックする。<br/>
 	 * 送受したタイミングなどに実行することを想定している。<br/>
 	 * @throws HinemosUnknown
@@ -328,28 +363,22 @@ public class CommandResultDTO {
 
 	@Override
 	public String toString() {
-		// Local Variables
-		String ret = null;
-		String resultsStr = null;
-		String invalidStr = null;
-
 		// MAIN
+		StringBuilder resultsStr = new StringBuilder();
 		if (results != null) {
-			resultsStr = "";
-			for (String key : results.keySet()) {
-				resultsStr += resultsStr.length() == 0 ? "" : ", ";
-				resultsStr += "[key = " + key + ", value = " + results.get(key) + "]";
+			for (Map.Entry<String, Object> entry : results.entrySet()) {
+				resultsStr.append(resultsStr.length() == 0 ? "" : ", ");
+				resultsStr.append(String.format("[key = %s, value = %s]", entry.getKey(), entry.getValue()));
 			}
 		}
+		StringBuilder invalidStr = new StringBuilder();
 		if (invalidLines != null) {
-			invalidStr = "";
-			for (Integer key : invalidLines.keySet()) {
-				invalidStr += invalidStr.length() == 0 ? "" : ", ";
-				invalidStr += "[key = " + key + ", value = " + invalidLines.get(key) + "]";
+			for (Map.Entry<Integer, String> entry : invalidLines.entrySet()) {
+				invalidStr.append(invalidStr.length() == 0 ? "" : ", ");
+				invalidStr.append(String.format("[key = %s, value = %s]", entry.getKey(), entry.getValue()));
 			}
 		}
-
-		ret = this.getClass().getCanonicalName() + " [monitorId = " + monitorId
+		String ret = this.getClass().getCanonicalName() + " [monitorId = " + monitorId
 				+ ", facilityId = " + facilityId
 				+ ", command = " + command
 				+ ", user = " + user
@@ -361,6 +390,8 @@ public class CommandResultDTO {
 				+ ", exitDate = " + exitDate
 				+ ", results = (" + resultsStr + ")"
 				+ ", invalidLines = (" + invalidStr + ")"
+				+ (runInstructionInfo != null ? "monitorJob" : "")
+				+ ", type = (" + type.name() + ")"
 				+ "]";
 
 		return ret;

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.selfcheck.monitor;
@@ -23,9 +16,12 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.bean.PriorityConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.plugin.impl.AsyncWorkerPlugin;
 import com.clustercontrol.selfcheck.AsyncTaskQueueConfig;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -59,16 +55,13 @@ public class AsyncTaskQueueMonitor extends SelfCheckMonitorBase {
 	 */
 	@Override
 	public void execute() {
-		if (!HinemosPropertyUtil.getHinemosPropertyBool("selfcheck.monitoring.asynctask.queue", true)) {
+		if (!HinemosPropertyCommon.selfcheck_monitoring_asynctask_queue.getBooleanValue()) {
 			m_log.debug("skip");
 			return;
 		}
 
 		/** ローカル変数 */
-		String asyncTaskRaw = HinemosPropertyUtil
-				.getHinemosPropertyStr(
-						"selfcheck.monitoring.asynctask.queue.list",
-						"NotifyStatusTaskFactory:10000,NotifyEventTaskFactory:10000,NotifyMailTaskFactory:10000,NotifyCommandTaskFactory:10000,NotifyLogEscalationTaskFactory:10000,NotifyJobTaskFactory:10000,CreateJobSessionTaskFactory:100");
+		String asyncTaskRaw = HinemosPropertyCommon.selfcheck_monitoring_asynctask_queue_list.getStringValue();
 		List<AsyncTaskQueueConfig> asyncTasks = new ArrayList<AsyncTaskQueueConfig>();
 		for (String task : asyncTaskRaw.split(",")) {
 			String[] pair = task.split(":");
@@ -87,7 +80,7 @@ public class AsyncTaskQueueMonitor extends SelfCheckMonitorBase {
 
 			/** メイン処理 */
 			try {
-				queueSize = AsyncWorkerPlugin.getTaskCount(worker);
+				queueSize = getTaskCount(worker);
 			} catch (Exception e) {
 				m_log.warn("access failure to async worker plugin. (worker = " + worker + ")");
 			}
@@ -101,11 +94,10 @@ public class AsyncTaskQueueMonitor extends SelfCheckMonitorBase {
 			}
 
 			if (!isNotify(subKey, warn)) {
-				return;
+				continue;
 			}
 			String[] msgAttr1 = { Integer.toString(queueSize), Integer.toString(threshold) };
-			AplLogger aplLogger = new AplLogger(PLUGIN_ID, APL_ID);
-			aplLogger.put(MESSAGE_ID, "011", msgAttr1,
+			AplLogger.put(PriorityConstant.TYPE_WARNING, PLUGIN_ID, MessageConstant.MESSAGE_SYS_011_SYS_SFC, msgAttr1,
 					"too many asynchronous task in Hinemos Manager. (queued task " +
 							queueSize +
 							" > threshold " +
@@ -114,6 +106,15 @@ public class AsyncTaskQueueMonitor extends SelfCheckMonitorBase {
 		}
 
 		return;
+	}
+	
+	/**
+	 * 非同期タスクの蓄積数を返す。<br/>
+	 * @return 非同期タスクの蓄積数
+	 * @throws HinemosUnknown
+	 */
+	public static int getTaskCount(String worker) throws HinemosUnknown {
+		return AsyncWorkerPlugin.getTaskCount(worker);
 	}
 
 }

@@ -1,22 +1,13 @@
 /*
-
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.selfcheck;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -31,24 +22,28 @@ import org.apache.commons.logging.LogFactory;
 import com.clustercontrol.HinemosManagerMain;
 import com.clustercontrol.HinemosManagerMain.StartupMode;
 import com.clustercontrol.commons.bean.ThreadInfo;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.MonitoredThreadPoolExecutor;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.platform.selfcheck.SelfCheckDivergence;
 import com.clustercontrol.plugin.impl.SchedulerInfo;
 import com.clustercontrol.plugin.impl.SchedulerPlugin;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.SchedulerType;
 import com.clustercontrol.selfcheck.monitor.AsyncTaskQueueMonitor;
+import com.clustercontrol.selfcheck.monitor.DBConnectionCountMonitor;
+import com.clustercontrol.selfcheck.monitor.DBLongTranMonitor;
 import com.clustercontrol.selfcheck.monitor.DatabaseMonitor;
 import com.clustercontrol.selfcheck.monitor.FileSystemMonitor;
 import com.clustercontrol.selfcheck.monitor.JVMHeapMonitor;
 import com.clustercontrol.selfcheck.monitor.JobRunSessionMonitor;
 import com.clustercontrol.selfcheck.monitor.RAMSwapOutMonitor;
 import com.clustercontrol.selfcheck.monitor.SchedulerMonitor;
+import com.clustercontrol.selfcheck.monitor.SelfCheckMonitor;
 import com.clustercontrol.selfcheck.monitor.SnmpTrapQueueMonitor;
 import com.clustercontrol.selfcheck.monitor.SyslogQueueMonitor;
 import com.clustercontrol.selfcheck.monitor.TableSizeMonitor;
-import com.clustercontrol.selfcheck.monitor.TableSizeMonitor.ThresholdType;
 import com.clustercontrol.selfcheck.monitor.ThreadActivityMonitor;
 import com.clustercontrol.selfcheck.monitor.WebServiceQueueMonitor;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * セルフチェック機能の定期実行制御クラス
@@ -71,7 +66,7 @@ public class SelfCheckTaskSubmitter implements Runnable {
 		});
 
 		_executorService = Executors.newFixedThreadPool(
-				HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.threadpool.size", 4),
+				HinemosPropertyCommon.selfcheck_threadpool_size.getIntegerValue(),
 				new ThreadFactory() {
 					private volatile int _count = 0;
 
@@ -88,8 +83,8 @@ public class SelfCheckTaskSubmitter implements Runnable {
 	 */
 	public void start() {
 		_scheduler.scheduleWithFixedDelay(this
-				, HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.starup.delay", 90)
-				, HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.interval", 150),
+				, HinemosPropertyCommon.selfcheck_startup_delay.getNumericValue()
+				, HinemosPropertyCommon.selfcheck_interval.getNumericValue(),
 				TimeUnit.SECONDS);
 	}
 
@@ -99,7 +94,7 @@ public class SelfCheckTaskSubmitter implements Runnable {
 	public void shutdown() {
 		// キック元となるスケジューラから停止していく
 		_scheduler.shutdown();
-		long _shutdownTimeoutMsec = HinemosPropertyUtil.getHinemosPropertyNum("hinemos.selfcheck.shutdown.timeout", 15000);
+		long _shutdownTimeoutMsec = HinemosPropertyCommon.hinemos_selfcheck_shutdown_timeout.getNumericValue();
 
 		try {
 			if (! _scheduler.awaitTermination(_shutdownTimeoutMsec, TimeUnit.MILLISECONDS)) {
@@ -142,45 +137,52 @@ public class SelfCheckTaskSubmitter implements Runnable {
 			_executorService.submit(new SelfCheckTask(new DatabaseMonitor()));
 		}
 
+		// DB Long Transaction
+		if (HinemosManagerMain._startupMode == StartupMode.NORMAL) {
+			_executorService.submit(new SelfCheckTask(new DBLongTranMonitor()));
+		}
+		
+		// DB Connection Count
+		if (HinemosManagerMain._startupMode == StartupMode.NORMAL) {
+			_executorService.submit(new SelfCheckTask(new DBConnectionCountMonitor()));
+		}
+
 		// Scheduler
 		if (HinemosManagerMain._startupMode == StartupMode.NORMAL) {
-			List<SchedulerInfo> triggerList = null;
 			try {
-				triggerList = SchedulerPlugin.getSchedulerList(SchedulerType.DBMS);
+				List<SchedulerInfo> triggerList = SchedulerPlugin.getSchedulerList(com.clustercontrol.plugin.impl.SchedulerPlugin.SchedulerType.DBMS);
+				for (SchedulerInfo trigger : triggerList) {
+					if (! trigger.isPaused) {
+						_executorService.submit(
+								new SelfCheckTask(
+										new SchedulerMonitor(
+												com.clustercontrol.plugin.impl.SchedulerPlugin.SchedulerType.DBMS,
+												trigger
+												)
+										)
+								);
+					}
+				}
 			} catch (Exception e) {
 				log.warn("quartz scheduler access failure. (" + SchedulerType.DBMS + ")", e);
 			}
 
-			for (SchedulerInfo trigger : triggerList) {
-				if (! trigger.isPaused) {
-					_executorService.submit(
-							new SelfCheckTask(
-									new SchedulerMonitor(
-											SchedulerType.DBMS,
-											trigger
-											)
-									)
-							);
-				}
-			}
-
 			try {
-				triggerList = SchedulerPlugin.getSchedulerList(SchedulerType.RAM);
+				List<SchedulerInfo> triggerList = SchedulerPlugin.getSchedulerList(SchedulerType.RAM);
+				for (SchedulerInfo trigger : triggerList) {
+					if (! trigger.isPaused) {
+						_executorService.submit(
+								new SelfCheckTask(
+										new SchedulerMonitor(
+												SchedulerType.RAM,
+												trigger
+												)
+										)
+								);
+					}
+				}
 			} catch (Exception e) {
 				log.warn("quartz scheduler access failure. (" + SchedulerType.RAM + ")", e);
-			}
-
-			for (SchedulerInfo trigger : triggerList) {
-				if (! trigger.isPaused) {
-					_executorService.submit(
-							new SelfCheckTask(
-									new SchedulerMonitor(
-											SchedulerType.RAM,
-											trigger
-											)
-									)
-							);
-				}
 			}
 		}
 
@@ -210,9 +212,19 @@ public class SelfCheckTaskSubmitter implements Runnable {
 		if (HinemosManagerMain._startupMode == StartupMode.NORMAL) {
 			_executorService.submit(new SelfCheckTask(new JobRunSessionMonitor()));
 		}
-
+		
+		// platform
+		SelfCheckMonitor[] platformMonitors = SelfCheckDivergence.getMonitors(HinemosManagerMain._startupMode);
+		for (SelfCheckMonitor monitor : platformMonitors) {
+			_executorService.submit(new SelfCheckTask(monitor));
+		}
+		
 		// set timestamp of last monitoring
-		lastMonitorDate = new Date();
+		refreshMonitorDate();
+	}
+	
+	private static void refreshMonitorDate() {
+		lastMonitorDate = HinemosTime.getDateInstance();
 	}
 
 }

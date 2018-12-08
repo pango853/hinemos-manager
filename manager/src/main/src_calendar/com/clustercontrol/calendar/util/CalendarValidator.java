@@ -1,46 +1,38 @@
 /*
-
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
-
 
 package com.clustercontrol.calendar.util;
 
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
-
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.calendar.model.CalendarDetailInfo;
+import com.clustercontrol.calendar.model.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarPatternInfo;
+import com.clustercontrol.calendar.model.YMD;
+import com.clustercontrol.commons.util.CommonValidator;
 import com.clustercontrol.fault.CalendarNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidSetting;
-import com.clustercontrol.jobmanagement.model.JobFileCheckEntity;
+import com.clustercontrol.jobmanagement.bean.JobKickConstant;
+import com.clustercontrol.jobmanagement.model.JobKickEntity;
 import com.clustercontrol.jobmanagement.model.JobMstEntity;
-import com.clustercontrol.jobmanagement.model.JobScheduleEntity;
-import com.clustercontrol.maintenance.model.MaintenanceInfoEntity;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
-import com.clustercontrol.notify.model.NotifyInfoEntity;
-import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.calendar.bean.CalendarDetailInfo;
-import com.clustercontrol.calendar.bean.CalendarInfo;
-import com.clustercontrol.calendar.bean.CalendarPatternInfo;
-import com.clustercontrol.calendar.bean.YMD;
-import com.clustercontrol.calendar.model.CalDetailInfoEntity;
-import com.clustercontrol.commons.util.CommonValidator;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.maintenance.model.MaintenanceInfo;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
+import com.clustercontrol.notify.model.NotifyInfo;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * カレンダの入力チェッククラス
@@ -50,6 +42,13 @@ import com.clustercontrol.util.Messages;
 public class CalendarValidator {
 
 	private static Log m_log = LogFactory.getLog(CalendarValidator.class);
+	
+	// カレンダ詳細で設定する開始時刻,終了時刻の最大,最小値
+	private static final long DATETIME_VALUE_MIN = -392399000L; //「-99:59:59」のエポック秒
+	private static final long DATETIME_VALUE_MAX = 3567599000L; //「999:59:59」のエポック秒
+	private static final String DATETIME_STRING_MIN = "-99:59:59"; //日時下限越えエラー通知用文字列
+	private static final String DATETIME_STRING_MAX = "999:59:59"; //日時上限越えエラー通知用文字列
+	
 	/**
 	 * カレンダ情報(CalendarInfo)の基本設定の妥当性チェック
 	 * 
@@ -59,32 +58,32 @@ public class CalendarValidator {
 	 */
 	public static void validateCalendarInfo(CalendarInfo calendarInfo) throws InvalidSetting, InvalidRole {
 		// calendarId
-		CommonValidator.validateId(Messages.getString("calendar.id"), calendarInfo.getId(), 64);
+		CommonValidator.validateId(MessageConstant.CALENDAR_ID.getMessage(), calendarInfo.getCalendarId(), 64);
 
 		// calendarName
-		CommonValidator.validateString(Messages.getString("calendar.name"), calendarInfo.getName(), true, 1, 256);
+		CommonValidator.validateString(MessageConstant.CALENDAR_NAME.getMessage(), calendarInfo.getCalendarName(), true, 1, 256);
 
 		// ownerRoleId
-		CommonValidator.validateOwnerRoleId(calendarInfo.getOwnerRoleId(), true, calendarInfo.getId(), HinemosModuleConstant.PLATFORM_CALENDAR);
+		CommonValidator.validateOwnerRoleId(calendarInfo.getOwnerRoleId(), true, calendarInfo.getCalendarId(), HinemosModuleConstant.PLATFORM_CALENDAR);
 		
 		// description
-		CommonValidator.validateString(Messages.getString("description"), calendarInfo.getDescription(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.DESCRIPTION.getMessage(), calendarInfo.getDescription(), false, 0, 256);
 
 		if (calendarInfo.getValidTimeFrom() == null || calendarInfo.getValidTimeFrom() == 0) {
-			m_log.warn("validateCalendarInfo() " + Messages.getString("start"));
-			String[] args = { "(" + Messages.getString("start") + ")" };
-			throw new InvalidSetting(Messages.getString("message.calendar.24", args));
+			m_log.warn("validateCalendarInfo() " + MessageConstant.START.getMessage());
+			String[] args = { "(" + MessageConstant.START.getMessage() + ")" };
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_VALIDITY_PERIOD.getMessage(args));
 		}
 		if (calendarInfo.getValidTimeTo() == null || calendarInfo.getValidTimeTo() == 0) {
-			m_log.warn("validateCalendarInfo() " + Messages.getString("end"));
-			String[] args = { "(" + Messages.getString("end") + ")" };
-			throw new InvalidSetting(Messages.getString("message.calendar.24", args));
+			m_log.warn("validateCalendarInfo() " + MessageConstant.END.getMessage());
+			String[] args = { "(" + MessageConstant.END.getMessage() + ")" };
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_VALIDITY_PERIOD.getMessage(args));
 		}
 		if (calendarInfo.getValidTimeFrom() >= calendarInfo.getValidTimeTo()) {
-			m_log.warn("validateCalendarInfo() " + Messages.getString("end"));
-			String[] args = { Messages.getString("time") + "(" + Messages.getString("end") + ")",
-					Messages.getString("time") + "(" + Messages.getString("start") + ")" };
-			throw new InvalidSetting(Messages.getString("message.calendar.30", args));
+			m_log.warn("validateCalendarInfo() " + MessageConstant.END.getMessage());
+			String[] args = { MessageConstant.TIME.getMessage() + "(" + MessageConstant.END.getMessage() + ")",
+					MessageConstant.TIME.getMessage() + "(" + MessageConstant.START.getMessage() + ")" };
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_LATER_DATE_AND_TIME.getMessage(args));
 		}
 		//カレンダ詳細チェック
 		for(CalendarDetailInfo detailInfo : calendarInfo.getCalendarDetailList()){
@@ -100,53 +99,53 @@ public class CalendarValidator {
 	 */
 	private static void validdateCalendarDetailInfo(CalendarDetailInfo detailInfo, String ownerRoleId) throws InvalidSetting, InvalidRole {
 		//説明
-		CommonValidator.validateString(Messages.getString("description"), detailInfo.getDescription(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.DESCRIPTION.getMessage(), detailInfo.getDescription(), false, 0, 256);
 		
 		//年は必須項目のためチェック
 		if (detailInfo.getYear() == null || detailInfo.getYear() < 0) {
-			String[] args = { "(" + Messages.getString("year") + ")" };
+			String[] args = { "(" + MessageConstant.YEAR.getMessage() + ")" };
 			m_log.warn("ValidYear:" + args[0]);
-			throw new InvalidSetting(Messages.getString("message.calendar.15", args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
 		}
 		//月は必須項目のためチェック（コンボボックス入力だが、一応）
 		if (detailInfo.getMonth() == null || detailInfo.getMonth() < 0) {
-			String[] args = { "(" + Messages.getString("month") + ")" };
-			m_log.warn("ValidMonth:" + args.toString());
-			throw new InvalidSetting(Messages.getString("message.calendar.15", args));
+			String[] args = { "(" + MessageConstant.MONTH.getMessage() + ")" };
+			m_log.warn("ValidMonth:" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
 		}
 		//日は必須項目のためチェック
 		if (detailInfo.getDayType() == null || detailInfo.getDayType() < 0 || detailInfo.getDayType() > 3) {
-			String[] args = { "(" + Messages.getString("calendar.detail.date.type") + ")" };
-			m_log.warn("ValidDateType:" + args.toString());
-			throw new InvalidSetting(Messages.getString("message.calendar.15", args));
+			String[] args = { "(" + MessageConstant.CALENDAR_DETAIL_DATE_TYPE.getMessage() + ")" };
+			m_log.warn("ValidDateType:" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
 		}
 		//日タイプが「1」の場合、第x週、曜日が必須項目となるためチェック
 		if(detailInfo.getDayType() == 1){
 			if(detailInfo.getDayOfWeekInMonth() == null || detailInfo.getDayOfWeekInMonth() < 0){
-				String[] args = { "(" + Messages.getString("calendar.detail.xth") + ")" };
-				m_log.warn("ValidXth:" + args.toString());
-				throw new InvalidSetting(Messages.getString("message.calendar.15", args));
+				String[] args = { "(" + MessageConstant.CALENDAR_DETAIL_XTH.getMessage() + ")" };
+				m_log.warn("ValidXth:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
 			}
 			if(detailInfo.getDayOfWeek() == null || detailInfo.getDayOfWeek() < 1 || detailInfo.getDayOfWeek() > 7){
-				String[] args = { "(" + Messages.getString("weekday") + ")" };
-				m_log.warn("ValidWeekDay:" + args.toString());
-				throw new InvalidSetting(Messages.getString("message.calendar.15", args));
+				String[] args = { "(" + MessageConstant.WEEKDAY.getMessage() + ")" };
+				m_log.warn("ValidWeekDay:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
 			}
 		}
 		//日タイプが「2」の場合、日が必須項目となるためチェック
 		if(detailInfo.getDayType() == 2){
 			if(detailInfo.getDate() == null || detailInfo.getDate() < 0){
-				String[] args = { "(" + Messages.getString("monthday") + ")" };
-				m_log.warn("ValidMonthDay:" + args.toString());
-				throw new InvalidSetting(Messages.getString("message.calendar.15", args));
+				String[] args = { "(" +MessageConstant.MONTHDAY.getMessage() + ")" };
+				m_log.warn("ValidMonthDay:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
 			}
 		}
 		//日タイプが「3」の場合、カレンダパターンが必須項目となるためチェック
 		if(detailInfo.getDayType() == 3){
 			if(detailInfo.getCalPatternId() == null){
-				String[] args = { "(" + Messages.getString("calendar.pattern") + ")" };
-				m_log.warn("ValidCalendarPattern:" + args.toString());
-				throw new InvalidSetting(Messages.getString("message.calendar.15", args));
+				String[] args = { "(" + MessageConstant.CALENDAR_PATTERN.getMessage() + ")" };
+				m_log.warn("ValidCalendarPattern:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
 			}
 			//IDと一致するカレンダパターン情報が存在しない場合
 			try {
@@ -154,8 +153,8 @@ public class CalendarValidator {
 				QueryUtil.getCalPatternInfoPK_OR(detailInfo.getCalPatternId(), ownerRoleId);
 			} catch (CalendarNotFound e) {
 				String[] args = { "(" + detailInfo.getCalPatternId() + ")" };
-				m_log.warn("ValidCalendarPattern:" + args.toString());
-				throw new InvalidSetting(Messages.getString("message.calendar.16", args));
+				m_log.warn("ValidCalendarPattern:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_FILE_NOT_FOUND.getMessage(Arrays.toString(args)));
 			} catch (InvalidRole e) {
 				m_log.warn("ValidCalendarPattern: "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
@@ -164,29 +163,73 @@ public class CalendarValidator {
 		}
 		if (detailInfo.getAfterday() != null) {
 			if (-32768 > detailInfo.getAfterday() || detailInfo.getAfterday() > 32767) {
-				String[] args = {Messages.getString("calendar.detail.before.after"),
+				String[] args = {MessageConstant.CALENDAR_DETAIL_BEFORE_AFTER.getMessage(),
 						"-32768", "32767"};
-				m_log.warn("ValidAfterDay:" + args.toString());
-				throw new InvalidSetting(Messages.getString("message.calendar.52", args));
+				m_log.warn("ValidAfterDay:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_INPUT_RANGE.getMessage(Arrays.toString(args)));
 			}
 		}
+		
+		// 振り替え
+		// 振り替え間隔と振り替え上限が未入力の場合はエラーにする
+		if (detailInfo.getSubstituteTime() != null) {
+			if (detailInfo.getSubstituteTime() == 0 || detailInfo.getSubstituteTime() < (-24*366) || detailInfo.getSubstituteTime() > (24*366)) {
+				String[] args = {MessageConstant.CALENDAR_DETAIL_SUBSTITUTE_TIME.getMessage(), "0", String.valueOf((-24*366)), String.valueOf((24*366))};
+				m_log.warn("ValidSubstituteTime:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_INPUT_VALUE_AND_RANGE.getMessage(Arrays.toString(args)));
+			}
+		} else {
+			String[] args = {MessageConstant.CALENDAR_DETAIL_SUBSTITUTE_TIME.getMessage()};
+			m_log.warn("ValidSubstituteTime:" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
+		}
+		if (detailInfo.getSubstituteLimit() != null) {
+			if (detailInfo.getSubstituteLimit() < 1 || detailInfo.getSubstituteLimit() > 99) {
+				String[] args = {MessageConstant.CALENDAR_DETAIL_SUBSTITUTE_LIMIT.getMessage(), "1", "99"};
+				m_log.warn("ValidSubstituteLimit:" + Arrays.toString(args));
+				throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_INPUT_RANGE.getMessage(Arrays.toString(args)));
+			}
+		} else {
+			String[] args = {MessageConstant.CALENDAR_DETAIL_SUBSTITUTE_LIMIT.getMessage()};
+			m_log.warn("ValidSubstituteLimit:" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_DETAIL.getMessage(Arrays.toString(args)));
+		}
+		
+////	if(cal.getStartTime() != null){
+////	info.setTimeFrom(cal.getStartTime().getTime());
+////}
+//////終了時間
+////if(cal.getEndTime() != null){
+////	info.setTimeTo(cal.getEndTime().getTime());
+		
+		
 		//時間：開始時間、終了時間は必須項目のためチェック
 		if (detailInfo.getTimeFrom() == null) {
-			String[] args = { "(" + Messages.getString("start") + ")" };
-			m_log.warn("ValidTimeFrom :" + args.toString());
-			throw new InvalidSetting(Messages.getString("message.calendar.25", args));
+			String[] args = { "(" + MessageConstant.START.getMessage() + ")" };
+			m_log.warn("ValidTimeFrom :" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_INPUT_TIME.getMessage(Arrays.toString(args)));
+		}
+		if(detailInfo.getTimeFrom() < DATETIME_VALUE_MIN || DATETIME_VALUE_MAX < detailInfo.getTimeFrom()){
+			String[] args = {DATETIME_STRING_MIN, DATETIME_STRING_MAX};
+			m_log.warn("ValidTimeFrom :" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_INPUT_RANGE_OVER.getMessage(args));
 		}
 		if (detailInfo.getTimeTo() == null) {
-			String[] args = { "(" + Messages.getString("end") + ")" };
-			m_log.warn("ValidTimeTo :" + args.toString());
-			throw new InvalidSetting(Messages.getString("message.calendar.25", args));
+			String[] args = { "(" + MessageConstant.END.getMessage() + ")" };
+			m_log.warn("ValidTimeTo :" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_INPUT_TIME.getMessage(Arrays.toString(args)));
+		}
+		if(detailInfo.getTimeTo() < DATETIME_VALUE_MIN || DATETIME_VALUE_MAX < detailInfo.getTimeTo()){
+			String[] args = {DATETIME_STRING_MIN, DATETIME_STRING_MAX};
+			m_log.warn("ValidTimeTo :" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_INPUT_RANGE_OVER.getMessage(args));
 		}
 		//終了時間が開始時間より過去に設定されてはならないため、チェック
 		if (detailInfo.getTimeFrom() >= detailInfo.getTimeTo()) {
-			String[] args = { Messages.getString("time") + "(" + Messages.getString("end") + ")",
-					Messages.getString("time") + "(" + Messages.getString("start") + ")" };
-			m_log.warn("ValidFromTo:" + args.toString());
-			throw new InvalidSetting(Messages.getString("message.calendar.31", args));
+			String[] args = { MessageConstant.TIME.getMessage() + "(" + MessageConstant.END.getMessage() + ")",
+					MessageConstant.TIME.getMessage() + "(" + MessageConstant.START.getMessage() + ")" };
+			m_log.warn("ValidFromTo:" + Arrays.toString(args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_LATER_TIME.getMessage(Arrays.toString(args)));
 		}
 	}
 	/**
@@ -197,14 +240,14 @@ public class CalendarValidator {
 	public static void validateCalendarPatternInfo(CalendarPatternInfo info) throws InvalidSetting{
 
 		// calendarPatternId
-		CommonValidator.validateId(Messages.getString("calendar.pattern.id"), info.getId(), 64);
+		CommonValidator.validateId(MessageConstant.CALENDAR_PATTERN_ID.getMessage(), info.getCalPatternId(), 64);
 
 		// calendarPatternName
-		CommonValidator.validateString(Messages.getString("calendar.pattern.name"), info.getName(), true, 1, 128);
+		CommonValidator.validateString(MessageConstant.CALENDAR_PATTERN_NAME.getMessage(), info.getCalPatternName(), true, 1, 128);
 
 		// ownerRoleId
 		CommonValidator.validateOwnerRoleId(info.getOwnerRoleId(), true,
-				info.getId(), HinemosModuleConstant.PLATFORM_CALENDAR_PATTERN);
+				info.getCalPatternId(), HinemosModuleConstant.PLATFORM_CALENDAR_PATTERN);
 
 		//カレンダパターン詳細チェック
 		for(YMD ymd : info.getYmd()){
@@ -224,30 +267,30 @@ public class CalendarValidator {
 		Integer day = ymd.getDay();
 
 		if(year == null){
-			String[] args = { "(" + Messages.getString("year") + ")" };
-			m_log.warn("validateYMD year=" + year);
-			throw new InvalidSetting(Messages.getString("message.calendar.41", args));
+			String[] args = { "(" + MessageConstant.YEAR.getMessage() + ")" };
+			m_log.warn("validateYMD year=null");
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_PATTERN.getMessage(args));
 		}
 		if(month == null || month <= 0){
-			String[] args = { "(" + Messages.getString("month") + ")" };
-			m_log.warn("validateYMD month=" + month);
-			throw new InvalidSetting(Messages.getString("message.calendar.41", args));
+			String[] args = { "(" + MessageConstant.MONTH.getMessage() + ")" };
+			m_log.warn("validateYMD month=null");
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_PATTERN.getMessage(args));
 		}
 		if(day == null || day <= 0){
-			String[] args = { "(" + Messages.getString("day") + ")" };
-			m_log.warn("validateYMD day=" + day);
-			throw new InvalidSetting(Messages.getString("message.calendar.41", args));
+			String[] args = { "(" + MessageConstant.DAY.getMessage() + ")" };
+			m_log.warn("validateYMD day + month");
+			throw new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_CALENDAR_PATTERN.getMessage(args));
 		}
 		//存在する年月日かチェック
 		boolean ret = false;
-		Calendar cal = Calendar.getInstance();
+		Calendar cal = HinemosTime.getCalendarInstance();
 		cal.setLenient( true );
 		cal.set(year, month - 1, day);
 		if (cal.get(Calendar.MONTH) != (month - 1) % 12) {
 			// error
 			m_log.warn("year=" + year + ",month=" + month + ",day=" + day + ",ret=" + ret);
 			String[] args = { year + "/" + month + "/" + day };
-			throw new InvalidSetting(Messages.getString("message.calendar.48",args));
+			throw new InvalidSetting(MessageConstant.MESSAGE_SCHEDULE_NOT_EXIST.getMessage(args));
 		}
 		m_log.debug("year=" + year + ",month=" + month + ",day=" + day + ",ret=" + ret);
 	}
@@ -269,67 +312,59 @@ public class CalendarValidator {
 					m_log.debug("valideDeleteCalendar() target JobMaster " + jobMst.getId().getJobId() + ", calendarId = " + calendarId);
 					if(jobMst.getCalendarId() != null){
 						String[] args = {jobMst.getId().getJobId(),calendarId};
-						throw new InvalidSetting(Messages.getString("message.calendar.44", args));
+						throw new InvalidSetting(MessageConstant.MESSAGE_DELETE_NG_JOB_REFERENCE.getMessage(args));
 					}
 				}
 			}
-			//ジョブスケジュール
-			List<JobScheduleEntity> jobScheduleList =
-					com.clustercontrol.jobmanagement.util.QueryUtil.getJobScheduleEntityFindByCalendarId_NONE(calendarId);
-			if (jobScheduleList != null) {
-				for(JobScheduleEntity jobSchedule : jobScheduleList){
-					m_log.debug("valideDeleteCalendar() target jobschedule " + jobSchedule.getScheduleId() + ", calendarId = " + calendarId);
-					if(jobSchedule.getCalendarId() != null){
-						String[] args = {jobSchedule.getScheduleId(),calendarId};
-						throw new InvalidSetting(Messages.getString("message.calendar.42", args));
-					}
-				}
-			}
-			//ジョブファイルチェック
-			List<JobFileCheckEntity> jobFileCheckList =
-					com.clustercontrol.jobmanagement.util.QueryUtil.getJobFileCheckEntityFindByCalendarId_NONE(calendarId);
-			if (jobFileCheckList != null) {
-				for(JobFileCheckEntity jobFileCheck : jobFileCheckList){
-					m_log.debug("valideDeleteCalendar() target jobFileCheck " + jobFileCheck.getScheduleId() + ", calendarId = " + calendarId);
-					if(jobFileCheck.getCalendarId() != null){
-						String[] args = {jobFileCheck.getScheduleId(),calendarId};
-						throw new InvalidSetting(Messages.getString("message.calendar.43", args));
+			//ジョブ実行契機
+			List<JobKickEntity> jobKickList =
+					com.clustercontrol.jobmanagement.util.QueryUtil.getJobKickEntityFindByCalendarId_NONE(calendarId);
+			if (jobKickList != null) {
+				for(JobKickEntity jobKick : jobKickList){
+					m_log.debug("valideDeleteCalendar() target jobkick " + jobKick.getJobkickId() + ", calendarId = " + calendarId);
+					if(jobKick.getCalendarId() != null){
+						String[] args = {jobKick.getJobkickId(),calendarId};
+						if (jobKick.getJobkickType().equals(JobKickConstant.TYPE_FILECHECK)) {
+							throw new InvalidSetting(MessageConstant.MESSAGE_DELETE_NG_JOBFILECHECK_REFERENCE.getMessage(args));
+						} else if (jobKick.getJobkickType().equals(JobKickConstant.TYPE_SCHEDULE)) {
+							throw new InvalidSetting(MessageConstant.MESSAGE_DELETE_NG_JOBSCHEDULE_REFERENCE.getMessage(args));
+						}
 					}
 				}
 			}
 			//監視設定
-			List<MonitorInfoEntity> monitorList =
-					com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoEntityFindByCalendarId_NONE(calendarId);
+			List<MonitorInfo> monitorList =
+					com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoFindByCalendarId_NONE(calendarId);
 			if (monitorList != null) {
-				for(MonitorInfoEntity monitorInfo : monitorList){
+				for(MonitorInfo monitorInfo : monitorList){
 					m_log.debug("valideDeleteCalendar() target MonitorInfo " + monitorInfo.getMonitorId() + ", calendarId = " + calendarId);
 					if(monitorInfo.getCalendarId() != null){
 						String[] args = {monitorInfo.getMonitorId(),calendarId};
-						throw new InvalidSetting(Messages.getString("message.calendar.45", args));
+						throw new InvalidSetting(MessageConstant.MESSAGE_DELETE_NG_MONITOR_REFERENCE.getMessage(args));
 					}
 				}
 			}
 			//メンテナンス
-			List<MaintenanceInfoEntity> maintenanceInfoList =
+			List<MaintenanceInfo> maintenanceInfoList =
 					com.clustercontrol.maintenance.util.QueryUtil.getMaintenanceInfoFindByCalendarId_NONE(calendarId);
 			if (maintenanceInfoList != null) {
-				for(MaintenanceInfoEntity maintenanceInfo : maintenanceInfoList){
+				for(MaintenanceInfo maintenanceInfo : maintenanceInfoList){
 					m_log.debug("valideDeleteCalendar() target MaintenanceInfo " + maintenanceInfo.getMaintenanceId() + ", calendarId = " + calendarId);
 					if(maintenanceInfo.getCalendarId() != null){
 						String[] args = {maintenanceInfo.getMaintenanceId(),calendarId};
-						throw new InvalidSetting(Messages.getString("message.calendar.46", args));
+						throw new InvalidSetting(MessageConstant.MESSAGE_DELETE_NG_MAINTENANCE_REFERENCE.getMessage(args));
 					}
 				}
 			}
 			//通知
-			List<NotifyInfoEntity> notifyInfoList =
+			List<NotifyInfo> notifyInfoList =
 					com.clustercontrol.notify.util.QueryUtil.getNotifyInfoFindByCalendarId_NONE(calendarId);
 			if (notifyInfoList != null) {
-				for(NotifyInfoEntity notifyInfo : notifyInfoList){
+				for(NotifyInfo notifyInfo : notifyInfoList){
 					m_log.debug("valideDeleteCalendar() target MaintenanceInfo " + notifyInfo.getNotifyId() + ", calendarId = " + calendarId);
 					if(notifyInfo.getCalendarId() != null){
 						String[] args = {notifyInfo.getNotifyId(), calendarId};
-						throw new InvalidSetting(Messages.getString("message.calendar.73", args));
+						throw new InvalidSetting(MessageConstant.MESSAGE_DELETE_NG_NOTIFY_REFERENCE.getMessage(args));
 					}
 				}
 			}
@@ -351,7 +386,7 @@ public class CalendarValidator {
 	 * @throws HinemosUnknown
 	 */
 	public static void valideDeleteCalendarPattern(String calPatternId) throws InvalidSetting, HinemosUnknown{
-		List<CalDetailInfoEntity> calDetailList = null;
+		List<CalendarDetailInfo> calDetailList = null;
 		try{
 			//カレンダパターンIDと一致するカレンダ詳細情報を取得する
 			calDetailList = QueryUtil.getCalDetailByCalPatternId(calPatternId);
@@ -361,11 +396,11 @@ public class CalendarValidator {
 			 * nullの場合は、何もせずにreturn
 			 */
 			if(calDetailList != null){
-				for(CalDetailInfoEntity calDtail : calDetailList){
+				for(CalendarDetailInfo calDtail : calDetailList){
 					m_log.warn("valideDeleteCalendarPattern() target CalendarDetailInfo " + calDtail.getId().getCalendarId() + ", calendarId = " + calPatternId);
 					if(calDtail.getCalPatternId() != null){
 						String[] args = {calDtail.getCalPatternId(),calPatternId};
-						throw new InvalidSetting(Messages.getString("message.calendar.47", args));
+						throw new InvalidSetting(MessageConstant.MESSAGE_DELETE_NG_CALENDAR_REFERENCE.getMessage(args));
 					}
 				}
 			}

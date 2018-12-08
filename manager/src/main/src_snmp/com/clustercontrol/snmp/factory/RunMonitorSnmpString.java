@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.snmp.factory;
@@ -18,19 +11,17 @@ package com.clustercontrol.snmp.factory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.PriorityConstant;
-import com.clustercontrol.bean.SnmpVersionConstant;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorStringValueType;
-import com.clustercontrol.repository.bean.NodeInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.snmp.model.MonitorSnmpInfoEntity;
+import com.clustercontrol.snmp.model.SnmpCheckInfo;
 import com.clustercontrol.snmp.util.QueryUtil;
 import com.clustercontrol.snmp.util.RequestSnmp4j;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * SNMP監視 文字列監視を実行するファクトリークラス<BR>
@@ -42,13 +33,8 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorSnmpString.class );
 
-	private static final String MESSAGE_ID_INFO = "001";
-	private static final String MESSAGE_ID_WARNING = "002";
-	private static final String MESSAGE_ID_CRITICAL = "003";
-	private static final String MESSAGE_ID_UNKNOWN = "004";
-
 	/** SNMP監視情報 */
-	private MonitorSnmpInfoEntity m_snmp = null;
+	private SnmpCheckInfo m_snmp = null;
 
 	/** OID */
 	private String m_snmpOid = null;
@@ -71,7 +57,7 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -95,7 +81,7 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 
 		// メッセージを設定
 		m_message = "";
-		m_messageOrg = Messages.getString("oid") + " : " + m_snmpOid;
+		m_messageOrg = MessageConstant.OID.getMessage() + " : " + m_snmpOid;
 
 		NodeInfo info = null;
 		try {
@@ -103,7 +89,7 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 			info = new RepositoryControllerBean().getNode(facilityId);
 		}
 		catch(FacilityNotFound e){
-			m_message = Messages.getString("message.snmp.6");
+			m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NODE_ATTRIBUTES.getMessage();
 			m_messageOrg = m_messageOrg + " (" + e.getMessage() + ")";
 			return false;
 		}
@@ -119,7 +105,7 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 					info.getSnmpCommunity(),
 					info.getSnmpPort(),
 					m_snmpOid,
-					SnmpVersionConstant.stringToSnmpType(info.getSnmpVersion()),
+					info.getSnmpVersion(),
 					info.getSnmpTimeout(),
 					info.getSnmpRetryCount(),
 					info.getSnmpSecurityLevel(),
@@ -130,9 +116,13 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 					info.getSnmpPrivProtocol()
 					);
 		} catch (Exception e) {
-			m_message = Messages.getString("message.snmp.6");
+			m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NODE_ATTRIBUTES.getMessage();
 			m_messageOrg = m_message + ", " + e.getMessage() + " (" + e.getClass().getName() + ")";
-			m_log.warn(m_messageOrg, e);
+			if (e instanceof NumberFormatException) {
+				m_log.warn(m_messageOrg);
+			} else {
+				m_log.warn(m_messageOrg, e);
+			}
 			return false;
 		}
 
@@ -141,7 +131,7 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 			m_value = m_request.getValue();
 			m_nodeDate = m_request.getDate();
 
-			m_messageOrg = m_messageOrg + ", " + Messages.getString("select.value") + " : " + m_value;
+			m_messageOrg = m_messageOrg + ", " + MessageConstant.SELECT_VALUE.getMessage() + " : " + m_value;
 		}
 		else{
 			m_message = m_request.getMessage();
@@ -157,24 +147,14 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 	protected void setCheckInfo() throws MonitorNotFound {
 
 		// SNMP監視情報を取得
-		m_snmp = QueryUtil.getMonitorSnmpInfoPK(m_monitorId);
+		if (!m_isMonitorJob) {
+			m_snmp = QueryUtil.getMonitorSnmpInfoPK(m_monitorId);
+		} else {
+			m_snmp = QueryUtil.getMonitorSnmpInfoPK(m_monitor.getMonitorId());
+		}
 
 		// SNMP監視情報を設定
 		m_snmpOid = m_snmp.getSnmpOid().trim();
-	}
-
-	/* (非 Javadoc)
-	 * ノード用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.OperationMonitor#getMessageId()
-	 */
-	@Override
-	public String getMessageId(int id) {
-
-		String messageId = super.getMessageId(id);
-		if(messageId == null || "".equals(messageId)){
-			return MESSAGE_ID_UNKNOWN;
-		}
-		return messageId;
 	}
 
 	/* (非 Javadoc)
@@ -200,24 +180,17 @@ public class RunMonitorSnmpString extends RunMonitorStringValueType {
 		return m_messageOrg;
 	}
 
-	/* (非 Javadoc)
-	 * スコープ用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#getMessageIdForScope(int)
-	 */
 	@Override
-	protected String getMessageIdForScope(int priority) {
-
-		if(priority == PriorityConstant.TYPE_INFO){
-			return MESSAGE_ID_INFO;
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		String rtnmsg = "";
+		if (m_monitorRunResultInfo != null
+				&& m_monitorRunResultInfo.getCheckResult() != -1) {
+			//OK
+			rtnmsg = orgMsg;
+		} else {
+			//NG
+			rtnmsg = msg;
 		}
-		else if(priority == PriorityConstant.TYPE_WARNING){
-			return MESSAGE_ID_WARNING;
-		}
-		else if(priority == PriorityConstant.TYPE_CRITICAL){
-			return MESSAGE_ID_CRITICAL;
-		}
-		else{
-			return MESSAGE_ID_UNKNOWN;
-		}
+		return rtnmsg;
 	}
 }

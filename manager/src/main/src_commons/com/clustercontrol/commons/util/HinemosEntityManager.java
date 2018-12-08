@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.commons.util;
 
 import java.util.List;
@@ -35,9 +43,9 @@ import com.clustercontrol.accesscontrol.annotation.HinemosObjectPrivilege;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
 import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
 import com.clustercontrol.accesscontrol.jpql.compile.QueryPreparator;
-import com.clustercontrol.accesscontrol.model.ObjectPrivilegeEntity;
-import com.clustercontrol.accesscontrol.model.ObjectPrivilegeEntityPK;
-import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetEntity;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeInfoPK;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetInfo;
 import com.clustercontrol.accesscontrol.util.UserRoleCache;
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.fault.ObjectPrivilege_InvalidRole;
@@ -126,7 +134,7 @@ public class HinemosEntityManager implements EntityManager {
 	}
 
 	@Override
-	public Query createNativeQuery(String arg0, Class arg1) {
+	public Query createNativeQuery(String arg0, @SuppressWarnings("rawtypes") Class arg1) {
 		return em.createNativeQuery(arg0, arg1);
 	}
 
@@ -484,23 +492,23 @@ public class HinemosEntityManager implements EntityManager {
 		// オーナーロールにユーザのロールが設定されている場合は実装を返す
 		// チェック対象のEntityはObjectPrivilegeTargetEntityを継承していないとエラー
 		T before_entity = em.find(entityClass, primaryKey);
-		if (!(before_entity instanceof ObjectPrivilegeTargetEntity)) {
+		if (!(before_entity instanceof ObjectPrivilegeTargetInfo)) {
 			// オブジェクト権限エラー
 			ObjectPrivilege_InvalidRole e = new ObjectPrivilege_InvalidRole(
 					"targetClass=" + entityClass.getSimpleName()
 					+ ", pk=" + primaryKey.toString()
 					+ ", ownerRoleId=" + ownerRoleId);
-			m_log.info("checkObjectPrivilege() object privilege invalid. : "
+			m_log.info("checkObjectPrivilege() object privilege invalid. 1 : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		} else {
 			// ジョブの場合、jobunitId='ROOT'はチェック対象外
 			if (hinemosObjectPrivilege.objectType().equals(HinemosModuleConstant.JOB_MST)
-					&& ((ObjectPrivilegeTargetEntity)before_entity).getObjectId().equals(CreateJobSession.TOP_JOBUNIT_ID)) {
+					&& ((ObjectPrivilegeTargetInfo)before_entity).getObjectId().equals(CreateJobSession.TOP_JOBUNIT_ID)) {
 				return;
 			}
 			// オーナーロールIDを確認する
-			String entityOwnerRoleId = ((ObjectPrivilegeTargetEntity)before_entity).getOwnerRoleId();
+			String entityOwnerRoleId = ((ObjectPrivilegeTargetInfo)before_entity).getOwnerRoleId();
 			// 所属ロールの場合はオブジェクト権限有り
 			if (ownerRoleId.equals(entityOwnerRoleId)) {
 				return;		// オブジェクト権限有り
@@ -510,9 +518,9 @@ public class HinemosEntityManager implements EntityManager {
 		// オブジェクト権限テーブルを確認する
 		String objectType = hinemosObjectPrivilege.objectType();
 		// オブジェクト権限テーブルに所属ロールのデータが存在するかの確認
-		ObjectPrivilegeEntityPK objectPrivilegeEntityPK
-		= new ObjectPrivilegeEntityPK(objectType, ((ObjectPrivilegeTargetEntity)before_entity).getObjectId(), ownerRoleId, mode.name());
-		ObjectPrivilegeEntity objectPrivilegeEntity = em.find(ObjectPrivilegeEntity.class, objectPrivilegeEntityPK);
+		ObjectPrivilegeInfoPK objectPrivilegeEntityPK
+		= new ObjectPrivilegeInfoPK(objectType, ((ObjectPrivilegeTargetInfo)before_entity).getObjectId(), ownerRoleId, mode.name());
+		ObjectPrivilegeInfo objectPrivilegeEntity = em.find(ObjectPrivilegeInfo.class, objectPrivilegeEntityPK);
 		if (objectPrivilegeEntity != null) {
 			return;		// オブジェクト権限有り
 		}
@@ -522,7 +530,7 @@ public class HinemosEntityManager implements EntityManager {
 				"targetClass=" + entityClass.getSimpleName()
 				+ ", pk=" + primaryKey.toString()
 				+ ", ownerRoleId=" + ownerRoleId);
-		m_log.info("checkObjectPrivilege() object privilege invalid. : "
+		m_log.info("checkObjectPrivilege() object privilege invalid. 2 : "
 				+ e.getClass().getSimpleName() + ", " + e.getMessage());
 		throw e;
 	}
@@ -567,22 +575,22 @@ public class HinemosEntityManager implements EntityManager {
 			return;
 		}
 		// チェック対象のEntityはObjectPrivilegeTargetEntityを継承していないとエラー
-		if (!(before_entity instanceof ObjectPrivilegeTargetEntity)) {
+		if (!(before_entity instanceof ObjectPrivilegeTargetInfo)) {
 			// オブジェクト権限エラー
 			ObjectPrivilege_InvalidRole e = new ObjectPrivilege_InvalidRole(
 					"user=" + loginUser
 					+ ", targetClass=" + entityClass.getSimpleName()
 					+ ", pk=" + primaryKey.toString());
-			m_log.info("checkObjectPrivilege() object privilege invalid. : "
+			m_log.info("checkObjectPrivilege() object privilege invalid. 3 : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		} else {
 			// ジョブの場合、jobunitId='ROOT'はチェック対象外
 			if (hinemosObjectPrivilege.objectType().equals(HinemosModuleConstant.JOB_MST)
-					&& ((ObjectPrivilegeTargetEntity)before_entity).getObjectId().equals(CreateJobSession.TOP_JOBUNIT_ID)) {
+					&& ((ObjectPrivilegeTargetInfo)before_entity).getObjectId().equals(CreateJobSession.TOP_JOBUNIT_ID)) {
 				return;
 			}
-			String ownerRoleId = ((ObjectPrivilegeTargetEntity)before_entity).getOwnerRoleId();
+			String ownerRoleId = ((ObjectPrivilegeTargetInfo)before_entity).getOwnerRoleId();
 			// 所属ロールの場合はオブジェクト権限有り
 			if (roleIdList.contains(ownerRoleId)) {
 				return;		// オブジェクト権限有り
@@ -594,9 +602,9 @@ public class HinemosEntityManager implements EntityManager {
 		// 所属ロールが設定されている場合はオブジェクト権限有り
 		boolean existsflg = false;
 		for (String roleId : roleIdList) {
-			ObjectPrivilegeEntityPK objectPrivilegeEntityPK
-			= new ObjectPrivilegeEntityPK(objectType, ((ObjectPrivilegeTargetEntity)before_entity).getObjectId(), roleId, mode.name());
-			ObjectPrivilegeEntity objectPrivilegeEntity = em.find(ObjectPrivilegeEntity.class, objectPrivilegeEntityPK);
+			ObjectPrivilegeInfoPK objectPrivilegeEntityPK
+			= new ObjectPrivilegeInfoPK(objectType, ((ObjectPrivilegeTargetInfo)before_entity).getObjectId(), roleId, mode.name());
+			ObjectPrivilegeInfo objectPrivilegeEntity = em.find(ObjectPrivilegeInfo.class, objectPrivilegeEntityPK);
 			if (objectPrivilegeEntity != null) {
 				existsflg = true;	// オブジェクト権限有り
 				break;
@@ -608,7 +616,10 @@ public class HinemosEntityManager implements EntityManager {
 					"user=" + loginUser
 					+ ", targetClass=" + entityClass.getSimpleName()
 					+ ", pk=" + primaryKey.toString());
-			m_log.info("checkObjectPrivilege() object privilege invalid. : "
+
+			// 設定によっては、監視[イベント]ビューの更新の度に下記ログが大量に出力され続けるため、
+			// debugに変更する。
+			m_log.debug("checkObjectPrivilege() object privilege invalid. 4 : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
@@ -658,7 +669,7 @@ public class HinemosEntityManager implements EntityManager {
 			}
 
 			// オブジェクト権限チェックを含むJPQLに変換
-			String afterJpql = getObjectPrivilegeJPQL(beforeJpql, entityClass, mode, ownerRoleId);
+			String afterJpql = getObjectPrivilegeJPQL(beforeJpql, entityClass, mode, null);
 			List<String> roleIds = UserRoleCache.getRoleIdList(loginUser);
 			afterJpql = afterJpql.replaceAll(":roleIds", HinemosEntityManager.getParamNameString("roleId", roleIds.toArray(new String[roleIds.size()])));
 			typedQuery = em.createQuery(afterJpql, resultClass);
@@ -770,7 +781,7 @@ public class HinemosEntityManager implements EntityManager {
 	 * @param paramValue パラメータ値
 	 * @return JPQLのIN句に設定するパラメータ名
 	 */
-	public static String getParamNameString(String paramName, String[] paramValues) {
+	public static String getParamNameString(String paramName, Object[] paramValues) {
 		String rtnString = "";
 		int count = paramValues.length;
 		if (count > 0) {
@@ -785,7 +796,6 @@ public class HinemosEntityManager implements EntityManager {
 		}
 		return rtnString;
 	}
-
 
 	/**
 	 * JPQLのIN句にパラメータ値を設定したTypedQueryを返す。
@@ -803,7 +813,7 @@ public class HinemosEntityManager implements EntityManager {
 	 * @param paramValue パラメータ値
 	 * @return JPQLのIN句に値を設定したTypedQuery
 	 */
-	public static <T> TypedQuery<T> appendParam(TypedQuery<T> query, String paramName, String[] paramValues) {
+	public static <T> TypedQuery<T> appendParam(TypedQuery<T> query, String paramName, Object[] paramValues) {
 		TypedQuery<T> typedQuery = query;
 		int count = paramValues.length;
 		if (count > 0) {
@@ -830,12 +840,12 @@ public class HinemosEntityManager implements EntityManager {
 	}
 
 	@Override
-	public Query createQuery(CriteriaUpdate arg0) {
+	public Query createQuery(@SuppressWarnings("rawtypes") CriteriaUpdate arg0) {
 		return em.createQuery(arg0);
 	}
 
 	@Override
-	public Query createQuery(CriteriaDelete arg0) {
+	public Query createQuery(@SuppressWarnings("rawtypes") CriteriaDelete arg0) {
 		return em.createQuery(arg0);
 	}
 
@@ -845,8 +855,7 @@ public class HinemosEntityManager implements EntityManager {
 	}
 
 	@Override
-	public StoredProcedureQuery createStoredProcedureQuery(String arg0,
-			Class... arg1) {
+	public StoredProcedureQuery createStoredProcedureQuery(String arg0, @SuppressWarnings("rawtypes") Class... arg1) {
 		return em.createStoredProcedureQuery(arg0, arg1);
 	}
 

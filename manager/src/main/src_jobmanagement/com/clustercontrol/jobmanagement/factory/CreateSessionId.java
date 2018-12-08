@@ -1,28 +1,21 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.factory;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 
 import com.clustercontrol.HinemosManagerMain;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * セッションIDを作成するクラスです。
@@ -52,8 +45,9 @@ public class CreateSessionId {
 			String sessionId = null;
 	
 			SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
-			String dateString = dateFormat.format(new Date());
-	
+			dateFormat.setTimeZone(HinemosTime.getTimeZone());
+			String dateString = dateFormat.format(HinemosTime.getDateInstance());
+			
 			DecimalFormat format = new DecimalFormat("-000");
 			if(prevDate.equals(dateString)){
 				prevNumber += HinemosManagerMain._instanceCount;

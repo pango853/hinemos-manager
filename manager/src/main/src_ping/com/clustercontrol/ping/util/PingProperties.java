@@ -1,29 +1,24 @@
 /*
-
-Copyright (C) 2007 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.ping.util;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.platform.HinemosPropertyDefault;
 
 /**
- * プロセス監視プロパティ情報取得クラス
+ * PING監視プロパティ情報取得クラス
  *
  * @version 2.3.0 bata
  * @since 2.3.0
  */
 public class PingProperties {
+	
 	private static PingProperties m_instance = null;
 
 	/**
@@ -33,48 +28,48 @@ public class PingProperties {
 	 * @version 2.0.0
 	 * @since 2.0.0
 	 *
-	 * @return ConnectionManager コネクションマネージャ
+	 * @return PingProperties Pingプロパティ
 	 */
-	public static PingProperties getProperties() {
+	public synchronized static PingProperties getProperties() {
 		if (m_instance==null) {
 			m_instance = new PingProperties();
 		}
 		return m_instance;
 	}
 
-	protected static int getFpingCount() {
+	public static int getFpingCount() {
 		/** fping利用時のデフォルトの　ping回数 */
-		return HinemosPropertyUtil.getHinemosPropertyNum("monitor.ping.fping.count", 1);
+		return HinemosPropertyCommon.monitor_ping_fping_count.getIntegerValue();
 	}
 
 	public static boolean isFpingEnable() {
 		/** Fpingを使用するか？　falseであれば2.2までのisReachableを利用 */
-		return HinemosPropertyUtil.getHinemosPropertyBool("monitor.ping.fping.enable", true);
+		return HinemosPropertyCommon.monitor_ping_fping_enable.getBooleanValue();
 	}
 
-	protected static int getFpingInterval() {
+	public static int getFpingInterval() {
 		/** fping利用時のデフォルトの　pingインターバル msec*/
-		return HinemosPropertyUtil.getHinemosPropertyNum("monitor.ping.fping.interval", 1000);
+		return HinemosPropertyCommon.monitor_ping_fping_interval.getIntegerValue();
 	}
 
-	protected static int getFpingTimeout() {
+	public static int getFpingTimeout() {
 		/** fping利用時のデフォルトの　pingタイムアウト msec*/
-		return HinemosPropertyUtil.getHinemosPropertyNum("monitor.ping.fping.timeout", 1000);
+		return HinemosPropertyCommon.monitor_ping_fping_timeout.getIntegerValue();
 	}
 
-	protected static int getFpingBytes() {
+	public static int getFpingBytes() {
 		/** fping利用時のデフォルトの　ping送信データサイズ byte*/
-		return HinemosPropertyUtil.getHinemosPropertyNum("monitor.ping.fping.bytes", 56);
+		return HinemosPropertyCommon.monitor_ping_fping_bytes.getIntegerValue();
 	}
 
-	protected static String getFpingPath() {
+	public static String getFpingPath() {
 		/** fping のパス **/
-		return HinemosPropertyUtil.getHinemosPropertyStr("monitor.ping.fping.path", "/opt/hinemos/sbin/fping");
+		return HinemosPropertyDefault.monitor_ping_fping_path.getStringValue();
 	}
 
-	protected static String getFping6Path() {
-		/** fping のパス **/
-		return HinemosPropertyUtil.getHinemosPropertyStr("monitor.ping.fping6.path", "/opt/hinemos/sbin/fping6");
+	public static String getFping6Path() {
+		/** fping6 のパス **/
+		return HinemosPropertyDefault.monitor_ping_fping6_path.getStringValue();
 	}
 
 }

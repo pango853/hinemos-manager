@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.commons.util;
@@ -40,15 +33,18 @@ public class JpaPersistenceConfig {
 	static {
 		JPA_EXISTS_CHECK_HINT_MAP.put("javax.persistence.cache.storeMode","REFRESH");
 	}
+	
+	private static Object lock = new Object();
+	
 	/*
 	 * Hinemos用のEntityManagerFactoryを返す
 	 */
 	public static EntityManagerFactory getHinemosEMFactory() {
-		if (hinemosEMFactory == null
-				|| !hinemosEMFactory.isOpen()) {
-			hinemosEMFactory = Persistence.createEntityManagerFactory("hinemos");
+		synchronized (lock) {
+			if (hinemosEMFactory == null || !hinemosEMFactory.isOpen()) {
+				hinemosEMFactory = Persistence.createEntityManagerFactory("hinemos");
+			}
 		}
-		
 		return hinemosEMFactory;
 	}
 	

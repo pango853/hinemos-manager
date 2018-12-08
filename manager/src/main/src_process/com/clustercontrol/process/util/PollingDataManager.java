@@ -1,22 +1,16 @@
 /*
-
-Copyright (C) 2009 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.process.util;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
@@ -30,7 +24,7 @@ import com.clustercontrol.process.entity.MonitorProcessPollingMstData;
 import com.clustercontrol.process.entity.MonitorProcessPollingMstPK;
 import com.clustercontrol.process.factory.ProcessMasterCache;
 import com.clustercontrol.process.model.MonitorProcessMethodMstEntity;
-import com.clustercontrol.repository.bean.NodeInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 
 /**
@@ -67,7 +61,9 @@ public class PollingDataManager {
 				m_subPlatformId = "";
 
 		} catch (FacilityNotFound e) {
+			m_log.debug(e.getMessage(), e);
 		} catch (HinemosUnknown e) {
+			m_log.debug(e.getMessage(), e);
 		}
 	}
 
@@ -128,10 +124,10 @@ public class PollingDataManager {
 	 * 
 	 * @return ポーリング対象のリスト
 	 */
-	public List<String> getPollingTargets(String collectMethod){
+	public Set<String> getPollingTargets(String collectMethod){
 		m_log.debug("getPollingTargets() collectMethod = " + collectMethod);
 
-		List<String> pollingTargets = new ArrayList<String>();
+		Set<String> pollingTargets = new HashSet<String>();
 
 		MonitorProcessPollingMstData data = null;
 		data = ProcessMasterCache.getMonitorProcessPollingMst(new MonitorProcessPollingMstPK(

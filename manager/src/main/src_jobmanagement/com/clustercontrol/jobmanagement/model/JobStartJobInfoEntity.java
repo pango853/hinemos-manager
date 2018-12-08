@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.jobmanagement.model;
 
 import java.io.Serializable;
@@ -5,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.persistence.Column;
 import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
@@ -12,9 +21,6 @@ import javax.persistence.JoinColumn;
 import javax.persistence.JoinColumns;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
-
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
 
 
 /**
@@ -27,17 +33,15 @@ public class JobStartJobInfoEntity implements Serializable {
 	private static final long serialVersionUID = 1L;
 	private JobStartJobInfoEntityPK id;
 	private JobInfoEntity jobInfoEntity;
+	private String targetJobDescription;
+	private Integer targetJobCrossSessionRange;
 
 	@Deprecated
 	public JobStartJobInfoEntity() {
 	}
 
-	public JobStartJobInfoEntity(JobStartJobInfoEntityPK pk,
-			JobInfoEntity jobInfoEntity) {
+	public JobStartJobInfoEntity(JobStartJobInfoEntityPK pk) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
-		this.relateToJobInfoEntity(jobInfoEntity);
 	}
 
 	public JobStartJobInfoEntity(JobInfoEntity jobInfoEntity,
@@ -52,7 +56,7 @@ public class JobStartJobInfoEntity implements Serializable {
 				targetJobunitId,
 				targetJobId,
 				targetJobType,
-				targetJobEndValue), jobInfoEntity);
+				targetJobEndValue));
 	}
 
 
@@ -80,6 +84,23 @@ public class JobStartJobInfoEntity implements Serializable {
 	@Deprecated
 	public void setJobInfoEntity(JobInfoEntity jobInfoEntity) {
 		this.jobInfoEntity = jobInfoEntity;
+	}
+
+	@Column(name="target_job_description")
+	public String getTargetJobDescription() {
+		return this.targetJobDescription;
+	}
+	public void setTargetJobDescription(String targetJobDescription) {
+		this.targetJobDescription = targetJobDescription;
+	}
+
+	@Column(name="target_job_cross_session_range")
+	public Integer getTargetJobCrossSessionRange() {
+		return targetJobCrossSessionRange;
+	}
+
+	public void setTargetJobCrossSessionRange(Integer targetJobCrossSessionRange) {
+		this.targetJobCrossSessionRange = targetJobCrossSessionRange;
 	}
 
 	/**

@@ -1,34 +1,32 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.factory;
 
-import java.sql.Timestamp;
 import java.util.Collection;
-import java.util.Date;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.JobApprovalStatusConstant;
 import com.clustercontrol.bean.StatusConstant;
+import com.clustercontrol.collect.util.CollectDataUtil;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.JobInfoNotFound;
+import com.clustercontrol.jobmanagement.bean.JobConstant;
 import com.clustercontrol.jobmanagement.model.JobSessionJobEntity;
+import com.clustercontrol.jobmanagement.model.JobSessionNodeEntity;
+import com.clustercontrol.jobmanagement.util.JobSessionChangeDataCache;
 import com.clustercontrol.jobmanagement.util.QueryUtil;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * ジョブ操作の中断に関する処理を行うクラスです。
@@ -66,9 +64,29 @@ public class OperateSuspendOfJob {
 			//実行状態が実行中の場合、実行状態を中断にする
 			if(sessionJob.getStatus() == StatusConstant.TYPE_RUNNING){
 				sessionJob.setStatus(StatusConstant.TYPE_SUSPEND);
-
+				
+				if(sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_APPROVALJOB){
+					//セッションジョブに関連するセッションノードを取得
+					List<JobSessionNodeEntity> nodeList = sessionJob.getJobSessionNodeEntities();
+					JobSessionNodeEntity sessionNode =null;
+					
+					// 承認ジョブの場合はノードリストは1件のみ
+					if(nodeList != null && nodeList.size() == 1){
+						//セッションノードを取得
+						sessionNode =nodeList.get(0);
+					}else{
+						m_log.error("approveJob() not found job info:" + sessionJob.getId().getJobId());
+						throw new JobInfoNotFound();
+					}
+					sessionNode.setApprovalStatus(JobApprovalStatusConstant.TYPE_SUSPEND);
+				}
+				
 				//終了・中断日時を設定
-				sessionJob.setEndDate(new Timestamp(new Date().getTime()));
+				sessionJob.setEndDate(HinemosTime.currentTimeMillis());
+				// ジョブ履歴用キャッシュ更新
+				JobSessionChangeDataCache.add(sessionJob);
+				// 収集データ更新
+				CollectDataUtil.put(sessionJob);
 
 				//セッションIDとジョブIDから、直下のジョブを取得（実行状態が実行中）
 				Collection<JobSessionJobEntity> collection
@@ -146,8 +164,12 @@ public class OperateSuspendOfJob {
 			// ここはジョブを中断にして、ノード詳細で終了した後に、ジョブの中断解除をしたら、
 			// RUNNINGのままで止まってしまう。
 			// それを回避するために下記の実装を加える。
-			if (new JobSessionNodeImpl().startNode(sessionId, jobunitId, jobId)) {
-				new JobSessionJobImpl().endJob(sessionId, jobunitId, jobId, null, false);
+			if(sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_JOB
+					|| sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_APPROVALJOB
+					|| sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_MONITORJOB) {
+				if (new JobSessionNodeImpl().startNode(sessionId, jobunitId, jobId)) {
+					new JobSessionJobImpl().endJob(sessionId, jobunitId, jobId, null, false);
+				}
 			}
 		}
 	}
@@ -171,6 +193,24 @@ public class OperateSuspendOfJob {
 		if(sessionJob.getStatus() == StatusConstant.TYPE_SUSPEND){
 			//実行状態を実行中にする
 			sessionJob.setStatus(StatusConstant.TYPE_RUNNING);
+			
+			if(sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_APPROVALJOB){
+				//セッションジョブに関連するセッションノードを取得
+				List<JobSessionNodeEntity> nodeList = sessionJob.getJobSessionNodeEntities();
+				JobSessionNodeEntity sessionNode =null;
+				
+				// 承認ジョブの場合はノードリストは1件のみ
+				if(nodeList != null && nodeList.size() == 1){
+					//セッションノードを取得
+					sessionNode =nodeList.get(0);
+				}else{
+					m_log.error("approveJob() not found job info:" + sessionJob.getId().getJobId());
+					throw new JobInfoNotFound();
+				}
+				if(sessionNode.getApprovalResult() == null){
+					sessionNode.setApprovalStatus(JobApprovalStatusConstant.TYPE_PENDING);
+				}
+			}
 
 			//リレーションを取得し、親ジョブのジョブIDを取得
 			String parentJobUnitId = sessionJob.getParentJobunitId();

@@ -1,33 +1,23 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.run.factory;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.TreeMap;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.bean.PriorityConstant;
-import com.clustercontrol.monitor.run.bean.MonitorJudgementInfo;
-import com.clustercontrol.monitor.run.bean.MonitorNumericValueInfo;
-import com.clustercontrol.monitor.run.model.MonitorNumericValueInfoEntity;
+import com.clustercontrol.monitor.run.bean.MonitorNumericType;
+import com.clustercontrol.monitor.run.bean.MonitorTypeConstant;
+import com.clustercontrol.monitor.run.model.MonitorJudgementInfo;
+import com.clustercontrol.monitor.run.util.MonitorJudgementInfoCache;
 
 /**
  * 数値監視を実行する抽象クラス<BR>
@@ -70,19 +60,19 @@ abstract public class RunMonitorNumericValueType extends RunMonitor{
 
 		int result = m_failurePriority;
 
-		MonitorNumericValueInfo info = null;
+		MonitorJudgementInfo info = null;
 
 		// 値取得の成功時
 		if(ret){
 
 			// 通知の範囲をチェック
-			info = (MonitorNumericValueInfo)m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_INFO));
+			info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_INFO));
 			if(m_value >= info.getThresholdLowerLimit() && m_value < info.getThresholdUpperLimit()){
 				result = PriorityConstant.TYPE_INFO;
 			}
 			else{
 				// 警告の範囲チェック
-				info = (MonitorNumericValueInfo)m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_WARNING));
+				info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_WARNING));
 				if(m_value >= info.getThresholdLowerLimit() && m_value < info.getThresholdUpperLimit()){
 					result = PriorityConstant.TYPE_WARNING;
 				}
@@ -94,6 +84,52 @@ abstract public class RunMonitorNumericValueType extends RunMonitor{
 		}
 		if(m_log.isDebugEnabled()){
 			m_log.debug("getCheckResult() : ret = " + ret + ", m_value = " + m_value + ", result = " + result);
+		}
+		return result;
+	}
+
+	/**
+	 * 判定結果を返します。（将来予測監視で使用）
+	 * <p>
+	 * 判定情報マップにセットしてある各重要度の上下限値から、監視取得値がどの重要度の範囲に該当するか判定し、
+	 * 重要度を返します。
+	 * 
+	 * @see com.clustercontrol.bean.PriorityConstant
+	 * @see com.clustercontrol.monitor.run.bean.MonitorJudgementInfo
+	 */
+	@Override
+	public int getCheckResult(boolean ret, Object value) {
+		int result = m_failurePriority;
+
+		if (value == null || !(value instanceof Double)) {
+			return result;
+		}
+		double dblValue = (double)value;
+
+		MonitorJudgementInfo info = null;
+
+		// 値取得の成功時
+		if(ret){
+
+			// 通知の範囲をチェック
+			info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_INFO));
+			if(dblValue >= info.getThresholdLowerLimit() && dblValue < info.getThresholdUpperLimit()){
+				result = PriorityConstant.TYPE_INFO;
+			}
+			else{
+				// 警告の範囲チェック
+				info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_WARNING));
+				if(dblValue >= info.getThresholdLowerLimit() && dblValue < info.getThresholdUpperLimit()){
+					result = PriorityConstant.TYPE_WARNING;
+				}
+				else{
+					// 危険（通知・警告以外）
+					result = PriorityConstant.TYPE_CRITICAL;
+				}
+			}
+		}
+		if(m_log.isDebugEnabled()){
+			m_log.debug("getCheckResult(ret, value) : ret = " + ret + ", value = " + dblValue + ", result = " + result);
 		}
 		return result;
 	}
@@ -111,27 +147,9 @@ abstract public class RunMonitorNumericValueType extends RunMonitor{
 	 */
 	@Override
 	protected void setJudgementInfo() {
-
 		// 数値監視判定値、ログ出力メッセージ情報を取得
-		Collection<MonitorNumericValueInfoEntity> ct = m_monitor.getMonitorNumericValueInfoEntities();
-		Iterator<MonitorNumericValueInfoEntity> itr = ct.iterator();
-
-		m_judgementInfoList = new TreeMap<Integer, MonitorJudgementInfo>();
-		MonitorNumericValueInfoEntity entity = null;
-		while(itr.hasNext()){
-
-			entity = itr.next();
-			Integer priority = entity.getId().getPriority();
-
-			MonitorNumericValueInfo info = new MonitorNumericValueInfo();
-			info.setPriority(priority.intValue());
-			info.setThresholdLowerLimit(entity.getThresholdLowerLimit());
-			info.setThresholdUpperLimit(entity.getThresholdUpperLimit());
-			info.setMessageId(entity.getMessageId());
-			info.setMessage(entity.getMessage());
-
-			m_judgementInfoList.put(priority, info);
-		}
+		m_judgementInfoList = MonitorJudgementInfoCache.getMonitorJudgementMap(
+				m_monitorId, MonitorTypeConstant.TYPE_NUMERIC, MonitorNumericType.TYPE_BASIC.getType());
 	}
 
 	/**

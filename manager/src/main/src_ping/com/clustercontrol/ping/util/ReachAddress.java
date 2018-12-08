@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.ping.util;
@@ -24,7 +17,8 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.ping.bean.PingRunCountConstant;
 import com.clustercontrol.ping.bean.PingRunIntervalConstant;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * アドレスが到達可能かどうか確認するクラスです。
@@ -86,8 +80,8 @@ public class ReachAddress {
 			addressText = nodeName;
 		}
 		else{
-			m_log.debug("isReachable(): " + Messages.getString("message.ping.5"));
-			m_message = Messages.getString("message.ping.5");
+			m_log.debug("isReachable(): " + MessageConstant.MESSAGE_NOT_REGISTER_IN_REPOSITORY.getMessage());
+			m_message = MessageConstant.MESSAGE_NOT_REGISTER_IN_REPOSITORY.getMessage();
 			m_messageOrg = null;
 			return false;
 		}
@@ -130,9 +124,9 @@ public class ReachAddress {
 				boolean isReachable;
 				// isReachableがスレッドセーフではないため、同期
 				synchronized (m_syncObj) {
-					start = System.currentTimeMillis();
+					start = HinemosTime.currentTimeMillis();
 					isReachable = address.isReachable(m_timeout);
-					end = System.currentTimeMillis();
+					end = HinemosTime.currentTimeMillis();
 				}
 
 				long time = end - start;
@@ -192,34 +186,32 @@ public class ReachAddress {
 
 			buffer.append("\t" + m_message + "\n");
 
+			buffer.append("Approximate round trip times in milli-seconds:\n");
+
+			// 応答平均時間（ミリ秒）
 			if (num != 0) {
-				buffer.append("Approximate round trip times in milli-seconds:\n");
-
-				// 応答平均時間（ミリ秒）
-				if (num != 0) {
-					m_average = sum / num;
-				} else {
-					m_average = 0;
-				}
-
-				buffer.append("\tMinimum = " + min
-						+ "ms, Maximum = " + max
-						+ "ms, Average = " + m_average + "ms\n");
+				m_average = sum / num;
+			} else {
+				m_average = 0;
 			}
+
+			buffer.append("\tMinimum = " + min
+					+ "ms, Maximum = " + max
+					+ "ms, Average = " + m_average + "ms\n");
 
 			m_messageOrg = buffer.toString();
 			return true;
 
 		} catch (UnknownHostException e) {
-			m_log.warn("isReachable() " + Messages.getString("message.ping.6")
+			m_log.warn("isReachable() " + MessageConstant.MESSAGE_FAIL_TO_EXECUTE_PING.getMessage()
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 
-			m_message = Messages.getString("message.ping.6") + " (" + e.getMessage() + ")";
+			m_message = MessageConstant.MESSAGE_FAIL_TO_EXECUTE_PING.getMessage() + " (" + e.getMessage() + ")";
 		} catch (IOException e) {
-			m_log.warn("isReachable() " + Messages.getString("message.ping.6")
+			m_log.warn("isReachable() " + MessageConstant.MESSAGE_FAIL_TO_EXECUTE_PING.getMessage()
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 
-			m_message = Messages.getString("message.ping.6") + " (" + e.getMessage() + ")";
+			m_message = MessageConstant.MESSAGE_FAIL_TO_EXECUTE_PING.getMessage() + " (" + e.getMessage() + ")";
 		}
 		return false;
 	}

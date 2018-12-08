@@ -1,23 +1,15 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.accesscontrol.factory;
 
-import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.List;
 
 import javax.persistence.EntityExistsException;
 
@@ -25,10 +17,9 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
-import com.clustercontrol.accesscontrol.bean.UserInfo;
 import com.clustercontrol.accesscontrol.bean.UserTypeConstant;
-import com.clustercontrol.accesscontrol.model.RoleEntity;
-import com.clustercontrol.accesscontrol.model.UserEntity;
+import com.clustercontrol.accesscontrol.model.RoleInfo;
+import com.clustercontrol.accesscontrol.model.UserInfo;
 import com.clustercontrol.accesscontrol.util.QueryUtil;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
@@ -37,6 +28,7 @@ import com.clustercontrol.fault.UnEditableUser;
 import com.clustercontrol.fault.UsedUser;
 import com.clustercontrol.fault.UserDuplicate;
 import com.clustercontrol.fault.UserNotFound;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * ユーザ情報を更新するファクトリクラス<BR>
@@ -50,51 +42,89 @@ public class LoginUserModifier {
 	private static Log m_log = LogFactory.getLog(LoginUserModifier.class);
 
 	/**
-	 * ログインユーザを追加する。<BR>
+	 * ログインユーザを新規登録・変更する。<BR>
 	 * 
-	 * @param info 追加するユーザ情報
+	 * @param userInfo 新規登録・変更するユーザ情報
 	 * @param modifyUserId 作業ユーザID
-	 * @return
+	 * @param isNew true:新規登録／false:更新
 	 * @throws UserDuplicate
+	 * @throws UserNotFound
+	 * @throws UnEditableUser
 	 * @throws HinemosUnknown
 	 */
-	public static void addUserInfo(UserInfo info, String modifyUserId) throws UserDuplicate, HinemosUnknown {
+	public static void modifyUserInfo(UserInfo userInfo, String modifyUserId, boolean isNew) 
+			throws UserDuplicate, UserNotFound, UnEditableUser, HinemosUnknown {
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
-		if(info != null && modifyUserId != null && modifyUserId.compareTo("") != 0){
-			String userId = null;
-			try {
-				// ユーザID
-				userId = info.getId();
+		if(userInfo == null || modifyUserId == null || modifyUserId.compareTo("") == 0){
+			return;
+		}
+		m_log.debug("modifyUserInfo() start (roleId = " + userInfo.getUserId() 
+			+ ", modifyUserId = " + modifyUserId + ", isNew = " + isNew + ")");
 
-				// 現在日時を取得
-				Timestamp now = new Timestamp(new Date().getTime());
-
-				// ユーザインスタンスの作成
-				UserEntity entity = new UserEntity(userId);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {	
+			long currentTimeMillis = HinemosTime.currentTimeMillis();
+			UserInfo userInfoEntity = null;
+			if (isNew) {
+				// 新規登録
 				// 重複チェック
-				jtm.checkEntityExists(UserEntity.class, entity.getUserId());
-				entity.setUserName(info.getName());
-				entity.setUserType(UserTypeConstant.LOGIN_USER);	// ユーザ種別の格納
-				entity.setDescription(info.getDescription());
-				entity.setCreateUserId(modifyUserId);
-				entity.setCreateDatetime(now);
-				entity.setModifyUserId(modifyUserId);
-				entity.setModifyDatetime(now);
+				jtm.checkEntityExists(UserInfo.class, userInfo.getUserId());
+				// 情報設定
+				userInfo.setCreateUserId(modifyUserId);
+				userInfo.setCreateDate(currentTimeMillis);
 
 				// ALL_USERSロールを設定
-				RoleEntity roleEntity = QueryUtil.getRolePK(RoleIdConstant.ALL_USERS);
-				roleEntity.getUserEntities().add(entity);
-				entity.setRoleEntities(new ArrayList<RoleEntity>());
-				entity.getRoleEntities().add(roleEntity);
+				RoleInfo roleInfo = QueryUtil.getRolePK(RoleIdConstant.ALL_USERS);
+				List<UserInfo> userList = roleInfo.getUserInfoList();
+				userList.add(userInfo);
+				roleInfo.setUserInfoList(userList);
+				userInfo.setRoleList(new ArrayList<RoleInfo>());
+				userInfo.getRoleList().add(roleInfo);
+				userInfo.setUserType(UserTypeConstant.LOGIN_USER);	// ユーザ種別の格納
+				userInfo.setModifyUserId(modifyUserId);
+				userInfo.setModifyDate(HinemosTime.currentTimeMillis());
+				jtm.getEntityManager().persist(userInfo);
 
-			} catch (EntityExistsException e) {
-				m_log.info("addUserInfo() failure to add a user. a user'id is duplicated. (userId = " + userId + ")");
-				throw new UserDuplicate(e.getMessage(), e);
-			} catch (Exception e) {
-				m_log.warn("addUserInfo() failure to add a user. (userId = " + userId + ")", e);
-				throw new HinemosUnknown("failure to add a user. (userId = " + userId + ")", e);
+				// デバッグログ
+				if (userInfo.getRoleList() != null) {
+					for (RoleInfo role : userInfo.getRoleList()) {
+						m_log.info("userInfo.getRoleList(): userid=" + userInfo.getUserId() + ", roleid=" + role.getRoleId());
+					}
+				}
+			} else {
+				// 更新
+				// インスタンスの取得
+				userInfoEntity = QueryUtil.getUserPK(userInfo.getUserId());
+				UserInfo modifyUserInfoEntity = QueryUtil.getUserPK(modifyUserId);
+				// 内部モジュールユーザは変更不可(システムユーザはシステムユーザのみ変更可能）
+				if (userInfoEntity.getUserType().equals(UserTypeConstant.SYSTEM_USER) && !modifyUserInfoEntity.getUserType().equals(UserTypeConstant.SYSTEM_USER)) {
+					throw new UnEditableUser();
+				} else if (userInfoEntity.getUserType().equals(UserTypeConstant.INTERNAL_USER)) {
+					throw new UnEditableUser();
+				}
+				
+				// 情報設定
+				userInfoEntity.setUserName(userInfo.getUserName());
+				userInfoEntity.setDescription(userInfo.getDescription());
+				userInfoEntity.setMailAddress(userInfo.getMailAddress());
+				userInfoEntity.setModifyUserId(modifyUserId);
+				userInfoEntity.setModifyDate(HinemosTime.currentTimeMillis());
+
+				// デバッグログ
+				if (userInfoEntity.getRoleList() != null) {
+					for (RoleInfo role : userInfoEntity.getRoleList()) {
+						m_log.info("userInfo.getRoleList(): userid=" + userInfo.getUserId() + ", roleid=" + role.getRoleId());
+					}
+				}
 			}
+			m_log.info("successful in modifing a user. (userId = " + userInfo.getUserId() + ")");
+		} catch (UserNotFound | UnEditableUser e) {
+			throw e;
+		} catch (EntityExistsException e) {
+			m_log.info("modifyUserInfo() failure to add a user. a user'id is duplicated. (userId = " + userInfo.getUserId() + ")");
+			throw new UserDuplicate(e.getMessage(), e);
+		} catch (Exception e) {
+			m_log.warn("modifyUserInfo() failure to modify a user. (userId = " + userInfo.getUserId() + ")", e);
+			throw new HinemosUnknown("failure to modify a user. (userId = " + userInfo.getUserId() + ")", e);
 		}
 	}
 
@@ -110,87 +140,43 @@ public class LoginUserModifier {
 	 */
 	public static void deleteUserInfo(String userId, String modifyUserId) throws UserNotFound, UsedUser, UnEditableUser, HinemosUnknown {
 
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+		if(userId == null || userId.compareTo("") == 0 
+				|| modifyUserId == null || modifyUserId.compareTo("") == 0){
+			return;
+		}
 
-		if(userId != null && userId.compareTo("") != 0 && modifyUserId != null && modifyUserId.compareTo("") != 0){
-			try {
-				// 作業ユーザと削除対象のユーザが一致している場合、削除不可とする
-				if (userId.compareTo(modifyUserId) == 0) {
-					throw new UsedUser("a user will be deleted is equal to current login user.");
-				}
-
-				// 該当するユーザを検索して取得
-				UserEntity user = QueryUtil.getUserPK(userId);
-				// システムユーザ、内部モジュールユーザは削除不可
-				if (user != null && !user.getUserType().equals(UserTypeConstant.LOGIN_USER)) {
-					throw new UnEditableUser();
-				}
-				// ユーザを削除する（DELETE CASCADEによりユーザ権限も削除される）
-				user.unchain();		// 削除前処理
-				em.remove(user);
-
-			} catch (UserNotFound e) {
-				throw e;
-			} catch (UnEditableUser e) {
-				throw e;
-			} catch (UsedUser e) {
-				m_log.info("deleteUserInfo() failure to delete a user. (userId = " + userId + ") : "
-						+ e.getClass().getSimpleName() + ", " + e.getMessage());
-				throw e;
-			} catch (Exception e) {
-				m_log.warn("deleteUserInfo() failure to delete a user. (userId = " + userId + ")", e);
-				throw new HinemosUnknown(e.getMessage(), e);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+	
+			// 作業ユーザと削除対象のユーザが一致している場合、削除不可とする
+			if (userId.compareTo(modifyUserId) == 0) {
+				throw new UsedUser("a user will be deleted is equal to current login user.");
 			}
 
-			m_log.info("successful in deleting a user. (userId = " + userId + ")");
-		}
-	}
-
-	/**
-	 * ログインユーザを変更する。<BR>
-	 * 
-	 * @param info 変更するユーザ情報
-	 * @param modifyUserId 作業ユーザID
-	 * @throws UserNotFound
-	 * @throws UnEditableUser
-	 * @throws HinemosUnknown
-	 */
-	public static void modifyUserInfo(UserInfo info, String modifyUserId) throws UserNotFound, UnEditableUser, HinemosUnknown {
-
-		if(info != null && modifyUserId != null && modifyUserId.compareTo("") != 0){
-			String userId = null;
-			try {
-				// ユーザID
-				userId = info.getId();
-
-				// 現在日時を取得
-				Timestamp now = new Timestamp(new Date().getTime());
-
-				// ユーザインスタンスの取得
-				UserEntity entity = QueryUtil.getUserPK(userId);
-
-				// システムユーザ、内部モジュールユーザは変更不可
-				if (entity != null && !entity.getUserType().equals(UserTypeConstant.LOGIN_USER)) {
-					throw new UnEditableUser();
-				}
-
-				entity.setUserName(info.getName());
-				entity.setDescription(info.getDescription());
-				entity.setModifyUserId(modifyUserId);
-				entity.setModifyDatetime(now);
-
-			} catch (UserNotFound e) {
-				throw e;
-			} catch (UnEditableUser e) {
-				throw e;
-			} catch (Exception e) {
-				m_log.warn("modifyUserInfo() failure to modify a user. (userId = " + userId + ")", e);
-				throw new HinemosUnknown(e.getMessage(), e);
+			// 該当するユーザを検索して取得
+			UserInfo user = QueryUtil.getUserPK(userId);
+			// システムユーザ、内部モジュールユーザは削除不可
+			if (user != null && !user.getUserType().equals(UserTypeConstant.LOGIN_USER)) {
+				throw new UnEditableUser();
 			}
-			m_log.info("successful in modifing a user. (userId = " + userId + ")");
-		}
-	}
+			// リレーションを削除する
+			user.unchainRoleInfoList();
+			// ユーザを削除する
+			em.remove(user);
 
+		} catch (UserNotFound | UnEditableUser e) {
+			throw e;
+		} catch (UsedUser e) {
+			m_log.info("deleteUserInfo() failure to delete a user. (userId = " + userId + ") : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage());
+			throw e;
+		} catch (Exception e) {
+			m_log.warn("deleteUserInfo() failure to delete a user. (userId = " + userId + ")", e);
+			throw new HinemosUnknown(e.getMessage(), e);
+		}
+
+		m_log.info("successful in deleting a user. (userId = " + userId + ")");
+	}
 
 	/**
 	 * ログインユーザに設定されたパスワードを変更する。<BR>
@@ -202,23 +188,25 @@ public class LoginUserModifier {
 	 */
 	public static void modifyUserPassword(String userId, String password) throws UserNotFound, HinemosUnknown {
 
-		if(userId != null && userId.compareTo("") != 0 && password != null && password.compareTo("") != 0){
-			// 該当するユーザを検索して取得
-			UserEntity user;
-			try {
-				user = QueryUtil.getUserPK(userId);
-				// パスワードを反映する
-				user.setPassword(password);
-
-			} catch (UserNotFound e) {
-				throw e;
-			} catch (Exception e) {
-				m_log.warn("modifyUserPassword() failure to modify user's password. (userId = " + userId + ")", e);
-				throw new HinemosUnknown(e.getMessage(), e);
-			}
-
-			m_log.info("successful in modifing a user's password. (userId = " + userId + ")");
+		if(userId == null || userId.compareTo("") == 0 
+				|| password == null || password.compareTo("") == 0){
+			return;
 		}
+		// 該当するユーザを検索して取得
+		UserInfo user;
+		try {
+			user = QueryUtil.getUserPK(userId);
+			// パスワードを反映する
+			user.setPassword(password);
+
+		} catch (UserNotFound e) {
+			throw e;
+		} catch (Exception e) {
+			m_log.warn("modifyUserPassword() failure to modify user's password. (userId = " + userId + ")", e);
+			throw new HinemosUnknown(e.getMessage(), e);
+		}
+
+		m_log.info("successful in modifing a user's password. (userId = " + userId + ")");
 	}
 
 }

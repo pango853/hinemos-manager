@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.commons.util;
 
 import java.io.Serializable;
@@ -60,6 +68,7 @@ public class LocalCacheManager extends AbstractCacheManager {
 		return _keyValueStore.remove(key);
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public <T> Set<T> getKeySet(Class<T> type) {
 		Set<Serializable> set = _keySetStore.get(type);
@@ -67,12 +76,19 @@ public class LocalCacheManager extends AbstractCacheManager {
 			set = new ConcurrentSkipListSet<>();
 		}
 
-		if( ++get_key_set_counter > 10000 ){
+		if( incrementGetKeySetCounter() > 10000 ){
 			m_log.info("getKeySet() : exceeded 10K! Current key size = " + set.size() + ", key = " + type.getClass());
-			get_key_set_counter = 0;
+			resetGetKeySetCounter();
 		}
 
 		return (ConcurrentSkipListSet<T>)set;
 	}
-
+	
+	private static int incrementGetKeySetCounter() {
+		return ++get_key_set_counter;
+	}
+	
+	private static void resetGetKeySetCounter() {
+		get_key_set_counter = 0;
+	}
 }

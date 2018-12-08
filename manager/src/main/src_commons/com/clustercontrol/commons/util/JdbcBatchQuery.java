@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.commons.util;
@@ -24,6 +17,8 @@ import java.util.Date;
  */
 public abstract class JdbcBatchQuery {
 
+	protected int size = 0;
+	
 	/**
 	 * SQL文を取得
 	 * 
@@ -46,16 +41,22 @@ public abstract class JdbcBatchQuery {
 	 * @param params pstmtに設定するパラメータ
 	 * @throws SQLException
 	 */
-	protected void setParameters(PreparedStatement pstmt, Object[] params)
-			throws SQLException {
+	protected void setParameters(PreparedStatement pstmt, Object[] params) throws SQLException {
 		for (int i = 0; i < params.length; i++) {
-			if (params[i] instanceof Date) {
-				Date date = (Date) params[i];
-				pstmt.setObject(i + 1, new java.sql.Timestamp(date.getTime()));
-				continue;
+			// NaN なら、null に変換。
+			if (params[i] instanceof Float && params[i].equals(Float.NaN)) {
+				pstmt.setNull(i + 1, java.sql.Types.FLOAT);
+			}else if (params[i] instanceof Double && params[i].equals(Double.NaN)) {
+				pstmt.setNull(i + 1, java.sql.Types.DOUBLE);
+			} else if (params[i] instanceof Date) {
+				pstmt.setObject(i + 1, new java.sql.Timestamp(((Date)params[i]).getTime()));
+			} else {
+				pstmt.setObject(i + 1, params[i]);
 			}
-
-			pstmt.setObject(i + 1, params[i]);
 		}
+	}
+	
+	public int getSize() {
+		return size;
 	}
 }

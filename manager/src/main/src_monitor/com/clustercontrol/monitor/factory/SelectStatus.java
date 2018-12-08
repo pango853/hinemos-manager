@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.factory;
@@ -21,6 +14,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import com.clustercontrol.accesscontrol.bean.RoleSettingTreeConstant;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.monitor.bean.StatusDataInfo;
 import com.clustercontrol.monitor.bean.StatusFilterInfo;
@@ -65,13 +59,13 @@ public class SelectStatus {
 		ArrayList<StatusDataInfo> list = null;
 
 		Integer[] priorityList = null;
-		Timestamp outputFromDate = null;
-		Timestamp outputToDate = null;
-		Timestamp generationFromDate = null;
-		Timestamp generationToDate = null;
+		Long outputFromDate = null;
+		Long outputToDate = null;
+		Long generationFromDate = null;
+		Long generationToDate = null;
 		String monitorId = null;
 		String monitorDetailId = null;
-		String facilityType = null;
+		int facilityType = 0;
 		String application = null;
 		String message = null;
 		String ownerRoleId = null;
@@ -87,27 +81,27 @@ public class SelectStatus {
 			}
 
 			//更新日時（自）取得
-			if(filter.getOutputDateFrom() instanceof Long){
-				outputFromDate = new Timestamp(filter.getOutputDateFrom());
-				outputFromDate.setNanos(0);
+			if(filter.getOutputDateFrom() != null){
+				outputFromDate = filter.getOutputDateFrom();
+				outputFromDate -= (outputFromDate % 1000);	//ミリ秒の桁を0にする
 			}
 
 			//更新日時（至）取得
-			if(filter.getOutputDateTo() instanceof Long){
-				outputToDate = new Timestamp(filter.getOutputDateTo());
-				outputToDate.setNanos(999999999);
+			if(filter.getOutputDateTo() != null){
+				outputToDate = filter.getOutputDateTo();
+				outputToDate += (999 - (outputToDate % 1000));	//ミリ秒の桁を999にする
 			}
 
 			//出力日時（自）取得
-			if(filter.getGenerationDateFrom() instanceof Long){
-				generationFromDate = new Timestamp(filter.getGenerationDateFrom());
-				generationFromDate.setNanos(0);
+			if(filter.getGenerationDateFrom() != null){
+				generationFromDate = filter.getGenerationDateFrom();
+				generationFromDate -= (generationFromDate % 1000);	//ミリ秒の桁を0にする
 			}
 
 			//出力日時（至）取得
-			if(filter.getGenerationDateTo() instanceof Long){
-				generationToDate = new Timestamp(filter.getGenerationDateTo());
-				generationToDate.setNanos(999999999);
+			if(filter.getGenerationDateTo() != null){
+				generationToDate = filter.getGenerationDateTo();
+				generationToDate += (999 - (generationToDate % 1000));	//ミリ秒の桁を999にする
 			}
 
 			//監視項目ID取得
@@ -121,7 +115,7 @@ public class SelectStatus {
 			}
 
 			//対象ファシリティ種別取得
-			if(!"".equals(filter.getFacilityType())){
+			if(filter.getFacilityType() != null){
 				facilityType = filter.getFacilityType();
 			}
 
@@ -143,13 +137,16 @@ public class SelectStatus {
 
 		// 対象ファシリティのファシリティIDを取得
 		int level = RepositoryControllerBean.ALL;
-		if(FacilityTargetConstant.STRING_BENEATH.equals(facilityType)){
+		if(FacilityTargetConstant.TYPE_BENEATH == facilityType){
 			level = RepositoryControllerBean.ONE_LEVEL;
 		}
 		ArrayList<String> facilityIdList = new RepositoryControllerBean().getFacilityIdList(facilityId, level);
 
 		if(facilityIdList != null && facilityIdList.size() > 0){
 			// スコープの場合
+			if (facilityId.equals(RoleSettingTreeConstant.ROOT_ID)) {
+				facilityIdList.add("");
+			}
 			facilityIds = new String[facilityIdList.size()];
 			facilityIdList.toArray(facilityIds);
 		}
@@ -287,12 +284,11 @@ public class SelectStatus {
 			info.setFacilityPath(facilityPath);
 			info.setApplication(status.getApplication());
 			if (status.getOutputDate() != null) {
-				info.setOutputDate(status.getOutputDate().getTime());
+				info.setOutputDate(status.getOutputDate());
 			}
 			if (status.getGenerationDate() != null) {
-				info.setGenerationDate(status.getGenerationDate().getTime());
+				info.setGenerationDate(status.getGenerationDate());
 			}
-			info.setMessageId(status.getMessageId());
 			info.setMessage(status.getMessage());
 			info.setOwnerRoleId(status.getOwnerRoleId());
 

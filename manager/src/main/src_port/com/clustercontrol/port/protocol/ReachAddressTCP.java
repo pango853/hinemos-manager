@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.port.protocol;
@@ -24,12 +17,13 @@ import java.net.NoRouteToHostException;
 import java.net.PortUnreachableException;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.Date;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
+
 
 /**
  * アドレスのポートに到達可能かどうか確認するクラスです。
@@ -79,15 +73,13 @@ public class ReachAddressTCP extends ReachAddressProtocol {
 				try {
 					// ソケットを生成
 					socket = new Socket();
-					Date d;
 					InetSocketAddress isa = new InetSocketAddress(address,
 							m_portNo);
 
-					d = new Date();
-					bufferOrg.append(d + " Tried to Connect: ");
-					start = System.currentTimeMillis();
+					bufferOrg.append(HinemosTime.getDateString() + " Tried to Connect: ");
+					start = HinemosTime.currentTimeMillis();
 					socket.connect(isa, m_timeout);
-					end = System.currentTimeMillis();
+					end = HinemosTime.currentTimeMillis();
 
 					m_response = end - start;
 					if (m_response > 0) {
@@ -147,9 +139,9 @@ public class ReachAddressTCP extends ReachAddressProtocol {
 			return isReachable;
 		} catch (UnknownHostException e) {
 			m_log.debug("isRunning(): "
-					+ Messages.getString("message.port.6") + e.getMessage());
+					+ MessageConstant.MESSAGE_FAIL_TO_EXECUTE_TO_CONNECT.getMessage() + e.getMessage());
 
-			m_message = Messages.getString("message.port.6") + " ("
+			m_message = MessageConstant.MESSAGE_FAIL_TO_EXECUTE_TO_CONNECT.getMessage() + " ("
 					+ e.getMessage() + ")";
 
 			return false;

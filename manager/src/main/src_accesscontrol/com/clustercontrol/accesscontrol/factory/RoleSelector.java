@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.accesscontrol.factory;
@@ -23,24 +16,20 @@ import java.util.Locale;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.accesscontrol.bean.ObjectPrivilegeFilterInfo;
+import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
+import com.clustercontrol.accesscontrol.bean.RoleSettingTreeConstant;
+import com.clustercontrol.accesscontrol.bean.RoleTreeItem;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.RoleInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.UserInfo;
+import com.clustercontrol.accesscontrol.util.QueryUtil;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.PrivilegeNotFound;
 import com.clustercontrol.fault.RoleNotFound;
 import com.clustercontrol.fault.UserNotFound;
-import com.clustercontrol.util.Messages;
-import com.clustercontrol.accesscontrol.bean.ObjectPrivilegeFilterInfo;
-import com.clustercontrol.accesscontrol.bean.ObjectPrivilegeInfo;
-import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
-import com.clustercontrol.accesscontrol.bean.RoleInfo;
-import com.clustercontrol.accesscontrol.bean.RoleSettingTreeConstant;
-import com.clustercontrol.accesscontrol.bean.RoleTreeItem;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
-import com.clustercontrol.accesscontrol.bean.UserInfo;
-import com.clustercontrol.accesscontrol.model.ObjectPrivilegeEntity;
-import com.clustercontrol.accesscontrol.model.RoleEntity;
-import com.clustercontrol.accesscontrol.model.SystemPrivilegeEntity;
-import com.clustercontrol.accesscontrol.model.UserEntity;
-import com.clustercontrol.accesscontrol.util.QueryUtil;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * ロール情報を検索するファクトリクラス<BR>
@@ -61,46 +50,17 @@ public class RoleSelector {
 	 * @throws HinemosUnknown
 	 */
 	public static ArrayList<RoleInfo> getRoleInfoList() {
-
-		ArrayList<RoleInfo> list = new ArrayList<RoleInfo>();
-		List<RoleEntity> roles = null;
-
 		m_log.debug("getting all role...");
 
 		// 全ユーザを取得
-		roles = QueryUtil.getAllShowRole();
-
-		if(roles != null && roles.size() > 0){
-			Iterator<RoleEntity> itr = roles.iterator();
-			while(itr.hasNext()){
-				RoleEntity role = itr.next();
-				RoleInfo info = getRoleInfoBean(role);
-				list.add(info);
-			}
-		}
+		List<RoleInfo> roles = QueryUtil.getAllShowRole();
 
 		m_log.debug("successful in getting all role.");
-		return list;
-	}
-
-	/**
-	 * RoleEntityからRoleInfoBeanへ変換
-	 */
-	private static RoleInfo getRoleInfoBean(RoleEntity entity) {
-		RoleInfo info = new RoleInfo();
-		info.setId(entity.getRoleId());
-		info.setName(entity.getRoleName());
-		info.setRoleType(entity.getRoleType());
-		info.setDescription(entity.getDescription());
-		info.setCreateUserId(entity.getCreateUserId());
-		if (entity.getCreateDatetime() != null) {
-			info.setCreateDate(entity.getCreateDatetime().getTime());
+		if(roles == null || roles.isEmpty()){
+			return new ArrayList<>();
+		} else {
+			return new ArrayList<>(roles);
 		}
-		info.setModifyUserId(entity.getModifyUserId());
-		if (entity.getModifyDatetime() != null) {
-			info.setModifyDate(entity.getModifyDatetime().getTime());
-		}
-		return info;
 	}
 
 
@@ -109,32 +69,21 @@ public class RoleSelector {
 	 * 
 	 * @return ユーザ情報
 	 * @throws HinemosUnknown
+	 * @throws RoleNotFound 
 	 */
-	public static RoleInfo getRoleInfo(String roleId) throws HinemosUnknown {
-
-		RoleInfo info = null;
-
-		if(roleId != null && roleId.compareTo("") != 0){
-			try {
-				// ユーザを取得
-				RoleEntity entity = QueryUtil.getRolePK(roleId);
-				info = getRoleInfoBean(entity);
-				// ロールに所属するユーザIDのリスト
-				for(UserEntity userEntity : entity.getUserEntities()){
-					info.addUser(userEntity.getUserId());
-				}
-				// ロールに所属するシステム権限のリスト
-				for(SystemPrivilegeEntity systemPrivilegeEntity : entity.getSystemPrivilegeEntities()){
-					info.addSystemPrivilege(getSystemPrivilegeInfoBean(systemPrivilegeEntity));
-				}
-			} catch (RoleNotFound e) {
-				// 何もしない
-			} catch (Exception e) {
-				m_log.warn("getRoleInfo() failure to get user. : userId = " + roleId, e);
-				throw new HinemosUnknown(e.getMessage() + " : failure to get role.", e);
-			}
+	public static RoleInfo getRoleInfo(String roleId) throws HinemosUnknown, RoleNotFound {
+		if(roleId == null || roleId.isEmpty())
+			return null;
+		
+		try {
+			// ユーザを取得
+			return QueryUtil.getRolePK(roleId);
+		} catch (RoleNotFound e) {
+			throw e;
+		} catch (Exception e) {
+			m_log.warn("getRoleInfo() failure to get user. : userId = " + roleId, e);
+			throw new HinemosUnknown(e.getMessage() + " : failure to get role.", e);
 		}
-		return info;
 	}
 
 	/**
@@ -150,39 +99,37 @@ public class RoleSelector {
 	 * @param userId ログインユーザのユーザID
 	 * @return ロールツリー情報{@link com.clustercontrol.accesscontrol.bean.RoleTreeItem}の階層オブジェクト
 	 * @throws UserNotFound
+	 * @throws HinemosUnknown 
 	 * 
 	 */
-	public RoleTreeItem getRoleTree(Locale locale, String userId) throws UserNotFound {
+	public RoleTreeItem getRoleTree(Locale locale, String userId) throws UserNotFound, HinemosUnknown {
 
 		// 最上位インスタンスを作成
 		RoleTreeItem top = new RoleTreeItem();
 
 		// ルートインスタンスを作成
 		RoleInfo rootRoleItem = new RoleInfo();
-		rootRoleItem.setId(RoleSettingTreeConstant.ROOT_ID);
-		rootRoleItem.setName(Messages.getString("role", locale));
+		rootRoleItem.setRoleId(RoleSettingTreeConstant.ROOT_ID);
+		rootRoleItem.setRoleName(MessageConstant.ROLE.getMessage());
 		RoleTreeItem root = new RoleTreeItem(top, rootRoleItem);
 
 		// ロール一覧を取得
-		List<RoleEntity> list = QueryUtil.getAllShowRole();
+		List<RoleInfo> list = QueryUtil.getAllShowRole();
 		if (list != null) {
-			m_log.debug("roleEntities size = " + list.size());
+			m_log.debug("roleList size = " + list.size());
+		} else {
+			throw new HinemosUnknown("roleList is null");
 		}
 
-		for (RoleEntity roleEntity : list) {
-			if (roleEntity.getUserEntities() != null) {
-				m_log.debug("userEntities size = " + roleEntity.getUserEntities().size());
+		for (RoleInfo roleInfo : list) {
+			if (roleInfo.getUserInfoList() != null) {
+				m_log.debug("userList size = " + roleInfo.getUserInfoList().size());
 			}
-
-			// ロール情報を作成
-			RoleInfo roleInfo = RoleSelector.getRoleInfoBean(roleEntity);
 
 			// ロール情報のRoleTreeItemを作成
 			RoleTreeItem role = new RoleTreeItem(root, roleInfo);
 
-			for (UserEntity userEntity : roleEntity.getUserEntities()) {
-				// ユーザ情報を作成
-				UserInfo userInfo = LoginUserSelector.getUserInfoBean(userEntity);
+			for (UserInfo userInfo : roleInfo.getUserInfoList()) {
 				// ユーザ情報のRoleTreeItemを作成
 				new RoleTreeItem(role, userInfo);
 			}
@@ -202,16 +149,16 @@ public class RoleSelector {
 	public static ArrayList<String> getOwnerRoleIdList(String userId) throws HinemosUnknown {
 
 		ArrayList<String> list = new ArrayList<String>();
-		List<RoleEntity> roleEntities = null;
+		List<RoleInfo> roleList = null;
 		if (userId == null || userId.isEmpty()) {
 			// 全ユーザを取得
-			roleEntities = QueryUtil.getAllShowRole();
+			roleList = QueryUtil.getAllShowRole();
 		} else {
 			try {
 				// ユーザを取得
-				UserEntity entity = QueryUtil.getUserPK(userId);
-				if (entity != null){
-					roleEntities = entity.getRoleEntities();
+				UserInfo userInfo = QueryUtil.getUserPK(userId);
+				if (userInfo != null){
+					roleList = userInfo.getRoleList();
 				}
 			} catch (UserNotFound e) {
 				// 何もしない
@@ -220,12 +167,12 @@ public class RoleSelector {
 				throw new HinemosUnknown(e.getMessage() + " : failure to get user.", e);
 			}
 		}
-		if(roleEntities != null && roleEntities.size() > 0){
-			Iterator<RoleEntity> itr = roleEntities.iterator();
+		if(roleList != null && roleList.size() > 0){
+			Iterator<RoleInfo> itr = roleList.iterator();
 			while(itr.hasNext()){
-				RoleEntity roleEntity = itr.next();
-				if (!roleEntity.getRoleId().equals(RoleIdConstant.INTERNAL)) {
-					list.add(roleEntity.getRoleId());
+				RoleInfo roleInfo = itr.next();
+				if (!roleInfo.getRoleId().equals(RoleIdConstant.INTERNAL)) {
+					list.add(roleInfo.getRoleId());
 				}
 			}
 		}
@@ -254,7 +201,7 @@ public class RoleSelector {
 	public static ArrayList<SystemPrivilegeInfo> getSystemPrivilegeInfoList() {
 
 		ArrayList<SystemPrivilegeInfo> list = new ArrayList<SystemPrivilegeInfo>();
-		List<SystemPrivilegeEntity> systemPrivileges = null;
+		List<SystemPrivilegeInfo> systemPrivileges = null;
 
 		m_log.debug("getting all system privilege...");
 
@@ -262,12 +209,7 @@ public class RoleSelector {
 		systemPrivileges = QueryUtil.getAllSystemPrivilege();
 
 		if(systemPrivileges != null && systemPrivileges.size() > 0){
-			Iterator<SystemPrivilegeEntity> itr = systemPrivileges.iterator();
-			while(itr.hasNext()){
-				SystemPrivilegeEntity systemPrivilege = itr.next();
-				SystemPrivilegeInfo info = getSystemPrivilegeInfoBean(systemPrivilege);
-				list.add(info);
-			}
+			list.addAll(systemPrivileges);
 		}
 
 		m_log.debug("successful in getting all system privilege.");
@@ -282,22 +224,27 @@ public class RoleSelector {
 	 * @throws HinemosUnknown
 	 */
 	public static ArrayList<SystemPrivilegeInfo> getSystemPrivilegeInfoListByUserId(String userId) {
-
-		ArrayList<SystemPrivilegeInfo> list = new ArrayList<SystemPrivilegeInfo>();
-
 		// 全ユーザを取得
-		list = QueryUtil.getSystemPrivilegeByUserId(userId);
-		return list;
+		return QueryUtil.getSystemPrivilegeByUserId(userId);
 	}
 
 	/**
-	 * SystemPrivilegeEntityからSystemPrivilegeInfoへ変換
+	 * 指定された編集種別を条件としてシステム権限一覧情報を取得する。<BR>
+	 * 
+	 * @param editType 編集種別
+	 * @return システム権限情報のリスト
+	 * @throws HinemosUnknown
 	 */
-	private static SystemPrivilegeInfo getSystemPrivilegeInfoBean(SystemPrivilegeEntity entity) {
-		SystemPrivilegeInfo info = new SystemPrivilegeInfo();
-		info.setSystemFunction(entity.getId().getSystemFunction());
-		info.setSystemPrivilege(entity.getId().getSystemPrivilege());
-		return info;
+	public static ArrayList<SystemPrivilegeInfo> getSystemPrivilegeInfoListByEditType(String editType) {
+		// 全ユーザを取得
+		List<SystemPrivilegeInfo> list = QueryUtil.getSystemPrivilegeByEditType(editType);
+
+		if(list == null || list.isEmpty()){
+			return new ArrayList<>();
+		} else {
+			return new ArrayList<>(list);
+		}
+
 	}
 
 	/**
@@ -324,8 +271,7 @@ public class RoleSelector {
 				&& objectPrivilege != null && objectPrivilege.compareTo("") != 0){
 			try {
 				// オブジェクト権限を取得
-				ObjectPrivilegeEntity entity = QueryUtil.getObjectPrivilegePK(objectType, objectId, roleId, objectPrivilege);
-				info = getObjectPrivilegeInfoBean(entity);
+				info = QueryUtil.getObjectPrivilegePK(objectType, objectId, roleId, objectPrivilege);
 			} catch (PrivilegeNotFound e) {
 				// 何もしない
 			} catch (Exception e) {
@@ -345,7 +291,7 @@ public class RoleSelector {
 	public static ArrayList<ObjectPrivilegeInfo> getObjectPrivilegeInfoList(ObjectPrivilegeFilterInfo filter) {
 
 		ArrayList<ObjectPrivilegeInfo> list = new ArrayList<ObjectPrivilegeInfo>();
-		List<ObjectPrivilegeEntity> objectPrivileges = null;
+		List<ObjectPrivilegeInfo> objectPrivileges = null;
 
 		if (filter == null) {
 			// 全ユーザを取得
@@ -360,33 +306,9 @@ public class RoleSelector {
 		}
 
 		if(objectPrivileges != null && objectPrivileges.size() > 0){
-			Iterator<ObjectPrivilegeEntity> itr = objectPrivileges.iterator();
-			while(itr.hasNext()){
-				ObjectPrivilegeEntity objectPrivilege = itr.next();
-				ObjectPrivilegeInfo info = getObjectPrivilegeInfoBean(objectPrivilege);
-				list.add(info);
-			}
+			list.addAll(objectPrivileges);
 		}
 		return list;
 	}
 
-	/**
-	 * ObjectPrivilegeEntityからObjectPrivilegeInfoへ変換
-	 */
-	private static ObjectPrivilegeInfo getObjectPrivilegeInfoBean(ObjectPrivilegeEntity entity) {
-		ObjectPrivilegeInfo info = new ObjectPrivilegeInfo();
-		info.setObjectType(entity.getId().getObjectType());
-		info.setObjectId(entity.getId().getObjectId());
-		info.setRoleId(entity.getId().getRoleId());
-		info.setObjectPrivilege(entity.getId().getObjectPrivilege());
-		info.setCreateUserId(entity.getCreateUserId());
-		if (entity.getCreateDatetime() != null) {
-			info.setCreateDate(entity.getCreateDatetime().getTime());
-		}
-		info.setModifyUserId(entity.getModifyUserId());
-		if (entity.getModifyDatetime() != null) {
-			info.setModifyDate(entity.getModifyDatetime().getTime());
-		}
-		return info;
-	}
 }

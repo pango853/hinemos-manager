@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.sql.factory;
@@ -27,10 +20,10 @@ import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorNumericValueType;
 import com.clustercontrol.repository.util.RepositoryUtil;
-import com.clustercontrol.sql.model.MonitorSqlInfoEntity;
+import com.clustercontrol.sql.model.SqlCheckInfo;
 import com.clustercontrol.sql.util.AccessDB;
 import com.clustercontrol.sql.util.QueryUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.StringBinder;
 
 /**
@@ -43,10 +36,8 @@ public class RunMonitorSql extends RunMonitorNumericValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorSql.class );
 
-	private static final String MESSAGE_ID_UNKNOWN = "100";
-
 	/** SQL監視情報 */
-	private MonitorSqlInfoEntity m_sql = null;
+	private SqlCheckInfo m_sql = null;
 
 	/** 接続文字列 */
 	private String m_url = null;
@@ -84,7 +75,7 @@ public class RunMonitorSql extends RunMonitorNumericValueType {
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -143,41 +134,40 @@ public class RunMonitorSql extends RunMonitorNumericValueType {
 					int number = rSet.getRow();
 
 					NumberFormat numberFormat = NumberFormat.getNumberInstance();
-					m_message = Messages.getString("select.value") + " : " + m_value;
-					m_messageOrg = Messages.getString("record.value") + " : " + numberFormat.format(m_value) + ", " +
-							Messages.getString("records.number") + " : " + numberFormat.format(number);
-					m_messageOrg += "\n" + Messages.getString("connection.url") + " : " + url;
+					m_message = MessageConstant.SELECT_VALUE.getMessage() + " : " + m_value;
+					m_messageOrg = MessageConstant.RECORD_VALUE.getMessage() + " : " + numberFormat.format(m_value) + ", " +
+							MessageConstant.RECORDS_NUMBER.getMessage() + " : " + numberFormat.format(number);
+					m_messageOrg += "\n" + MessageConstant.CONNECTION_URL.getMessage() + " : " + url;
 
 					result = true;
 				}
 				else{
 					//SELECT文以外はエラー
-					m_log.info("collect(): " + Messages.getString("message.sql.5"));
-					m_unKnownMessage = Messages.getString("message.sql.5");
-					m_messageOrg = Messages.getString("sql.string") + " : " + m_query;
-					m_messageOrg += "\n" + Messages.getString("connection.url") + " : " + url;
+					m_log.info("collect(): " + MessageConstant.MESSAGE_PLEASE_SET_SELECT_STATEMENT_IN_SQL.getMessage());
+					m_unKnownMessage = MessageConstant.MESSAGE_PLEASE_SET_SELECT_STATEMENT_IN_SQL.getMessage();
+					m_messageOrg = MessageConstant.SQL_STRING.getMessage() + " : " + m_query;
+					m_messageOrg += "\n" + MessageConstant.CONNECTION_URL.getMessage() + " : " + url;
 				}
 			}
 			else{
 				//SELECT文以外はエラー
-				m_log.info("collect(): " + Messages.getString("message.sql.5"));
-				m_unKnownMessage = Messages.getString("message.sql.5");
-				m_messageOrg = Messages.getString("sql.string") + " : " + m_query;
-				m_messageOrg += "\n" + Messages.getString("connection.url") + " : " + url;
+				m_log.info("collect(): " + MessageConstant.MESSAGE_PLEASE_SET_SELECT_STATEMENT_IN_SQL.getMessage());
+				m_unKnownMessage = MessageConstant.MESSAGE_PLEASE_SET_SELECT_STATEMENT_IN_SQL.getMessage();
+				m_messageOrg = MessageConstant.SQL_STRING.getMessage() + " : " + m_query;
+				m_messageOrg += "\n" + MessageConstant.CONNECTION_URL.getMessage() + " : " + url;
 			}
 		} catch (ClassNotFoundException e) {
-			m_log.info("collect() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			m_unKnownMessage = Messages.getString("message.sql.6");
-			m_messageOrg = Messages.getString("sql.string") + " : " + m_query + " (" + e.getMessage() + ")";
-			m_messageOrg += "\n" + Messages.getString("connection.url") + " : " + url;
+			m_log.debug("collect() : " + e.getClass().getSimpleName() + ", " + e.getMessage());
+			m_unKnownMessage = MessageConstant.MESSAGE_CANNOT_FIND_JDBC_DRIVER.getMessage();
+			m_messageOrg = MessageConstant.SQL_STRING.getMessage() + " : " + m_query + " (" + e.getMessage() + ")";
+			m_messageOrg += "\n" + MessageConstant.CONNECTION_URL.getMessage() + " : " + url;
 		} catch (SQLException e) {
 			// SQL実行エラー
 			m_log.info("collect() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			m_unKnownMessage = Messages.getString("message.sql.7");
-			m_messageOrg = Messages.getString("sql.string") + " : " + m_query + " (" + e.getMessage() + ")";
-			m_messageOrg += "\n" + Messages.getString("connection.url") + " : " + url;
+			m_unKnownMessage = MessageConstant.MESSAGE_FAILED_TO_EXECUTE_SQL.getMessage();
+			m_messageOrg = MessageConstant.SQL_STRING.getMessage() + " : " + m_query + " (" + e.getMessage() + ")";
+			m_messageOrg += "\n" + MessageConstant.CONNECTION_URL.getMessage() + " : " + url;
 		} finally {
 			try {
 				if(rSet != null){
@@ -203,28 +193,18 @@ public class RunMonitorSql extends RunMonitorNumericValueType {
 	protected void setCheckInfo() throws MonitorNotFound {
 
 		// SQL監視情報を取得
-		m_sql = QueryUtil.getMonitorSqlInfoPK(m_monitorId);
+		if (!m_isMonitorJob) {
+			m_sql = QueryUtil.getMonitorSqlInfoPK(m_monitorId);
+		} else {
+			m_sql = QueryUtil.getMonitorSqlInfoPK(m_monitor.getMonitorId());
+		}
 
 		// SQL監視情報を設定
 		m_url = m_sql.getConnectionUrl().trim();
-		m_user = m_sql.getConnectionUser().trim();
-		m_password = m_sql.getConnectionPassword().trim();
+		m_user = m_sql.getUser().trim();
+		m_password = m_sql.getPassword().trim();
 		m_query = m_sql.getQuery().trim();
 		m_jdbcDriver = m_sql.getJdbcDriver().trim();
-	}
-
-	/* (非 Javadoc)
-	 * ノード用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#getMessageId(int)
-	 */
-	@Override
-	public String getMessageId(int id) {
-
-		String messageId = super.getMessageId(id);
-		if(messageId == null || "".equals(messageId)){
-			return MESSAGE_ID_UNKNOWN;
-		}
-		return messageId;
 	}
 
 	/* (非 Javadoc)
@@ -247,5 +227,18 @@ public class RunMonitorSql extends RunMonitorNumericValueType {
 	@Override
 	public String getMessageOrg(int id) {
 		return m_messageOrg;
+	}
+
+	@Override
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		if (m_monitor == null || m_monitor.getSqlCheckInfo() == null) {
+			return "";
+		}
+		String[] args = {
+				String.valueOf(m_monitor.getSqlCheckInfo().getJdbcDriver()),
+				String.valueOf(m_monitor.getSqlCheckInfo().getUser()),
+				String.valueOf(m_monitor.getSqlCheckInfo().getQuery())};
+		return MessageConstant.MESSAGE_JOB_MONITOR_ORGMSG_SQL.getMessage(args)
+				+ "\n" + orgMsg;
 	}
 }

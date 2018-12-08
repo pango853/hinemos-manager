@@ -1,15 +1,11 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.monitor;
 
 import java.text.SimpleDateFormat;
@@ -25,7 +21,7 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
@@ -34,12 +30,17 @@ import com.clustercontrol.fault.InvalidUserPass;
 import com.clustercontrol.fault.MonitorDuplicate;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.monitor.bean.MonitorFilterInfo;
-import com.clustercontrol.monitor.run.bean.MonitorInfo;
-import com.clustercontrol.monitor.run.bean.MonitorStringValueInfo;
+import com.clustercontrol.monitor.run.bean.MonitorInfoBean;
 import com.clustercontrol.monitor.run.bean.MonitorTypeConstant;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
+import com.clustercontrol.monitor.run.model.MonitorStringValueInfo;
 import com.clustercontrol.monitor.session.MonitorSettingControllerBean;
+import com.clustercontrol.performance.bean.CollectorItemInfo;
+import com.clustercontrol.performance.session.PerformanceControllerBean;
 import com.clustercontrol.sql.bean.JdbcDriverInfo;
 import com.clustercontrol.sql.session.MonitorSqlControllerBean;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.ws.util.HashMapInfo;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 
 /**
@@ -92,7 +93,7 @@ public class MonitorSettingEndpoint {
 				+ ", Method=getMonitorList, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx));
 
-		return new MonitorSettingControllerBean().getMonitorList();
+		return new MonitorSettingControllerBean().getMonitorListWithoutCheckInfo(null);
 	}
 
 	/**
@@ -115,6 +116,7 @@ public class MonitorSettingEndpoint {
 		// 認証済み操作ログ
 		if(condition != null){
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			StringBuffer msg = new StringBuffer();
 			msg.append(", MonitorID=");
 			msg.append(condition.getMonitorId());
@@ -150,7 +152,129 @@ public class MonitorSettingEndpoint {
 					+ msg.toString());
 		}
 
-		return new MonitorSettingControllerBean().getMonitorList(condition);
+		return new MonitorSettingControllerBean().getMonitorListWithoutCheckInfo(condition);
+	}
+
+
+	/**
+	 * 監視設定一覧の取得
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @return 監視設定一覧(チェック設定、監視種別情報を含まない)
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public ArrayList<MonitorInfoBean> getMonitorBeanList() throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getMonitorList");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_MONITOR + " Get"
+				+ ", Method=getMonitorList, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new MonitorSettingControllerBean().getMonitorBeanListWithoutCheckInfo(null);
+	}
+
+	/**
+	 * 監視設定一覧の取得
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @param condition フィルタ条件
+	 * @return 監視設定一覧(チェック設定、監視種別情報を含まない)
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public ArrayList<MonitorInfoBean> getMonitorBeanListByCondition(MonitorFilterInfo condition) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getMonitorList");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		if(condition != null){
+			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
+			StringBuffer msg = new StringBuffer();
+			msg.append(", MonitorID=");
+			msg.append(condition.getMonitorId());
+			msg.append(", MonitorTypeID=");
+			msg.append(condition.getMonitorTypeId());
+			msg.append(", Description=");
+			msg.append(condition.getDescription());
+			msg.append(", FacilityID=");
+			msg.append(condition.getFacilityId());
+			msg.append(", CalendarID=");
+			msg.append(condition.getCalendarId());
+			msg.append(", RegUser=");
+			msg.append(condition.getRegUser());
+			msg.append(", RegFromDate=");
+			msg.append(condition.getRegFromDate()==null?null:sdf.format(new Date(condition.getRegFromDate())));
+			msg.append(", RegToDate=");
+			msg.append(condition.getRegToDate()==null?null:sdf.format(new Date(condition.getRegToDate())));
+			msg.append(", UpdateUser=");
+			msg.append(condition.getUpdateUser());
+			msg.append(", UpdateFromDate=");
+			msg.append(condition.getUpdateFromDate()==null?null:sdf.format(new Date(condition.getUpdateFromDate())));
+			msg.append(", UpdateToDate=");
+			msg.append(condition.getUpdateToDate()==null?null:sdf.format(new Date(condition.getUpdateToDate())));
+			msg.append(", MonitorFlg=");
+			msg.append(condition.getMonitorFlg());
+			msg.append(", CollectorFlg=");
+			msg.append(condition.getCollectorFlg());
+			msg.append(", OwnerRoleId=");
+			msg.append(condition.getOwnerRoleId());
+			m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_MONITOR + " Get"
+					+ ", Method=getMonitorListByCondition, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+		}
+
+		return new MonitorSettingControllerBean().getMonitorBeanListWithoutCheckInfo(condition);
+	}
+
+	
+
+	/**
+	 * 以下の条件に一致する監視設定の一覧を取得します。
+	 *　　オーナーロールIDが参照可能
+	 *　　文字列監視
+	 *　　指定されたファシリティIDもしくはその配下のノードに一致する
+	 *　※サイレント監視で使用する。
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @param facilityId　ファシリティID
+	 * @param ownerRoleId オーナーロールID
+	 * @return　監視設定一覧
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 */
+	public List<MonitorInfo> getStringMonitoInfoListForAnalytics(String facilityId, String ownerRoleId) 
+			throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getStringMonitoInfoListForAnalytics");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", FacilityID=");
+		msg.append(facilityId);
+		msg.append(", OwnerRoleID=");
+		msg.append(ownerRoleId);
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_MONITOR + " Get"
+				+ ", Method=getStringMonitoInfoListForAnalytics, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+		return new MonitorSettingControllerBean().getStringMonitoInfoListForAnalytics(facilityId, ownerRoleId);
 	}
 
 	/**
@@ -168,10 +292,10 @@ public class MonitorSettingEndpoint {
 	 * @see  com.clustercontrol.monitor.run.bean.MonitorInfo
 	 */
 	public boolean addMonitor(MonitorInfo info) throws MonitorDuplicate, HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting {
-		String id = null;
-		if (info != null) {
-			id = info.getMonitorId();
-		}
+		if (info == null)
+			throw new HinemosUnknown("MonitorInfo is null");
+
+		String id = info.getMonitorId();
 		m_log.debug("addMonitor : monitorId=" + id + ", monitorInfo=" + info);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.ADD));
@@ -181,33 +305,34 @@ public class MonitorSettingEndpoint {
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		if(info != null){
-			msg.append(", MonitorID=");
-			msg.append(info.getMonitorId());
-			if(MonitorTypeConstant.TYPE_STRING == info.getMonitorType()){
-				// 文字列監視
-				List<MonitorStringValueInfo> list = info.getStringValueInfo();
-				if (list != null && list.size() > 0) {
-					for (int i=0; i<list.size(); i++) {
-						msg.append(", " + (i + 1) + "=(");
-						msg.append("OrderNo=");
-						msg.append(i);
-						msg.append(", Description=");
-						msg.append(list.get(i).getDescription());
-						msg.append(", ProcessType=");
-						msg.append(list.get(i).getProcessType());
-						msg.append(", Pattern=");
-						msg.append(list.get(i).getPattern());
-						msg.append(", CaseSensitivityFlg=");
-						msg.append(list.get(i).getCaseSensitivityFlg());
-						msg.append(", ValidFlg=");
-						msg.append(list.get(i).isValidFlg());
-						msg.append(")");
-					}
+
+		msg.append(", MonitorID=");
+		msg.append(id);
+		if(MonitorTypeConstant.TYPE_STRING == info.getMonitorType()){
+			// 文字列監視
+			List<MonitorStringValueInfo> list = info.getStringValueInfo();
+			if (list != null && list.size() > 0) {
+				for (int i=0; i<list.size(); i++) {
+					msg.append(", " + (i + 1) + "=(");
+					msg.append("OrderNo=");
+					msg.append(i);
+					msg.append(", Description=");
+					msg.append(list.get(i).getDescription());
+					msg.append(", ProcessType=");
+					msg.append(list.get(i).getProcessType());
+					msg.append(", Pattern=");
+					msg.append(list.get(i).getPattern());
+					msg.append(", CaseSensitivityFlg=");
+					msg.append(list.get(i).getCaseSensitivityFlg());
+					msg.append(", ValidFlg=");
+					msg.append(list.get(i).getValidFlg());
+					msg.append(")");
 				}
 			}
 		}
-
+		if (info.getWinEventCheckInfo() != null) {
+			info.getWinEventCheckInfo().reflect();
+		}
 		try {
 			ret = new MonitorSettingControllerBean().addMonitor(info);
 		} catch (Exception e) {
@@ -240,10 +365,11 @@ public class MonitorSettingEndpoint {
 	 * @see  com.clustercontrol.monitor.run.bean.MonitorInfo
 	 */
 	public boolean modifyMonitor(MonitorInfo info) throws MonitorNotFound, HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting {
-		String id = null;
-		if (info != null) {
-			id = info.getMonitorId();
-		}
+		if (info == null)
+			throw new HinemosUnknown("MonitorInfo is null");
+		
+		String id = info.getMonitorId();
+		
 		m_log.debug("modifyMonitor : monitorId=" + id + ", monitorInfo=" + info);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.MODIFY));
@@ -253,44 +379,45 @@ public class MonitorSettingEndpoint {
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		if(info != null){
-			msg.append(", MonitorID=");
-			msg.append(info.getMonitorId());
-			if(MonitorTypeConstant.TYPE_STRING == info.getMonitorType()){
-				// 文字列監視
-				List<MonitorStringValueInfo> list = info.getStringValueInfo();
-				if (list != null && list.size() > 0) {
-					for (int i=0; i<list.size(); i++) {
-						msg.append(", " + (i + 1) + "=(");
-						msg.append("OrderNo=");
-						msg.append(i);
-						msg.append(", Description=");
-						msg.append(list.get(i).getDescription());
-						msg.append(", ProcessType=");
-						msg.append(list.get(i).getProcessType());
-						msg.append(", Pattern=");
-						msg.append(list.get(i).getPattern());
-						msg.append(", CaseSensitivityFlg=");
-						msg.append(list.get(i).getCaseSensitivityFlg());
-						msg.append(", ValidFlg=");
-						msg.append(list.get(i).isValidFlg());
-						msg.append(")");
-					}
+		msg.append(", MonitorID=");
+		msg.append(id);
+		if(MonitorTypeConstant.TYPE_STRING == info.getMonitorType()){
+			// 文字列監視
+			List<MonitorStringValueInfo> list = info.getStringValueInfo();
+			if (list != null && list.size() > 0) {
+				for (int i=0; i<list.size(); i++) {
+					msg.append(", " + (i + 1) + "=(");
+					msg.append("OrderNo=");
+					msg.append(i);
+					msg.append(", Description=");
+					msg.append(list.get(i).getDescription());
+					msg.append(", ProcessType=");
+					msg.append(list.get(i).getProcessType());
+					msg.append(", Pattern=");
+					msg.append(list.get(i).getPattern());
+					msg.append(", CaseSensitivityFlg=");
+					msg.append(list.get(i).getCaseSensitivityFlg());
+					msg.append(", ValidFlg=");
+					msg.append(list.get(i).getValidFlg());
+					msg.append(")");
 				}
 			}
 		}
 
+		if (info.getWinEventCheckInfo() != null) {
+			info.getWinEventCheckInfo().reflect();
+		}
 		try {
 			ret = new MonitorSettingControllerBean().modifyMonitor(info);
 		} catch (Exception e) {
-			m_opelog.warn(monitorTypeToTitle(info.getMonitorTypeId()) + " Change Failed"
-					+ ", Method=modify" + monitorTypeToMethod(info.getMonitorTypeId()) + ", User="
+			m_opelog.warn(monitorTypeToTitle(id) + " Change Failed"
+					+ ", Method=modify" + monitorTypeToMethod(id) + ", User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
 					+ msg.toString());
 			throw e;
 		}
-		m_opelog.info(monitorTypeToTitle(info.getMonitorTypeId()) + " Change"
-				+ ", Method=modify" + monitorTypeToMethod(info.getMonitorTypeId()) + ", User="
+		m_opelog.info(monitorTypeToTitle(id) + " Change"
+				+ ", Method=modify" + monitorTypeToMethod(id) + ", User="
 				+ HttpAuthenticator.getUserAccountString(wsctx)
 				+ msg.toString());
 
@@ -308,8 +435,10 @@ public class MonitorSettingEndpoint {
 	 * @throws MonitorNotFound
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
+	 * @throws InvalidSetting
 	 */
-	public boolean deleteMonitor(List<String> monitorIdList, String monitorTypeId) throws MonitorNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
+	public boolean deleteMonitor(List<String> monitorIdList)
+			throws MonitorNotFound, HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting {
 		m_log.debug("deleteMonitor : monitorId=" + monitorIdList);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.MODIFY));
@@ -323,16 +452,16 @@ public class MonitorSettingEndpoint {
 		msg.append(monitorIdList);
 
 		try {
-			ret = new MonitorSettingControllerBean().deleteMonitor(monitorIdList, monitorTypeId);
+			ret = new MonitorSettingControllerBean().deleteMonitor(monitorIdList);
 		} catch (Exception e) {
-			m_opelog.warn(monitorTypeToTitle(monitorTypeId) + " Delete Failed"
-					+ ", Method=delete" + monitorTypeToMethod(monitorTypeId) + ", User="
+			m_opelog.warn(" Delete Failed"
+					+ ", Method=delete, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
 					+ msg.toString());
 			throw e;
 		}
-		m_opelog.info(monitorTypeToTitle(monitorTypeId) + " Delete"
-				+ ", Method=delete" + monitorTypeToMethod(monitorTypeId) + ", User="
+		m_opelog.info(" Delete"
+				+ ", Method=delete, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx)
 				+ msg.toString());
 
@@ -354,7 +483,7 @@ public class MonitorSettingEndpoint {
 	 * @throws InvalidUserPass
 	 * @see  com.clustercontrol.monitor.run.bean.MonitorInfo
 	 */
-	public MonitorInfo getMonitor(String monitorId, String monitorTypeId) throws MonitorNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
+	public MonitorInfo getMonitor(String monitorId) throws MonitorNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
 		m_log.debug("getMonitor : monitorId=" + monitorId);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
@@ -364,12 +493,11 @@ public class MonitorSettingEndpoint {
 		StringBuffer msg = new StringBuffer();
 		msg.append(", MonitorID=");
 		msg.append(monitorId);
-		m_opelog.debug(monitorTypeToTitle(monitorTypeId) + " Get"
-				+ ", Method=get" + monitorTypeToMethod(monitorTypeId) + ", User="
+		m_opelog.debug(" Get, Method=getMonitor, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx)
 				+ msg.toString());
 
-		return new MonitorSettingControllerBean().getMonitor(monitorId, monitorTypeId);
+		return new MonitorSettingControllerBean().getMonitor(monitorId);
 	}
 
 	/**
@@ -862,6 +990,163 @@ public class MonitorSettingEndpoint {
 	}
 
 	/**
+	 * カスタムトラップ監視設定一覧の取得
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @return
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 * @throws MonitorNotFound
+	 */
+	public ArrayList<MonitorInfo> getCustomTrapList() throws InvalidUserPass, InvalidRole, HinemosUnknown, MonitorNotFound {
+		m_log.debug("getCustomList()");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_MONITOR_CUSTOMTRAP + " Get"
+				+ ", Method=getCustomList, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new MonitorSettingControllerBean().getCustomTrapList();
+	}
+
+	/**
+	 * 以下の条件に一致する監視情報を取得します。
+	 *　　オーナーロールIDが参照可能
+	 *　　文字列監視もしくはSNMPTRAP監視
+	 *　　指定されたファシリティIDもしくはその直下のノードに一致する　
+	 *　　※ログ件数監視で使用する。
+	 *
+	 * @param facilityId　ファシリティID
+	 * @param ownerRoleId　オーナーロールID
+	 * @return　監視設定リスト
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 */
+	public ArrayList<MonitorInfo> getMonitorListForLogcount(String facilityId, String ownerRoleId) 
+			throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getMonitorListForLogcount()");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", FacilityID=");
+		msg.append(facilityId);
+		msg.append(", OwnerRoleID=");
+		msg.append(ownerRoleId);
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_MONITOR + " Get"
+				+ ", Method=getMonitorListForLogcount, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+		return new MonitorSettingControllerBean().getMonitorListForLogcount(facilityId, ownerRoleId);
+	}
+
+	/**
+	 * 収集項目コードの一覧を取得します
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @return 収集項目IDをキーとしCollectorItemTreeItemが格納されているHashMap
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public HashMapInfo getItemCodeMap() throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getItemCodeMap");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		HashMapInfo info = new HashMapInfo();
+		info.getMap2().putAll(new PerformanceControllerBean().getItemCodeMap());
+		return info;
+	}
+	
+	/**
+	 * 指定のファシリティで収集可能な項目のリストを返します
+	 * デバイス別の収集項目があり、ノード毎に登録されているデバイス情報が異なるため、
+	 * 取得可能な収集項目はファシリティ毎に異なる。
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @param facilityId ファシリティID
+	 * @return 指定のファシリティで収集可能な項目のリスト
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 * @throws HinemosUnknown
+	 */
+	public List<CollectorItemInfo> getAvailableCollectorItemList(String facilityId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getAvailableCollectorItemList");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		return new PerformanceControllerBean().getAvailableCollectorItemList(facilityId);
+	}
+
+	/**
+	 * 指定した文字列監視設定のタグ一覧を取得します。
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @param monitorId		監視項目ID
+	 * @param ownerRoleId	オーナーロールID
+	 * @return タグ一覧 
+	 * @throws InvalidUserPass
+	 * @throws MonitorNotFound
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 */
+	public List<String> getMonitorStringTagList(String monitorId, String ownerRoleId) 
+			throws InvalidUserPass, MonitorNotFound, InvalidRole, HinemosUnknown {
+		m_log.debug("getMonitorStringTagList");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		return new MonitorSettingControllerBean().getMonitorStringTagList(monitorId, ownerRoleId);
+	}
+
+	/**
+	 * ログ件数監視の過去分集計を行う。
+	 *
+	 * MonitorSettingModify権限が必要
+	 *
+	 * @param monitorId 監視設定ID
+	 * @param startDate 収集開始日時
+	 * @throws MonitorNotFound
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 * @throws InvalidSetting
+	 * @throws HinemosUnknown
+	 */
+	public void runSummaryLogcount(String monitorId, Long startDate) throws MonitorNotFound, InvalidUserPass, InvalidRole, InvalidSetting, HinemosUnknown {
+		m_log.debug("runSummaryLogcount");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.MODIFY));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", MonitorID=");
+		msg.append(monitorId);
+		msg.append(", StartDate=");
+		msg.append(startDate);
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_MONITOR + " Get"
+				+ ", Method=runSummaryLogcount, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+
+		new MonitorSettingControllerBean().runSummaryLogcount(monitorId, startDate);
+
+		return;
+	}
+
+	/**
 	 * 監視種別からタイトルを取得する
 	 *
 	 * @param type 監視種別
@@ -898,7 +1183,8 @@ public class MonitorSettingEndpoint {
 		} else if (HinemosModuleConstant.MONITOR_PORT.equals(type)) {
 			// サービス・ポート監視
 			return HinemosModuleConstant.LOG_PREFIX_MONITOR_PORT;
-		} else if (HinemosModuleConstant.MONITOR_CUSTOM.equals(type)) {
+		} else if (HinemosModuleConstant.MONITOR_CUSTOM_N.equals(type)
+				|| HinemosModuleConstant.MONITOR_CUSTOM_S.equals(type)) {
 			// コマンド監視
 			return HinemosModuleConstant.LOG_PREFIX_MONITOR_CUSTOM;
 		} else if (HinemosModuleConstant.MONITOR_SYSTEMLOG.equals(type)) {
@@ -910,7 +1196,26 @@ public class MonitorSettingEndpoint {
 		} else if (HinemosModuleConstant.MONITOR_WINSERVICE.equals(type)) {
 			// Windowsサービス監視
 			return HinemosModuleConstant.LOG_PREFIX_MONITOR_WINSERVICE;
-		}
+		} else if (HinemosModuleConstant.MONITOR_CUSTOMTRAP_N.equals(type)
+			|| HinemosModuleConstant.MONITOR_CUSTOMTRAP_S.equals(type)) {
+			// カスタムトラップ監視
+			return HinemosModuleConstant.LOG_PREFIX_MONITOR_CUSTOMTRAP;
+		} else if (HinemosModuleConstant.MONITOR_LOGCOUNT.equals(type)) {
+				// ログ件数監視
+				return HinemosModuleConstant.LOG_PREFIX_MONITOR_LOGCOUNT;
+		} else if (HinemosModuleConstant.MONITOR_CORRELATION.equals(type)) {
+			// 相関係数監視
+			return HinemosModuleConstant.LOG_PREFIX_MONITOR_CORRELATION;
+		} else if (HinemosModuleConstant.MONITOR_INTEGRATION.equals(type)) {
+			// 収集値統合監視
+			return HinemosModuleConstant.LOG_PREFIX_MONITOR_INTEGRATION;
+		} else if (HinemosModuleConstant.MONITOR_BINARYFILE_BIN.equals(type)) {
+			// バイナリ監視 */
+			return HinemosModuleConstant.LOG_PREFIX_MONITOR_BINARY_FILE;
+		} else if (HinemosModuleConstant.MONITOR_PCAP_BIN.equals(type)) {
+			// パケットキャプチャ監視 */
+			return HinemosModuleConstant.LOG_PREFIX_MONITOR_PCAP;
+		} 
 		return "";
 	}
 
@@ -951,7 +1256,8 @@ public class MonitorSettingEndpoint {
 		} else if (HinemosModuleConstant.MONITOR_PORT.equals(type)) {
 			// サービス・ポート監視
 			return "Port";
-		} else if (HinemosModuleConstant.MONITOR_CUSTOM.equals(type)) {
+		} else if (HinemosModuleConstant.MONITOR_CUSTOM_N.equals(type)
+				|| HinemosModuleConstant.MONITOR_CUSTOM_S.equals(type)) {
 			// コマンド監視
 			return "Custom";
 		} else if (HinemosModuleConstant.MONITOR_SYSTEMLOG.equals(type)) {
@@ -963,7 +1269,22 @@ public class MonitorSettingEndpoint {
 		} else if (HinemosModuleConstant.MONITOR_WINSERVICE.equals(type)) {
 			// Windowsサービス監視
 			return "WinService";
-		}
+		} else if (HinemosModuleConstant.MONITOR_LOGCOUNT.equals(type)) {
+			// ログ件数監視
+			return "Logcount";
+		} else if (HinemosModuleConstant.MONITOR_CORRELATION.equals(type)) {
+			// 相関係数監視
+			return "Correlation";
+		} else if (HinemosModuleConstant.MONITOR_INTEGRATION.equals(type)) {
+			// 収集値統合監視
+			return "Integration";
+		} else if (HinemosModuleConstant.MONITOR_BINARYFILE_BIN.equals(type)) {
+			// バイナリファイル監視
+			return "Binaryfile";
+		} else if (HinemosModuleConstant.MONITOR_PCAP_BIN.equals(type)) {
+			// バイナリファイル監視
+			return "PacketCapture";
+		} 
 		return "";
 	}
 }

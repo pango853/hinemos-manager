@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.ping.factory;
@@ -23,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,30 +25,31 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.bean.PriorityConstant;
-import com.clustercontrol.bean.ValidConstant;
+import com.clustercontrol.collect.bean.Sample;
+import com.clustercontrol.collect.util.CollectDataUtil;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.monitor.bean.MonitorBlockConstant;
-import com.clustercontrol.monitor.run.bean.MonitorNumericValueInfo;
+import com.clustercontrol.monitor.run.bean.MonitorRunResultInfo;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorNumericValueType;
+import com.clustercontrol.monitor.run.model.MonitorJudgementInfo;
+import com.clustercontrol.monitor.run.util.CollectMonitorManagerUtil;
+import com.clustercontrol.monitor.run.util.CollectMonitorManagerUtil.CollectMonitorDataInfo;
+import com.clustercontrol.notify.bean.OutputBasicInfo;
 import com.clustercontrol.performance.bean.CollectedDataErrorTypeConstant;
-import com.clustercontrol.performance.bean.Sample;
-import com.clustercontrol.performance.util.PerformanceDataUtil;
 import com.clustercontrol.ping.bean.PingResult;
 import com.clustercontrol.ping.bean.PingRunCountConstant;
 import com.clustercontrol.ping.bean.PingRunIntervalConstant;
-import com.clustercontrol.ping.model.MonitorPingInfoEntity;
+import com.clustercontrol.ping.model.PingCheckInfo;
 import com.clustercontrol.ping.util.PingProperties;
 import com.clustercontrol.ping.util.QueryUtil;
 import com.clustercontrol.ping.util.ReachAddress;
 import com.clustercontrol.ping.util.ReachAddressFping;
-import com.clustercontrol.priority.util.PriorityJudgment;
-import com.clustercontrol.repository.bean.NodeInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 
@@ -68,15 +63,8 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorPing.class );
 
-	private static final String MESSAGE_ID_INFO = "001";
-	private static final String MESSAGE_ID_WARNING = "002";
-	private static final String MESSAGE_ID_CRITICAL = "003";
-	private static final String MESSAGE_ID_UNKNOWN = "004";
-
-	private static boolean fpingEnable;
-
 	/** ping監視情報 */
-	private MonitorPingInfoEntity m_ping = null;
+	private PingCheckInfo m_ping = null;
 
 	/** 実行回数 */
 	private int m_runCount = PingRunCountConstant.TYPE_COUNT_01;
@@ -97,7 +85,7 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 	private int m_lost = 0;
 
 	/** 応答平均時間（ミリ秒） */
-	private long m_average = 0;
+	private float m_average = 0;
 
 	//ping実行
 	private ReachAddress m_reachability = null;
@@ -123,14 +111,13 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 		super();
 
 		PingProperties.getProperties();
-		fpingEnable=PingProperties.isFpingEnable();
 	}
 
 	/**
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -172,16 +159,16 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 			if(result){
 				m_lost = m_reachability.getLost();
 				m_average = m_reachability.getAverage();
-				m_value = m_average;
+				m_value = (double) m_average;
 			}
 			return result;
 		}
 		catch(FacilityNotFound e){
-			m_message = Messages.getString("message.ping.4");
+			m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NODE_ATTRIBUTES_PING.getMessage();
 			m_messageOrg = e.getMessage();
 			return false;
 		} catch(HinemosUnknown e){
-			m_message = Messages.getString("message.ping.4");
+			m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NODE_ATTRIBUTES_PING.getMessage();
 			m_messageOrg = e.getMessage();
 			return false;
 		}
@@ -266,7 +253,7 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 						m_Target.put(facilityId,node);
 					}
 				}catch(FacilityNotFound e){
-					m_message = Messages.getString("message.ping.4");
+					m_message = MessageConstant.MESSAGE_COULD_NOT_GET_NODE_ATTRIBUTES_PING.getMessage();
 					m_messageOrg = e.getMessage();
 					return false;
 				} catch (UnknownHostException e) {
@@ -301,14 +288,14 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 
 	/**
 	 * 	fpingの標準出力から、IPアドレス毎の結果に整形します<BR>
-	 * 
+	 *  nodeMapでも使用中のため、public。
 	 * 
 	 * @param hosts      fpingしたアドレスのリスト
 	 * @param message    出力メッセージ
 	 * @param count      ping回数
 	 * @return (IPアドレス 応答率、平均応答時間)のハッシュテーブル
 	 */
-	private Hashtable<String, PingResult> wrapUpFping(ArrayList<String> messages,  int count, int version){
+	public Hashtable<String, PingResult> wrapUpFping(ArrayList<String> messages,  int count, int version){
 
 		Hashtable<String, PingResult> ret = new Hashtable<String, PingResult>();
 		HashMap<String, String> normalMap = new HashMap<String, String>(); //IPアドレス, メッセージ
@@ -511,7 +498,7 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 				}
 				else {
 					lost = (count - num) * 100 / count;
-					reachRatio = num * 100 / count;
+					reachRatio = (float)num * 100 / count;
 
 					buffer.append("\nPing statistics for " + host + ":\n");
 					buffer.append( "Packets: Sent = " + count + ", Received = " + num + ", Lost = " + (count-num) + " (" + lost + "% loss),");
@@ -576,7 +563,11 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 	protected void setCheckInfo() throws MonitorNotFound {
 
 		// ping監視情報を取得
-		m_ping = QueryUtil.getMonitorPingInfoPK(m_monitorId);
+		if (!m_isMonitorJob) {
+			m_ping = QueryUtil.getMonitorPingInfoPK(m_monitorId);
+		} else {
+			m_ping = QueryUtil.getMonitorPingInfoPK(m_monitor.getMonitorId());
+		}
 
 		// ping監視情報を設定
 		if(m_ping.getRunCount() != null)
@@ -598,19 +589,19 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 		// upperLimit : パケット紛失率（％）
 
 		int result = -1;
-		MonitorNumericValueInfo info = null;
+		MonitorJudgementInfo info = null;
 
 		// 値取得の成功時
 		if(ret){
 
 			// 通知をチェック
-			info = (MonitorNumericValueInfo)m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_INFO));
+			info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_INFO));
 			if(m_lost < info.getThresholdUpperLimit() && m_average < info.getThresholdLowerLimit()){
 				result = PriorityConstant.TYPE_INFO;
 			}
 			else {
 				// 警告の範囲チェック
-				info = (MonitorNumericValueInfo)m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_WARNING));
+				info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_WARNING));
 				if(m_lost < info.getThresholdUpperLimit() && m_average < info.getThresholdLowerLimit()){
 					result = PriorityConstant.TYPE_WARNING;
 				}
@@ -624,24 +615,43 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 	}
 
 	/* (非 Javadoc)
-	 * ノード用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.OperationMonitor#getMessageId(int)
+	 * 判定結果を取得
+	 * @see com.clustercontrol.monitor.run.factory.RunMonitorNumericValueType#getCheckResult(boolean, Object)
 	 */
 	@Override
-	public String getMessageId(int id) {
+	public int getCheckResult(boolean ret, Object value) {
+		// lowerLimit : 時間（ミリ秒）
+		// upperLimit : パケット紛失率（％）
 
-		if(id == PriorityConstant.TYPE_INFO){
-			return MESSAGE_ID_INFO;
+		int result = -1;
+		MonitorJudgementInfo info = null;
+
+		if (value == null || !(value instanceof Double)) {
+			return result;
 		}
-		else if(id == PriorityConstant.TYPE_WARNING){
-			return MESSAGE_ID_WARNING;
+		double dblValue = (double)value;
+
+		// 値取得の成功時
+		if(ret){
+
+			// 通知をチェック
+			info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_INFO));
+			if(dblValue < info.getThresholdLowerLimit()){
+				result = PriorityConstant.TYPE_INFO;
+			}
+			else {
+				// 警告の範囲チェック
+				info = m_judgementInfoList.get(Integer.valueOf(PriorityConstant.TYPE_WARNING));
+				if(dblValue < info.getThresholdLowerLimit()){
+					result = PriorityConstant.TYPE_WARNING;
+				}
+				else{
+					// 危険（通知・警告以外）
+					result = PriorityConstant.TYPE_CRITICAL;
+				}
+			}
 		}
-		else if(id == PriorityConstant.TYPE_CRITICAL){
-			return MESSAGE_ID_CRITICAL;
-		}
-		else{
-			return MESSAGE_ID_UNKNOWN;
-		}
+		return result;
 	}
 
 	/* (非 Javadoc)
@@ -660,27 +670,6 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 	@Override
 	public String getMessageOrg(int id) {
 		return m_messageOrg;
-	}
-
-	/* (非 Javadoc)
-	 * スコープ用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#getMessageIdForScope(int)
-	 */
-	@Override
-	protected String getMessageIdForScope(int priority) {
-
-		if(priority == PriorityConstant.TYPE_INFO){
-			return MESSAGE_ID_INFO;
-		}
-		else if(priority == PriorityConstant.TYPE_WARNING){
-			return MESSAGE_ID_WARNING;
-		}
-		else if(priority == PriorityConstant.TYPE_CRITICAL){
-			return MESSAGE_ID_CRITICAL;
-		}
-		else{
-			return MESSAGE_ID_UNKNOWN;
-		}
 	}
 
 
@@ -712,20 +701,23 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 	 * @see #notify(boolean, String, int, Date)
 	 */
 	@Override
-	protected boolean runMonitorInfo()throws MonitorNotFound, HinemosUnknown {
+	protected List<OutputBasicInfo> runMonitorInfo()throws MonitorNotFound, HinemosUnknown {
 
-		m_now = new Date();
+		List<OutputBasicInfo> ret = new ArrayList<>();
+		m_now = HinemosTime.getDateInstance();
 		m_priorityMap = new HashMap<Integer, ArrayList<String>>();
 		m_priorityMap.put(Integer.valueOf(PriorityConstant.TYPE_INFO),		new ArrayList<String>());
 		m_priorityMap.put(Integer.valueOf(PriorityConstant.TYPE_WARNING),	new ArrayList<String>());
 		m_priorityMap.put(Integer.valueOf(PriorityConstant.TYPE_CRITICAL),	new ArrayList<String>());
 		m_priorityMap.put(Integer.valueOf(PriorityConstant.TYPE_UNKNOWN),	new ArrayList<String>());
-
+		
+		List<Sample> sampleList = new ArrayList<Sample>();
+		
 		// 監視基本情報を設定
 		boolean run = this.setMonitorInfo(m_monitorTypeId, m_monitorId);
 		if(!run){
 			// 処理終了
-			return true;
+			return ret;
 		}
 
 		// 判定情報を設定
@@ -736,7 +728,7 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 
 		// ファシリティIDの配下全ての一覧を取得
 		ArrayList<String> facilityList = new RepositoryControllerBean().getExecTargetFacilityIdList(m_facilityId, m_monitor.getOwnerRoleId());
-		if (facilityList.size() == 0) return true;
+		if (facilityList.size() == 0) return ret;
 
 
 		// ファシリティ毎に監視情報を収集
@@ -744,12 +736,10 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 
 		// 収集値の入れ物を作成
 		Sample sample = null;
-		if(m_monitor.getCollectorFlg() == ValidConstant.TYPE_VALID){
-			sample = new Sample(m_monitorId, new Date());
-		}
+		Date sampleTime = HinemosTime.getDateInstance();
 
 		//fping利用フラグがfalseの時はver2.2までの方式でping監視を行う。
-		if(!fpingEnable){
+		if(!PingProperties.isFpingEnable()){
 
 			String facilityId = null;
 			for(int index=0; index<facilityList.size(); index++){
@@ -757,22 +747,10 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 				if(facilityId != null && !"".equals(facilityId)){
 
 					// 監視値を収集
-					boolean ret = collect(facilityId);
+					boolean retFlag = collect(facilityId);
 
 					// 監視値より判定結果を取得
-					int checkResult = getCheckResult(ret);
-
-					// 監視単位がスコープとノードの場合、スコープ用の情報を設定
-					if(MonitorBlockConstant.TYPE_SCOPE == m_monitorBlock ||
-							MonitorBlockConstant.TYPE_ALL == m_monitorBlock){
-
-						// 判定結果よりノードの重要度を取得
-						int priority = getPriority(checkResult);
-						// スコープの重要度を設定
-						priorityList.add(Integer.valueOf(priority));
-						// 重要度別にファシリティIDを設定
-						setPriorityMap(Integer.valueOf(priority), facilityId);
-					}
+					int checkResult = getCheckResult(retFlag);
 
 					// スコープの値取得時刻を設定
 					if(m_nodeDate > m_scopeDate){
@@ -780,20 +758,60 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 					}
 
 					// ノードのログ出力情報を送信
-					if(MonitorBlockConstant.TYPE_NODE == m_monitorBlock ||
-							(MonitorBlockConstant.TYPE_SCOPE == m_monitorBlock && m_isNode) ||
-							MonitorBlockConstant.TYPE_ALL == m_monitorBlock){
+					// 監視管理へ通知
+					if (!m_isMonitorJob) {
+						ret.add(createOutputBasicInfo(true, facilityId, checkResult, new Date(m_nodeDate)));
+					} else {
+						m_monitorRunResultInfo = new MonitorRunResultInfo();
+						MonitorJudgementInfo info = m_judgementInfoList.get(checkResult);
+						if(info != null){
+							m_monitorRunResultInfo.setPriority(info.getPriority());
+						}
+						else{
+							m_monitorRunResultInfo.setPriority(m_failurePriority);
+						}
+						m_monitorRunResultInfo.setMessageOrg(makeJobOrgMessage(m_messageOrg, m_message));
+						m_monitorRunResultInfo.setNodeDate(m_nodeDate);
+					}
 
-						// 監視管m_now = new Date();理へ通知
-						notify(true, facilityId, checkResult, new Date(m_nodeDate));
+					if (m_monitor.getCollectorFlg()
+							|| m_monitor.getPredictionFlg()
+							|| m_monitor.getChangeFlg()) {
 
-						// 収集値の登録
-						if(sample != null){
-							if(ret){
-								sample.set(facilityId, m_monitorId, "", m_value, CollectedDataErrorTypeConstant.NOT_ERROR);
-							}else{
-								sample.set(facilityId, m_monitorId, "", m_value, CollectedDataErrorTypeConstant.UNKNOWN);
+						// 将来予測監視、変化量監視の処理を行う
+						CollectMonitorDataInfo collectMonitorDataInfo
+							= CollectMonitorManagerUtil.calculateChangePredict(this, m_monitor, facilityId, 
+							null, m_monitor.getItemName(), sampleTime.getTime(), m_value);
+
+						// 将来予測もしくは変更点監視が有効な場合、通知を行う
+						Double average = null;
+						Double standardDeviation = null;
+						if (collectMonitorDataInfo != null) {
+							if (collectMonitorDataInfo.getChangeMonitorRunResultInfo() != null) {
+								// 変化量監視の通知
+								MonitorRunResultInfo collectResult = collectMonitorDataInfo.getChangeMonitorRunResultInfo();
+								ret.add(createOutputBasicInfo(true, facilityId, collectResult.getCheckResult(), 
+										new Date(collectResult.getNodeDate()), collectResult, m_monitor));
 							}
+							if (collectMonitorDataInfo.getPredictionMonitorRunResultInfo() != null) {
+								// 将来予測監視の通知
+								MonitorRunResultInfo collectResult = collectMonitorDataInfo.getPredictionMonitorRunResultInfo();
+								ret.add(createOutputBasicInfo(true, facilityId, collectResult.getCheckResult(), 
+										new Date(collectResult.getNodeDate()), collectResult, m_monitor));
+							}
+							average = collectMonitorDataInfo.getAverage();
+							standardDeviation = collectMonitorDataInfo.getStandardDeviation();
+						}
+						if (m_monitor.getCollectorFlg()) {
+							sample = new Sample(sampleTime, m_monitor.getMonitorId());
+							int errorCode = -1;
+							if(retFlag){
+								errorCode = CollectedDataErrorTypeConstant.NOT_ERROR;
+							}else{
+								errorCode = CollectedDataErrorTypeConstant.UNKNOWN;
+							}
+							sample.set(facilityId, m_monitor.getItemName(), m_value, average, standardDeviation, errorCode);
+							sampleList.add(sample);
 						}
 					}
 				}
@@ -802,10 +820,10 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 		else{
 			//	 監視値を収集
 			//   fpingを利用する場合には、ファシリティのリストを与えて一気にpingします。
-			boolean ret = collectFping(facilityList,priorityList);
+			boolean retFlag = collectFping(facilityList,priorityList);
 
 
-			if(ret){
+			if(retFlag){
 				Hashtable<String, PingResult> fpingResultSet = new Hashtable<String, PingResult>();
 				Hashtable<String, PingResult> fpingResultSetV6 = new Hashtable<String, PingResult>();
 				//データの整形を行います。
@@ -852,7 +870,6 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 							m_log.debug("runMonitorInfo(): after fpingResultSet.get()");
 
 							/* fping失敗で結果がありません。*/
-							AplLogger apllog = new AplLogger(HinemosModuleConstant.MONITOR_PING, "ping");
 							String[] args = {m_monitorId};
 							String logMsg = "";
 							if (m_MsgErr != null)
@@ -863,20 +880,22 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 							{
 								logMsg += " , " + m_MsgErrV6.toString();
 							}
-							apllog.put("SYS", "001", args,logMsg);
+							AplLogger.put(PriorityConstant.TYPE_CRITICAL, HinemosModuleConstant.MONITOR_PING, MessageConstant.MESSAGE_SYS_001_MON_PNG, args, logMsg);
 							m_log.info("Fping no response.");
 
 							/* fping失敗で結果がありません。*/
-							sample.set(targetFacility, m_monitorId, "", Double.NaN, CollectedDataErrorTypeConstant.UNKNOWN);
+							sample = new Sample(sampleTime, m_monitor.getMonitorId());
+							sample.set(targetFacility, m_monitor.getItemName(), Double.NaN, CollectedDataErrorTypeConstant.UNKNOWN);
+							sampleList.add(sample);
 						}else{
 
 							//結果データからイベントを生成するためにデータを読みだす。
 							m_lost = nodeResult.getLost();
 							//現行の使用の平均応答時間はmsec(long)のため変換する。
-							m_average  = (long)nodeResult.getAverage();
+							m_average  = nodeResult.getAverage();
 							m_message  = nodeResult.getMesseage();
 							m_messageOrg = nodeResult.getMesseageOrg();
-							m_value = m_average;
+							m_value = Double.valueOf(m_average);
 
 							if(m_log.isDebugEnabled()){
 								m_log.debug("runMonitorInfo() monitorId = " + m_monitorId + ", facilityId = " + targetFacility + ", average = " + nodeResult.getAverage() + ", value = " + m_value);
@@ -896,38 +915,63 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 								collectorResult = false;
 							}
 
-							// 監視単位がスコープとノードの場合、スコープ用の情報を設定
-							if(MonitorBlockConstant.TYPE_SCOPE == m_monitorBlock ||
-									MonitorBlockConstant.TYPE_ALL == m_monitorBlock){
-
-								// 判定結果よりノードの重要度を取得
-								int priority = getPriority(checkResult);
-								// スコープの重要度を設定
-								priorityList.add(Integer.valueOf(priority));
-								// 重要度別にファシリティIDを設定
-								setPriorityMap(Integer.valueOf(priority), targetFacility);
-							}
-
 							// スコープの値取得時刻を設定
 							if(m_nodeDate > m_scopeDate){
 								m_scopeDate = m_nodeDate;
 							}
 
 							// ノードのログ出力情報を送信
-							if(MonitorBlockConstant.TYPE_NODE == m_monitorBlock ||
-									(MonitorBlockConstant.TYPE_SCOPE == m_monitorBlock && m_isNode) ||
-									MonitorBlockConstant.TYPE_ALL == m_monitorBlock){
+							// 監視管理へ通知
+							if (!m_isMonitorJob) {
+								ret.add(createOutputBasicInfo(true, targetFacility, checkResult, new Date(m_nodeDate)));
+							} else {
+								m_monitorRunResultInfo = new MonitorRunResultInfo();
+								m_monitorRunResultInfo.setPriority(checkResult);
+								m_monitorRunResultInfo.setMessageOrg(makeJobOrgMessage(m_messageOrg, m_message));
+								m_monitorRunResultInfo.setNodeDate(m_nodeDate);
+							}
 
-								// 監視管理へ通知
-								notify(true, targetFacility, checkResult, new Date(m_nodeDate));
+							if (m_monitor.getCollectorFlg()
+									|| m_monitor.getPredictionFlg()
+									|| m_monitor.getChangeFlg()) {
 
-								// 収集値の登録
-								if(sample != null){
-									if(collectorResult){
-										sample.set(targetFacility, m_monitorId, "", nodeResult.getAverage(), CollectedDataErrorTypeConstant.NOT_ERROR);
-									}else{
-										sample.set(targetFacility, m_monitorId, "", nodeResult.getAverage(), CollectedDataErrorTypeConstant.UNKNOWN);
+								// 将来予測監視、変化量監視の処理を行う
+								CollectMonitorDataInfo collectMonitorDataInfo
+									= CollectMonitorManagerUtil.calculateChangePredict(this, m_monitor, targetFacility,
+										null, m_monitor.getItemName(), sampleTime.getTime(), (double)nodeResult.getAverage());
+
+								// 将来予測もしくは変更点監視が有効な場合、通知を行う
+								Double average = null;
+								Double standardDeviation = null;
+								if (collectMonitorDataInfo != null) {
+									if (collectMonitorDataInfo.getChangeMonitorRunResultInfo() != null) {
+										// 変化量監視の通知
+										MonitorRunResultInfo collectResult = collectMonitorDataInfo.getChangeMonitorRunResultInfo();
+										ret.add(createOutputBasicInfo(true, targetFacility, collectResult.getCheckResult(), 
+												new Date(collectResult.getNodeDate()), collectResult, m_monitor));
 									}
+									if (collectMonitorDataInfo.getPredictionMonitorRunResultInfo() != null) {
+										// 将来予測監視の通知
+										MonitorRunResultInfo collectResult = collectMonitorDataInfo.getPredictionMonitorRunResultInfo();
+										ret.add(createOutputBasicInfo(true, targetFacility, collectResult.getCheckResult(), 
+												new Date(collectResult.getNodeDate()), collectResult, m_monitor));
+									}
+									average = collectMonitorDataInfo.getAverage();
+									standardDeviation = collectMonitorDataInfo.getStandardDeviation();
+								}
+
+								if (m_monitor.getCollectorFlg()) {
+									// 収集値の登録
+									sample = new Sample(sampleTime, m_monitor.getMonitorId());
+									int errorCode = -1;
+									if(collectorResult){
+										errorCode = CollectedDataErrorTypeConstant.NOT_ERROR;
+									}else{
+										errorCode = CollectedDataErrorTypeConstant.UNKNOWN;
+									}
+									sample.set(targetFacility, m_monitor.getItemName(), (double)nodeResult.getAverage(), 
+										average, standardDeviation, errorCode);
+									sampleList.add(sample);
 								}
 							}
 						}
@@ -935,54 +979,23 @@ public class RunMonitorPing extends RunMonitorNumericValueType {
 				}
 			}
 		}
-
 		// 収集値をまとめて登録
-		if(sample != null){
-			PerformanceDataUtil.put(sample);
+		if(!sampleList.isEmpty()){
+			CollectDataUtil.put(sampleList);
 		}
-
-		// スコープのログ出力情報を送信
-		if(!m_isNode){
-			if(MonitorBlockConstant.TYPE_SCOPE == m_monitorBlock ||
-					MonitorBlockConstant.TYPE_ALL == m_monitorBlock){
-
-				Integer priority = PriorityJudgment.judgment(priorityList);
-				if(priority == null){
-					priority = Integer.valueOf(m_failurePriority);
-				}
-
-				// 各ノードの内、最新日付を設定
-				Date generationDate = null;
-				if(m_scopeDate > 0){
-					generationDate = new Date(m_scopeDate);
-				}
-				else{
-					generationDate = m_now;
-				}
-
-				// 監視管理へ通知
-				notify(false, m_facilityId, priority.intValue(), generationDate);
-			}
-		}
-		return true;
-
+		return ret;
 	}
 
-
-	/**
-	 * トランザクションを開始し、引数で指定された監視情報の監視を実行します。
-	 * 
-	 * @param monitorTypeId 監視対象ID
-	 * @param monitorId 監視項目ID
-	 * @throws MonitorNotFound
-	 * @throws FacilityNotFound
-	 * @throws InvalidRole
-	 * @throws HinemosUnknown
-	 * 
-	 * @see #runMonitorInfo()
-	 */
 	@Override
-	public void run(String monitorTypeId, String monitorId) throws MonitorNotFound, FacilityNotFound, InvalidRole, HinemosUnknown {
-		super.run(monitorTypeId,monitorId);
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		if (m_monitor == null || m_monitor.getPingCheckInfo() == null) {
+			return "";
+		}
+		String[] args = {
+				String.valueOf(m_monitor.getPingCheckInfo().getRunCount()),
+				String.valueOf(m_monitor.getPingCheckInfo().getRunInterval()),
+				String.valueOf(m_monitor.getPingCheckInfo().getTimeout())};
+		return MessageConstant.MESSAGE_JOB_MONITOR_ORGMSG_PING.getMessage(args)
+				+ "\n" + orgMsg;
 	}
 }

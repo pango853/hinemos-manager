@@ -1,20 +1,17 @@
 /*
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.infra;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.activation.DataHandler;
@@ -28,14 +25,16 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InfraFileBeingUsed;
 import com.clustercontrol.fault.InfraFileNotFound;
 import com.clustercontrol.fault.InfraFileTooLarge;
 import com.clustercontrol.fault.InfraManagementDuplicate;
+import com.clustercontrol.fault.InfraManagementInvalid;
 import com.clustercontrol.fault.InfraManagementNotFound;
 import com.clustercontrol.fault.InfraModuleNotFound;
 import com.clustercontrol.fault.InvalidRole;
@@ -45,12 +44,12 @@ import com.clustercontrol.fault.NotifyDuplicate;
 import com.clustercontrol.fault.NotifyNotFound;
 import com.clustercontrol.fault.SessionNotFound;
 import com.clustercontrol.infra.bean.AccessInfo;
-import com.clustercontrol.infra.bean.InfraCheckResult;
-import com.clustercontrol.infra.bean.InfraFileInfo;
-import com.clustercontrol.infra.bean.InfraManagementInfo;
 import com.clustercontrol.infra.bean.ModuleResult;
+import com.clustercontrol.infra.model.InfraCheckResult;
+import com.clustercontrol.infra.model.InfraFileInfo;
+import com.clustercontrol.infra.model.InfraManagementInfo;
 import com.clustercontrol.infra.session.InfraControllerBean;
-import com.clustercontrol.notify.bean.NotifyInfo;
+import com.clustercontrol.notify.model.NotifyInfo;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 
 /**
@@ -101,7 +100,8 @@ public class InfraEndpoint {
 	 *
 	 * @see com.clustercontrol.notify.factory.AddNotify#add(NotifyInfo)
 	 */
-	public boolean addInfraManagement(InfraManagementInfo info) throws InfraManagementDuplicate, HinemosUnknown, NotifyDuplicate, InvalidUserPass, InvalidRole, InvalidSetting {
+	public boolean addInfraManagement(InfraManagementInfo info) 
+			throws InfraManagementDuplicate, InfraManagementNotFound, HinemosUnknown, NotifyDuplicate, InvalidUserPass, InvalidRole, InvalidSetting {
 		logger.debug("addInfraManagement");
 
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
@@ -168,7 +168,7 @@ public class InfraEndpoint {
 
 	/**
 	 */
-	public boolean deleteInfraManagement(String[] managementIds) throws HinemosUnknown, InvalidUserPass, InvalidRole, InfraManagementNotFound {
+	public boolean deleteInfraManagement(String[] managementIds) throws HinemosUnknown, InvalidUserPass, InvalidSetting, InvalidRole, InfraManagementNotFound {
 		logger.debug("deleteInfraManagement");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.MODIFY));
@@ -179,7 +179,7 @@ public class InfraEndpoint {
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
 		msg.append(", ManagementID=");
-		msg.append(managementIds);
+		msg.append(Arrays.toString(managementIds));
 
 		try {
 			ret = new InfraControllerBean().deleteInfraManagement(managementIds);
@@ -245,8 +245,27 @@ public class InfraEndpoint {
 		return new InfraControllerBean().getInfraManagementListByOwnerRole(ownerRoleId);
 	}
 
-	public String createSession(String managementId, List<String> moduleIdList, List<AccessInfo> accessList)
-			throws InfraManagementNotFound, InfraModuleNotFound, FacilityNotFound, InvalidSetting, InvalidUserPass, InvalidRole, HinemosUnknown {
+	/**
+	 */
+	public List<String> getReferManagementIdList(String ownerRoleId) throws HinemosUnknown, InvalidUserPass, InvalidRole {
+		logger.debug("getReferManagementIdList");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", OwnerRoleID=");
+		msg.append(ownerRoleId);
+		opelogger.debug(HinemosModuleConstant.LOG_PREFIX_INFRA + " Get, Method=getReferManagementIdList, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx) + msg.toString());
+
+		return new InfraControllerBean().getReferManagementIdList(ownerRoleId);
+	}
+
+	public String createSession(String managementId, List<String> moduleIdList, Integer nodeInputType, List<AccessInfo> accessList)
+			throws InfraManagementNotFound, InfraModuleNotFound, FacilityNotFound, InfraManagementInvalid, 
+			InvalidSetting, InvalidUserPass, InvalidRole, HinemosUnknown {
 		logger.debug("createSession");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.EXEC));
@@ -258,18 +277,20 @@ public class InfraEndpoint {
 		msg.append(managementId);
 		msg.append(", ModuleID=");
 		boolean flag = false;
-		for (String moduleId : moduleIdList) {
-			msg.append(moduleId);
-			if (flag) {
-				msg.append(",");
+		if (moduleIdList != null) {
+			for (String moduleId : moduleIdList) {
+				msg.append(moduleId);
+				if (flag) {
+					msg.append(",");
+				}
+				flag = true;
 			}
-			flag = true;
 		}
 
 		String ret = null;
 		try {
-			ret = new InfraControllerBean().createSession(managementId, moduleIdList, accessList);
-		} catch (InfraManagementNotFound | InfraModuleNotFound | InvalidRole | FacilityNotFound | InvalidSetting e) {
+			ret = new InfraControllerBean().createSession(managementId, moduleIdList, nodeInputType, accessList);
+		} catch (InfraManagementNotFound | InfraModuleNotFound | InfraManagementInvalid | InvalidRole | FacilityNotFound | InvalidSetting e) {
 			opelogger.warn(HinemosModuleConstant.LOG_PREFIX_NOTIFY + " Execute Failed, Method=createSession, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
 					+ msg.toString());
@@ -312,6 +333,44 @@ public class InfraEndpoint {
 	
 	
 	/**
+	 * 
+	 * アクセス情報を作成する
+	 *
+	 * InfraExec権限が必要
+	 *
+	 * @param managementId 環境構築ID
+	 * @param moduleIdList モジュールIDリスト
+	 * @return アクセス情報のリスト
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 * @throws HinemosUnknown
+	 */
+	public List<AccessInfo> createAccessInfoListForDialog(String managementId, List<String> moduleIdList)
+			throws InfraManagementNotFound, InvalidUserPass, InvalidRole, HinemosUnknown {
+		logger.debug("createInfraManagementAccessInfoList");
+
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.EXEC));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", ManagementId=");
+		msg.append(managementId);
+		msg.append(", ModuleIdList=");
+		if (moduleIdList != null) {
+			msg.append(Arrays.toString(moduleIdList.toArray()));
+		} else {
+			msg.append("null");
+		}
+		opelogger.debug(HinemosModuleConstant.LOG_PREFIX_INFRA + " Get, Method=createAccessInfoList, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+
+		return new InfraControllerBean().createAccessInfoListForDialog(managementId, moduleIdList);
+	}
+
+	/**
 	 */
 	public ModuleResult runInfraModule(String sessionId)
 			throws HinemosUnknown, InvalidUserPass, InvalidRole, InfraManagementNotFound, InfraModuleNotFound, SessionNotFound {
@@ -319,7 +378,6 @@ public class InfraEndpoint {
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.READ));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
-		String account = HttpAuthenticator.getAccount(wsctx);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
@@ -328,7 +386,7 @@ public class InfraEndpoint {
 
 		ModuleResult ret = null;
 		try {
-			ret = new InfraControllerBean().runInfraModule(sessionId, account);
+			ret = new InfraControllerBean().runInfraModule(sessionId);
 		} catch (Exception e) {
 			opelogger.warn(HinemosModuleConstant.LOG_PREFIX_NOTIFY + " Execute Failed, Method=runInfraModule, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -493,10 +551,14 @@ public class InfraEndpoint {
 		return dh;
 	}
 	
+	/*
+	 * (非JavaDoc)
+	 * WinRMを利用したファイル配布モジュールで利用する
+	 */
 	@XmlMimeType("application/octet-stream")
 	public DataHandler downloadTransferFile(String fileName) throws Exception {
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
-		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.READ));
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.READ));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
@@ -556,7 +618,7 @@ public class InfraEndpoint {
 
 		new InfraControllerBean().deleteInfraFileList(fileIdList);
 	}
-	
+
 	public List<InfraFileInfo> getInfraFileList() throws InvalidUserPass, InvalidRole, HinemosUnknown {
 		logger.debug("getInfraFileList");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
@@ -568,5 +630,24 @@ public class InfraEndpoint {
 				+ HttpAuthenticator.getUserAccountString(wsctx));
 
 		return new InfraControllerBean().getInfraFileList();
+	}
+
+	public List<InfraFileInfo> getInfraFileListByOwnerRoleId(String ownerRoleId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		logger.debug("getInfraFileList");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.INFRA, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		opelogger.debug(HinemosModuleConstant.LOG_PREFIX_INFRA + " Get, Method=getInfraFileListByOwnerRoleId, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new InfraControllerBean().getInfraFileListByOwnerRoleId(ownerRoleId);
+	}
+
+	public int getInfraMaxFileSize() {
+		int infraMaxFileSize = 0;
+		infraMaxFileSize = HinemosPropertyCommon.infra_max_file_size.getIntegerValue();
+		return infraMaxFileSize;
 	}
 }

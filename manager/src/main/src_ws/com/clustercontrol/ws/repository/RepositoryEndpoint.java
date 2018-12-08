@@ -1,15 +1,11 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.repository;
 
 import java.net.UnknownHostException;
@@ -28,7 +24,7 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.fault.FacilityDuplicate;
 import com.clustercontrol.fault.FacilityNotFound;
@@ -39,15 +35,16 @@ import com.clustercontrol.fault.InvalidUserPass;
 import com.clustercontrol.fault.SnmpResponseError;
 import com.clustercontrol.fault.UsedFacility;
 import com.clustercontrol.repository.bean.AgentStatusInfo;
-import com.clustercontrol.repository.bean.FacilityInfo;
 import com.clustercontrol.repository.bean.FacilityTreeItem;
-import com.clustercontrol.repository.bean.NodeInfo;
 import com.clustercontrol.repository.bean.NodeInfoDeviceSearch;
 import com.clustercontrol.repository.bean.RepositoryTableInfo;
-import com.clustercontrol.repository.bean.ScopeInfo;
 import com.clustercontrol.repository.factory.NodeSearcher;
+import com.clustercontrol.repository.model.FacilityInfo;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.ScopeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 import com.clustercontrol.repository.util.RepositoryUtil;
+import com.clustercontrol.util.HinemosTime;
 import com.clustercontrol.util.StringBinder;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 
@@ -384,7 +381,7 @@ public class RepositoryEndpoint {
 	 * @throws InvalidUserPass
 	 */
 	public NodeInfoDeviceSearch getNodePropertyBySNMP(String ipAddress,
-			int port, String community, String version, String facilityID,
+			int port, String community, int version, String facilityID,
 			String securityLevel, String user, String authPass,
 			String privPass, String authProtocol, String privProtocol)
 			throws HinemosUnknown, InvalidUserPass, InvalidRole,
@@ -460,9 +457,9 @@ public class RepositoryEndpoint {
 		}
 
 		try {
-			long startTime = System.currentTimeMillis();
+			long startTime = HinemosTime.currentTimeMillis();
 			new RepositoryControllerBean().addNode(nodeInfo);
-			m_log.info(String.format("addNode: %dms", System.currentTimeMillis() - startTime));
+			m_log.info(String.format("addNode: %dms", HinemosTime.currentTimeMillis() - startTime));
 		} catch (Exception e) {
 			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_REPOSITORY + " Add Node Failed, Method=addNode, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -534,7 +531,7 @@ public class RepositoryEndpoint {
 	 * @throws InvalidUserPass
 	 */
 	public void deleteNode(String[] facilityIds) throws UsedFacility, InvalidUserPass, InvalidRole, HinemosUnknown {
-		m_log.debug("deleteNode : facilityId=" + facilityIds);
+		m_log.debug("deleteNode : facilityId=" + Arrays.toString(facilityIds));
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.REPOSITORY, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
@@ -546,7 +543,11 @@ public class RepositoryEndpoint {
 				msg.append(", FacilityID=");
 				msg.append(facilityId);
 			}
-			new RepositoryControllerBean().deleteNode(facilityIds);
+			if( facilityIds.length > 0 ){//対象があれば削除を行う
+				new RepositoryControllerBean().deleteNode(facilityIds);
+			}else{ //対象がなければその旨をログに設定する。
+				msg.append(", no node deleted");
+			}
 		} catch (Exception e) {
 			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_REPOSITORY + " Delete Node Failed, Method=deleteNode, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -723,7 +724,7 @@ public class RepositoryEndpoint {
 	 * @throws InvalidUserPass
 	 */
 	public void deleteScope(String[] facilityIds) throws UsedFacility, InvalidUserPass, InvalidRole, HinemosUnknown {
-		m_log.debug("deleteScope : facilityId=" + facilityIds);
+		m_log.debug("deleteScope : facilityId=" + Arrays.toString(facilityIds));
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.REPOSITORY, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
@@ -731,7 +732,7 @@ public class RepositoryEndpoint {
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
 		msg.append(", FacilityID=");
-		msg.append(facilityIds);
+		msg.append(Arrays.toString(facilityIds));
 
 		try {
 			new RepositoryControllerBean().deleteScope(facilityIds);
@@ -914,7 +915,7 @@ public class RepositoryEndpoint {
 	 * @throws InvalidSetting
 	 */
 	public void assignNodeScope(String parentFacilityId, String[] facilityIds) throws InvalidUserPass, InvalidRole, HinemosUnknown,InvalidSetting {
-		m_log.debug("assignNodeScope : parentFacilityId=" + parentFacilityId + ", facilityIds=" + facilityIds);
+		m_log.debug("assignNodeScope : parentFacilityId=" + parentFacilityId + ", facilityIds=" + Arrays.toString(facilityIds));
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.REPOSITORY, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
@@ -956,7 +957,7 @@ public class RepositoryEndpoint {
 	 * @throws InvalidSetting
 	 */
 	public void releaseNodeScope(String parentFacilityId, String[] facilityIds) throws InvalidUserPass, InvalidRole, HinemosUnknown,InvalidSetting {
-		m_log.debug("releaseNodeScope : parentFacilityId=" + parentFacilityId + ", facilityIds=" + facilityIds);
+		m_log.debug("releaseNodeScope : parentFacilityId=" + parentFacilityId + ", facilityIds=" + Arrays.toString(facilityIds));
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.REPOSITORY, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
@@ -1149,9 +1150,8 @@ public class RepositoryEndpoint {
 		// 認証済み操作ログ
 		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_REPOSITORY + " Get, Method=getLastUpdate, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx));
-
-		return new RepositoryControllerBean().getLastUpdate()==null?null
-				:new RepositoryControllerBean().getLastUpdate().getTime();
+		
+		return new RepositoryControllerBean().getLastUpdate().getTime();
 	}
 
 	/**
@@ -1275,7 +1275,7 @@ public class RepositoryEndpoint {
 	 * @throws FacilityDuplicate
 	 */
 	public List<NodeInfoDeviceSearch> searchNodesBySNMP(String ownerRoleId, String ipAddressFrom, String ipAddressTo,
-			int port, String community, String version, String facilityID,
+			int port, String community, int version, String facilityID,
 			String securityLevel, String user, String authPass,
 			String privPass, String authProtocol, String privProtocol)
 			throws HinemosUnknown, InvalidUserPass, InvalidRole, FacilityDuplicate, InvalidSetting {

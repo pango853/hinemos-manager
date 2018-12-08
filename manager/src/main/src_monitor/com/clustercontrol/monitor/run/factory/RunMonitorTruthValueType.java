@@ -1,28 +1,20 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.run.factory;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.TreeMap;
-
-import com.clustercontrol.monitor.run.bean.MonitorJudgementInfo;
-import com.clustercontrol.monitor.run.bean.MonitorTruthValueInfo;
+import com.clustercontrol.fault.FacilityNotFound;
+import com.clustercontrol.fault.HinemosDbTimeout;
+import com.clustercontrol.fault.HinemosUnknown;
+import com.clustercontrol.fault.InvalidSetting;
+import com.clustercontrol.monitor.run.bean.MonitorTypeConstant;
 import com.clustercontrol.monitor.run.bean.TruthConstant;
-import com.clustercontrol.monitor.run.model.MonitorTruthValueInfoEntity;
+import com.clustercontrol.monitor.run.util.MonitorJudgementInfoCache;
 
 /**
  * 真偽値監視を実行する抽象クラス<BR>
@@ -45,11 +37,16 @@ abstract public class RunMonitorTruthValueType extends RunMonitor{
 		super();
 	}
 
+	@Override
+	public int getCheckResult(boolean ret, Object value) {
+		throw new UnsupportedOperationException("forbidden to call getCheckResult() method");
+	}
+
 	/* (非 Javadoc)
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#collect(java.lang.String)
 	 */
 	@Override
-	public abstract boolean collect(String facilityId);
+	public abstract boolean collect(String facilityId) throws FacilityNotFound, InvalidSetting, HinemosUnknown, HinemosDbTimeout;
 
 	/**
 	 * 判定結果を返します。
@@ -91,25 +88,8 @@ abstract public class RunMonitorTruthValueType extends RunMonitor{
 	 */
 	@Override
 	protected void setJudgementInfo() {
-
 		// 真偽値監視判定値、ログ出力メッセージ情報を取得
-		Collection<MonitorTruthValueInfoEntity> ct = m_monitor.getMonitorTruthValueInfoEntities();
-		Iterator<MonitorTruthValueInfoEntity> itr = ct.iterator();
-
-		m_judgementInfoList = new TreeMap<Integer, MonitorJudgementInfo>();
-		MonitorTruthValueInfoEntity entity = null;
-		while(itr.hasNext()){
-
-			entity = itr.next();
-			Integer truthValue = entity.getId().getTruthValue();
-
-			MonitorTruthValueInfo info = new MonitorTruthValueInfo();
-			info.setTruthValue(truthValue.intValue());
-			info.setPriority(entity.getId().getPriority().intValue());
-			info.setMessageId(entity.getMessageId());
-			info.setMessage(entity.getMessage());
-
-			m_judgementInfoList.put(truthValue, info);
-		}
+		m_judgementInfoList = MonitorJudgementInfoCache.getMonitorJudgementMap(
+				m_monitorId, MonitorTypeConstant.TYPE_TRUTH);
 	}
 }

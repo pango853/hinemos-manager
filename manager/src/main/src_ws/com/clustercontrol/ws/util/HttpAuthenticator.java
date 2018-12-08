@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.ws.util;
 
 import java.util.ArrayList;
@@ -11,12 +19,12 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.session.AccessControllerBean;
+import com.clustercontrol.commons.util.HinemosSessionContext;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidUserPass;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
-import com.clustercontrol.accesscontrol.session.AccessControllerBean;
-import com.clustercontrol.commons.util.HinemosSessionContext;
 import com.sun.net.httpserver.HttpExchange;
 
 // openJDK
@@ -79,8 +87,10 @@ public class HttpAuthenticator{
 	 */
 	public static String getAccount(WebServiceContext wsContext) throws InvalidUserPass {
 		MessageContext messageContext = wsContext.getMessageContext();
+		@SuppressWarnings("unchecked")
 		Map<String, ?> map = (Map<String, ?>)messageContext.get(MessageContext.HTTP_REQUEST_HEADERS);
 
+		@SuppressWarnings("unchecked")
 		LinkedList<String> auth = (LinkedList<String>)map.get("Authorization");
 		if (auth == null || auth.size() == 0) {
 			String message = "Authorization does not exist";

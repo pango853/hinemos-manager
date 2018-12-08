@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.repository.util;
 
 import java.net.Inet4Address;
@@ -34,27 +28,23 @@ import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidSetting;
 import com.clustercontrol.repository.bean.FacilityConstant;
-import com.clustercontrol.repository.bean.FacilityInfo;
-import com.clustercontrol.repository.bean.NodeCpuInfo;
-import com.clustercontrol.repository.bean.NodeDeviceInfo;
-import com.clustercontrol.repository.bean.NodeDiskInfo;
-import com.clustercontrol.repository.bean.NodeFilesystemInfo;
-import com.clustercontrol.repository.bean.NodeHostnameInfo;
-import com.clustercontrol.repository.bean.NodeInfo;
-import com.clustercontrol.repository.bean.NodeMemoryInfo;
-import com.clustercontrol.repository.bean.NodeNetworkInterfaceInfo;
-import com.clustercontrol.repository.bean.NodeVariableInfo;
-import com.clustercontrol.repository.bean.ScopeInfo;
+import com.clustercontrol.repository.bean.FacilityIdConstant;
 import com.clustercontrol.repository.factory.NodeProperty;
-import com.clustercontrol.repository.model.NodeCpuEntityPK;
-import com.clustercontrol.repository.model.NodeDeviceEntityPK;
-import com.clustercontrol.repository.model.NodeDiskEntityPK;
-import com.clustercontrol.repository.model.NodeFilesystemEntityPK;
-import com.clustercontrol.repository.model.NodeHostnameEntityPK;
-import com.clustercontrol.repository.model.NodeMemoryEntityPK;
-import com.clustercontrol.repository.model.NodeNetworkInterfaceEntityPK;
-import com.clustercontrol.repository.model.NodeVariableEntityPK;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.repository.model.FacilityInfo;
+import com.clustercontrol.repository.model.NodeCpuInfo;
+import com.clustercontrol.repository.model.NodeDeviceInfo;
+import com.clustercontrol.repository.model.NodeDeviceInfoPK;
+import com.clustercontrol.repository.model.NodeDiskInfo;
+import com.clustercontrol.repository.model.NodeFilesystemInfo;
+import com.clustercontrol.repository.model.NodeHostnameInfo;
+import com.clustercontrol.repository.model.NodeHostnameInfoPK;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.NodeMemoryInfo;
+import com.clustercontrol.repository.model.NodeNetworkInterfaceInfo;
+import com.clustercontrol.repository.model.NodeVariableInfo;
+import com.clustercontrol.repository.model.NodeVariableInfoPK;
+import com.clustercontrol.repository.model.ScopeInfo;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * リポジトリ管理の入力チェッククラス
@@ -68,14 +58,14 @@ public class RepositoryValidator {
 	public static void validateIpv4(String ipv4) throws InvalidSetting {
 		
 		if (!ipv4.matches("\\d{1,3}?\\.\\d{1,3}?\\.\\d{1,3}?\\.\\d{1,3}?")){
-			InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.24") + "(" + ipv4 + ")");
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV4_CORRECT_FORMAT.getMessage() + "(" + ipv4 + ")");
 			m_log.info("validateNodeInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
 		String[] ipv4Array = ipv4.split("\\.");
 		if (ipv4Array.length != 4) {
-			InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.24") + "(" + ipv4 + ")");
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV4_CORRECT_FORMAT.getMessage() + "(" + ipv4 + ")");
 			m_log.info("validateNodeInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
@@ -83,7 +73,7 @@ public class RepositoryValidator {
 		for (int i = 0; i < 4; i ++) {
 			int j = Integer.parseInt(ipv4Array[i]);
 			if (j < 0 || 255 < j) {
-				InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.24") + "(" + ipv4 + ")");
+				InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV4_CORRECT_FORMAT.getMessage() + "(" + ipv4 + ")");
 				m_log.info("validateNodeInfo() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
@@ -97,11 +87,11 @@ public class RepositoryValidator {
 		validateFacilityInfo(nodeInfo);
 
 		// hardware
-		CommonValidator.validateString(Messages.getString("hardware.type"), nodeInfo.getHardwareType(), false, 0, 128);
+		CommonValidator.validateString(MessageConstant.HARDWARE_TYPE.getMessage(), nodeInfo.getHardwareType(), false, 0, 128);
 		// platformFamily
-		CommonValidator.validateString(Messages.getString("platform.family.name"), nodeInfo.getPlatformFamily(), true, 1, 128);
+		CommonValidator.validateString(MessageConstant.PLATFORM_FAMILY_NAME.getMessage(), nodeInfo.getPlatformFamily(), true, 1, 128);
 		// subPlatformFamily
-		CommonValidator.validateString(Messages.getString("sub.platform.family.name"), nodeInfo.getSubPlatformFamily(), true, 0, 128);
+		CommonValidator.validateString(MessageConstant.SUB_PLATFORM_FAMILY_NAME.getMessage(), nodeInfo.getSubPlatformFamily(), true, 0, 128);
 
 		try {
 			QueryUtil.getCollectorPlatformMstPK(nodeInfo.getPlatformFamily());
@@ -128,7 +118,7 @@ public class RepositoryValidator {
 		if(ipaddressVersion == 4){
 			//versionが空か4の場合には、
 			if(nodeInfo.getIpAddressV4() == null || "".equals(nodeInfo.getIpAddressV4())){
-				InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.24"));
+				InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV4_CORRECT_FORMAT.getMessage());
 				m_log.info("validateNodeInfo() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
@@ -141,13 +131,13 @@ public class RepositoryValidator {
 					//IPv4の場合はさらにStringをチェック
 					validateIpv4(nodeInfo.getIpAddressV4());
 				} else{
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.24") + "(" + nodeInfo.getIpAddressV4() + ")");
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV4_CORRECT_FORMAT.getMessage() + "(" + nodeInfo.getIpAddressV4() + ")");
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
 				}
 			}catch (UnknownHostException e) {
-				InvalidSetting e1 = new InvalidSetting(Messages.getString("message.repository.24") + "(" + nodeInfo.getIpAddressV4() + ")");
+				InvalidSetting e1 = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV4_CORRECT_FORMAT.getMessage() + "(" + nodeInfo.getIpAddressV4() + ")");
 				m_log.info("validateNodeInfo() : "
 						+ e1.getClass().getSimpleName() + ", " + e1.getMessage());
 				throw e1;
@@ -156,7 +146,7 @@ public class RepositoryValidator {
 		else if(ipaddressVersion == 6){
 			//	versionが6の場合には、
 			if(nodeInfo.getIpAddressV6() == null || "".equals(nodeInfo.getIpAddressV6())){
-				InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.25"));
+				InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV6_CORRECT_FORMAT.getMessage());
 				m_log.info("validateNodeInfo() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
@@ -167,13 +157,13 @@ public class RepositoryValidator {
 				InetAddress address = InetAddress.getByName(nodeInfo.getIpAddressV6());
 				if (address instanceof Inet6Address){
 				} else{
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.25") + "(" + nodeInfo.getIpAddressV6() + ")");
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV6_CORRECT_FORMAT.getMessage() + "(" + nodeInfo.getIpAddressV6() + ")");
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
 				}
 			} catch (UnknownHostException e) {
-				InvalidSetting e1 = new InvalidSetting(Messages.getString("message.repository.25") + "(" + nodeInfo.getIpAddressV6() + ")");
+				InvalidSetting e1 = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_IPV6_CORRECT_FORMAT.getMessage() + "(" + nodeInfo.getIpAddressV6() + ")");
 				m_log.info("validateNodeInfo() : "
 						+ e1.getClass().getSimpleName() + ", " + e1.getMessage());
 				throw e1;
@@ -187,51 +177,51 @@ public class RepositoryValidator {
 		}
 
 		//ノード名の入力チェック
-		CommonValidator.validateString(Messages.getString("node.name"), nodeInfo.getNodeName(), true, 1, 128);
+		CommonValidator.validateString(MessageConstant.NODE_NAME.getMessage(), nodeInfo.getNodeName(), true, 1, 128);
 
 		// クラウド管理->クラウドサービス
-		CommonValidator.validateString(Messages.getString("cloud.service"), nodeInfo.getCloudService(), false, 0, 64);
+		CommonValidator.validateString(MessageConstant.CLOUD_SERVICE.getMessage(), nodeInfo.getCloudService(), false, 0, 64);
 		// クラウド管理->クラウドアカウントリソース
-		CommonValidator.validateString(Messages.getString("cloud.scope"), nodeInfo.getCloudScope(), false, 0, 64);
+		CommonValidator.validateString(MessageConstant.CLOUD_SCOPE.getMessage(), nodeInfo.getCloudScope(), false, 0, 64);
 		// クラウド管理->クラウドリソースタイプ
-		CommonValidator.validateString(Messages.getString("cloud.resource.type"), nodeInfo.getCloudResourceType(), false, 0, 64);
+		CommonValidator.validateString(MessageConstant.CLOUD_RESOURCE_TYPE.getMessage(), nodeInfo.getCloudResourceType(), false, 0, 64);
 		// クラウド管理->クラウドリソースID
-		CommonValidator.validateString(Messages.getString("cloud.resource.id"), nodeInfo.getCloudResourceId(), false, 0, 64);
+		CommonValidator.validateString(MessageConstant.CLOUD_RESOURCE_ID.getMessage(), nodeInfo.getCloudResourceId(), false, 0, 64);
 		// クラウド管理->クラウドリソース名
-		CommonValidator.validateString(Messages.getString("cloud.resource.name"), nodeInfo.getCloudResourceName(), false, 0, 64);
+		CommonValidator.validateString(MessageConstant.CLOUD_RESOURCE_NAME.getMessage(), nodeInfo.getCloudResourceName(), false, 0, 64);
 		// クラウド管理->クラウドロケーション
-		CommonValidator.validateString(Messages.getString("cloud.location"), nodeInfo.getCloudLocation(), false, 0, 64);
+		CommonValidator.validateString(MessageConstant.CLOUD_LOCATION.getMessage(), nodeInfo.getCloudLocation(), false, 0, 64);
 
 		// OS名
-		CommonValidator.validateString(Messages.getString("os.name"), nodeInfo.getOsName(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.OS_NAME.getMessage(), nodeInfo.getOsName(), false, 0, 256);
 		// OSリリース
-		CommonValidator.validateString(Messages.getString("os.release"), nodeInfo.getOsRelease(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.OS_RELEASE.getMessage(), nodeInfo.getOsRelease(), false, 0, 256);
 		// OSバージョン
-		CommonValidator.validateString(Messages.getString("os.version"), nodeInfo.getOsVersion(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.OS_VERSION.getMessage(), nodeInfo.getOsVersion(), false, 0, 256);
 		// 文字セット
-		CommonValidator.validateString(Messages.getString("character.set"), nodeInfo.getCharacterSet(), false, 0, 16);
+		CommonValidator.validateString(MessageConstant.CHARACTER_SET.getMessage(), nodeInfo.getCharacterSet(), false, 0, 16);
 
 		//デバイスの入力チェック
 		if(nodeInfo.getNodeCpuInfo() != null){
-			String DeviceTypeName = Messages.getString("cpu");
-			List<NodeCpuEntityPK> pkList = new ArrayList<NodeCpuEntityPK>();
+			String DeviceTypeName = MessageConstant.CPU.getMessage();
+			List<NodeDeviceInfoPK> pkList = new ArrayList<NodeDeviceInfoPK>();
 			for(NodeCpuInfo info : nodeInfo.getNodeCpuInfo()){
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.name") + "]", info.getDeviceName(), true, 1, 128);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.type") + "]", info.getDeviceType(), true, 1, 32);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.display.name") + "]", info.getDeviceDisplayName(), true, 1, 256);
-				CommonValidator.validateDouble(DeviceTypeName + "[" + Messages.getString("device.index") + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_NAME.getMessage() + "]", info.getDeviceName(), true, 1, 128);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_TYPE.getMessage() + "]", info.getDeviceType(), true, 1, 32);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_DISPLAY_NAME.getMessage() + "]", info.getDeviceDisplayName(), true, 1, 256);
+				CommonValidator.validateInt(DeviceTypeName + "[" + MessageConstant.DEVICE_INDEX.getMessage() + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
 
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeCpuEntityPK entityPk = new NodeCpuEntityPK(
+				NodeDeviceInfoPK entityPk = new NodeDeviceInfoPK(
 						nodeInfo.getFacilityId(),
 						info.getDeviceIndex(),
 						info.getDeviceType(),
 						info.getDeviceName());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("cpu"), info.getDeviceName()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.CPU.getMessage(), info.getDeviceName()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -240,25 +230,25 @@ public class RepositoryValidator {
 			}
 		}
 		if(nodeInfo.getNodeMemoryInfo() != null){
-			String DeviceTypeName = Messages.getString("memory");
-			List<NodeMemoryEntityPK> pkList = new ArrayList<NodeMemoryEntityPK>();
+			String DeviceTypeName = MessageConstant.MEMORY.getMessage();
+			List<NodeDeviceInfoPK> pkList = new ArrayList<NodeDeviceInfoPK>();
 			for(NodeMemoryInfo info : nodeInfo.getNodeMemoryInfo()){
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.name") + "]", info.getDeviceName(), true, 1, 128);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.type") + "]", info.getDeviceType(), true, 1, 32);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.display.name") + "]", info.getDeviceDisplayName(), true, 1, 256);
-				CommonValidator.validateDouble(DeviceTypeName + "[" + Messages.getString("device.index") + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_NAME.getMessage() + "]", info.getDeviceName(), true, 1, 128);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_TYPE.getMessage() + "]", info.getDeviceType(), true, 1, 32);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_DISPLAY_NAME.getMessage() + "]", info.getDeviceDisplayName(), true, 1, 256);
+				CommonValidator.validateInt(DeviceTypeName + "[" + MessageConstant.DEVICE_INDEX.getMessage() + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
 
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeMemoryEntityPK entityPk = new NodeMemoryEntityPK(
+				NodeDeviceInfoPK entityPk = new NodeDeviceInfoPK(
 						nodeInfo.getFacilityId(),
 						info.getDeviceIndex(),
 						info.getDeviceType(),
 						info.getDeviceName());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("memory"), info.getDeviceName()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.MEMORY.getMessage(), info.getDeviceName()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -267,25 +257,25 @@ public class RepositoryValidator {
 			}
 		}
 		if(nodeInfo.getNodeDiskInfo() != null){
-			String DeviceTypeName = Messages.getString("disk");
-			List<NodeDiskEntityPK> pkList = new ArrayList<NodeDiskEntityPK>();
+			String DeviceTypeName = MessageConstant.DISK.getMessage();
+			List<NodeDeviceInfoPK> pkList = new ArrayList<NodeDeviceInfoPK>();
 			for(NodeDiskInfo info : nodeInfo.getNodeDiskInfo()){
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.name") + "]", info.getDeviceName(), true, 1, 128);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.type") + "]", info.getDeviceType(), true, 1, 32);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.display.name") + "]", info.getDeviceDisplayName(), true, 1, 256);
-				CommonValidator.validateDouble(DeviceTypeName + "[" + Messages.getString("device.index") + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_NAME.getMessage() + "]", info.getDeviceName(), true, 1, 128);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_TYPE.getMessage() + "]", info.getDeviceType(), true, 1, 32);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_DISPLAY_NAME.getMessage() + "]", info.getDeviceDisplayName(), true, 1, 256);
+				CommonValidator.validateInt(DeviceTypeName + "[" + MessageConstant.DEVICE_INDEX.getMessage() + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
 
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeDiskEntityPK entityPk = new NodeDiskEntityPK(
+				NodeDeviceInfoPK entityPk = new NodeDeviceInfoPK(
 						nodeInfo.getFacilityId(),
 						info.getDeviceIndex(),
 						info.getDeviceType(),
 						info.getDeviceName());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("disk"), info.getDeviceName()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.DISK.getMessage(), info.getDeviceName()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -294,25 +284,25 @@ public class RepositoryValidator {
 			}
 		}
 		if(nodeInfo.getNodeNetworkInterfaceInfo() != null){
-			String DeviceTypeName = Messages.getString("network.interface");
-			List<NodeNetworkInterfaceEntityPK> pkList = new ArrayList<NodeNetworkInterfaceEntityPK>();
+			String DeviceTypeName = MessageConstant.NETWORK_INTERFACE.getMessage();
+			List<NodeDeviceInfoPK> pkList = new ArrayList<NodeDeviceInfoPK>();
 			for(NodeNetworkInterfaceInfo info : nodeInfo.getNodeNetworkInterfaceInfo()){
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.name") + "]", info.getDeviceName(), true, 1, 128);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.type") + "]", info.getDeviceType(), true, 1, 32);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.display.name") + "]", info.getDeviceDisplayName(), true, 1, 256);
-				CommonValidator.validateDouble(DeviceTypeName + "[" + Messages.getString("device.index") + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_NAME.getMessage() + "]", info.getDeviceName(), true, 1, 128);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_TYPE.getMessage() + "]", info.getDeviceType(), true, 1, 32);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_DISPLAY_NAME.getMessage() + "]", info.getDeviceDisplayName(), true, 1, 256);
+				CommonValidator.validateInt(DeviceTypeName + "[" + MessageConstant.DEVICE_INDEX.getMessage() + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
 
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeNetworkInterfaceEntityPK entityPk = new NodeNetworkInterfaceEntityPK(
+				NodeDeviceInfoPK entityPk = new NodeDeviceInfoPK(
 						nodeInfo.getFacilityId(),
 						info.getDeviceIndex(),
 						info.getDeviceType(),
 						info.getDeviceName());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("network.interface"), info.getDeviceName()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.NETWORK_INTERFACE.getMessage(), info.getDeviceName()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -321,25 +311,25 @@ public class RepositoryValidator {
 			}
 		}
 		if(nodeInfo.getNodeFilesystemInfo() != null){
-			String DeviceTypeName = Messages.getString("file.system");
-			List<NodeFilesystemEntityPK> pkList = new ArrayList<NodeFilesystemEntityPK>();
+			String DeviceTypeName = MessageConstant.FILE_SYSTEM.getMessage();
+			List<NodeDeviceInfoPK> pkList = new ArrayList<NodeDeviceInfoPK>();
 			for(NodeFilesystemInfo info : nodeInfo.getNodeFilesystemInfo()){
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.name") + "]", info.getDeviceName(), true, 1, 128);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.type") + "]", info.getDeviceType(), true, 1, 32);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.display.name") + "]", info.getDeviceDisplayName(), true, 1, 256);
-				CommonValidator.validateDouble(DeviceTypeName + "[" + Messages.getString("device.index") + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_NAME.getMessage() + "]", info.getDeviceName(), true, 1, 128);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_TYPE.getMessage() + "]", info.getDeviceType(), true, 1, 32);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_DISPLAY_NAME.getMessage() + "]", info.getDeviceDisplayName(), true, 1, 256);
+				CommonValidator.validateInt(DeviceTypeName + "[" + MessageConstant.DEVICE_INDEX.getMessage() + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
 
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeFilesystemEntityPK entityPk = new NodeFilesystemEntityPK(
+				NodeDeviceInfoPK entityPk = new NodeDeviceInfoPK(
 						nodeInfo.getFacilityId(),
 						info.getDeviceIndex(),
 						info.getDeviceType(),
 						info.getDeviceName());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("file.system"), info.getDeviceName()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.FILE_SYSTEM.getMessage(), info.getDeviceName()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -348,25 +338,25 @@ public class RepositoryValidator {
 			}
 		}
 		if(nodeInfo.getNodeDeviceInfo() != null){
-			String DeviceTypeName = Messages.getString("general.device");
-			List<NodeDeviceEntityPK> pkList = new ArrayList<NodeDeviceEntityPK>();
+			String DeviceTypeName = MessageConstant.GENERAL_DEVICE.getMessage();
+			List<NodeDeviceInfoPK> pkList = new ArrayList<NodeDeviceInfoPK>();
 			for(NodeDeviceInfo info : nodeInfo.getNodeDeviceInfo()){
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.name") + "]", info.getDeviceName(), true, 1, 128);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.type") + "]", info.getDeviceType(), true, 1, 32);
-				CommonValidator.validateString(DeviceTypeName + "[" + Messages.getString("device.display.name") + "]", info.getDeviceDisplayName(), true, 1, 256);
-				CommonValidator.validateDouble(DeviceTypeName + "[" + Messages.getString("device.index") + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_NAME.getMessage() + "]", info.getDeviceName(), true, 1, 128);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_TYPE.getMessage() + "]", info.getDeviceType(), true, 1, 32);
+				CommonValidator.validateString(DeviceTypeName + "[" + MessageConstant.DEVICE_DISPLAY_NAME.getMessage() + "]", info.getDeviceDisplayName(), true, 1, 256);
+				CommonValidator.validateInt(DeviceTypeName + "[" + MessageConstant.DEVICE_INDEX.getMessage() + "]", info.getDeviceIndex(), 0, Integer.MAX_VALUE);
 
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeDeviceEntityPK entityPk = new NodeDeviceEntityPK(
+				NodeDeviceInfoPK entityPk = new NodeDeviceInfoPK(
 						nodeInfo.getFacilityId(),
 						info.getDeviceIndex(),
 						info.getDeviceType(),
 						info.getDeviceName());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("general.device"), info.getDeviceName()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.GENERAL_DEVICE.getMessage(), info.getDeviceName()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -375,17 +365,17 @@ public class RepositoryValidator {
 			}
 		}
 		if(nodeInfo.getNodeHostnameInfo() != null){
-			List<NodeHostnameEntityPK> pkList = new ArrayList<NodeHostnameEntityPK>();
+			List<NodeHostnameInfoPK> pkList = new ArrayList<NodeHostnameInfoPK>();
 			for(NodeHostnameInfo info : nodeInfo.getNodeHostnameInfo()){
-				CommonValidator.validateString(Messages.getString("host.name"), info.getHostname(), false, 0, 128);
+				CommonValidator.validateString(MessageConstant.HOST_NAME.getMessage(), info.getHostname(), false, 0, 128);
 
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeHostnameEntityPK entityPk = new NodeHostnameEntityPK(nodeInfo.getFacilityId(), info.getHostname());
+				NodeHostnameInfoPK entityPk = new NodeHostnameInfoPK(nodeInfo.getFacilityId(), info.getHostname());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("host.name"), info.getHostname()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.HOST_NAME.getMessage(), info.getHostname()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -394,15 +384,15 @@ public class RepositoryValidator {
 			}
 		}
 		if(nodeInfo.getNodeVariableInfo() != null){
-			List<NodeVariableEntityPK> pkList = new ArrayList<NodeVariableEntityPK>();
+			List<NodeVariableInfoPK> pkList = new ArrayList<NodeVariableInfoPK>();
 			for(NodeVariableInfo variable : nodeInfo.getNodeVariableInfo()){
 				// 重複チェック
 				// JPAリレーションでのDeleteInsertがうまくいかないので、
 				// インデックスを持っていないデバイス情報は手動で重複チェックする。
-				NodeVariableEntityPK entityPk = new NodeVariableEntityPK(nodeInfo.getFacilityId(), variable.getNodeVariableName());
+				NodeVariableInfoPK entityPk = new NodeVariableInfoPK(nodeInfo.getFacilityId(), variable.getNodeVariableName());
 				if (pkList.contains(entityPk)) {
-					Object[] args = { Messages.getString("node.variable"), variable.getNodeVariableName()};
-					InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.32", args));
+					String[] args = { MessageConstant.NODE_VARIABLE.getMessage(), variable.getNodeVariableName()};
+					InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_ERROR_IN_OVERLAP.getMessage(args));
 					m_log.info("validateNodeInfo() : "
 							+ e.getClass().getSimpleName() + ", " + e.getMessage());
 					throw e;
@@ -412,52 +402,52 @@ public class RepositoryValidator {
 		}
 
 		//サービスのチェック(SNMP)
-		CommonValidator.validateString(Messages.getString("community.name"), nodeInfo.getSnmpCommunity(), false, 0, 64);
-		if(nodeInfo.getSnmpVersion() == null
-				|| (!"".equals(nodeInfo.getSnmpVersion())
-						&& !SnmpVersionConstant.STRING_V1.equals(nodeInfo.getSnmpVersion())
-						&& !SnmpVersionConstant.STRING_V2.equals(nodeInfo.getSnmpVersion())
-						&& !SnmpVersionConstant.STRING_V3.equals(nodeInfo.getSnmpVersion()))){
-			InvalidSetting e = new InvalidSetting("SNMP Version is " + SnmpVersionConstant.STRING_V1 + " or " + SnmpVersionConstant.STRING_V2);
+		CommonValidator.validateString(MessageConstant.COMMUNITY_NAME.getMessage(), nodeInfo.getSnmpCommunity(), false, 0, 64);
+		if(nodeInfo.getSnmpVersion() == null || 
+				(SnmpVersionConstant.TYPE_V1 != nodeInfo.getSnmpVersion()
+				&& SnmpVersionConstant.TYPE_V2 != nodeInfo.getSnmpVersion()
+				&& SnmpVersionConstant.TYPE_V3 != nodeInfo.getSnmpVersion())
+			){
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_SNMP_VERSION.getMessage());
 			m_log.info("validateNodeInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
-		if(SnmpVersionConstant.STRING_V3.equals(nodeInfo.getSnmpVersion()) &&
+		if(SnmpVersionConstant.TYPE_V3 == nodeInfo.getSnmpVersion() &&
 				(SnmpSecurityLevelConstant.AUTH_NOPRIV.equals(nodeInfo.getSnmpSecurityLevel())
 					|| SnmpSecurityLevelConstant.AUTH_PRIV.equals(nodeInfo.getSnmpSecurityLevel()))) {
-			CommonValidator.validateString(Messages.getString("snmp.auth.password"), nodeInfo.getSnmpAuthPassword(), true, 8, 64);
+			CommonValidator.validateString(MessageConstant.SNMP_AUTH_PASSWORD.getMessage(), nodeInfo.getSnmpAuthPassword(), true, 8, 64);
 			String auth = nodeInfo.getSnmpAuthProtocol();
 			if (auth == null || !SnmpProtocolConstant.getAuthProtocol().contains(auth)) {
-				Object[] args = { Messages.getString("snmp.auth.protocol") };
-				InvalidSetting e = new InvalidSetting(Messages.getString("message.common.1", args));
+				String[] args = { MessageConstant.SNMP_AUTH_PROTOCOL.getMessage() };
+				InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_INPUT.getMessage(args));
 				m_log.info("validateNodeInfo() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
 			}
 		} else {
-			CommonValidator.validateString(Messages.getString("snmp.auth.password"), nodeInfo.getSnmpAuthPassword(), false, 0, 64);
+			CommonValidator.validateString(MessageConstant.SNMP_AUTH_PASSWORD.getMessage(), nodeInfo.getSnmpAuthPassword(), false, 0, 64);
 		}
-		if(SnmpVersionConstant.STRING_V3.equals(nodeInfo.getSnmpVersion()) &&
+		if(SnmpVersionConstant.TYPE_V3 == nodeInfo.getSnmpVersion() &&
 				(SnmpSecurityLevelConstant.AUTH_PRIV.equals(nodeInfo.getSnmpSecurityLevel()))) {
-			CommonValidator.validateString(Messages.getString("snmp.priv.password"), nodeInfo.getSnmpPrivPassword(), true, 8, 64);
+			CommonValidator.validateString(MessageConstant.SNMP_PRIV_PASSWORD.getMessage(), nodeInfo.getSnmpPrivPassword(), true, 8, 64);
 			String priv = nodeInfo.getSnmpPrivProtocol();
 			if (priv == null || !SnmpProtocolConstant.getPrivProtocol().contains(priv)) {
-				Object[] args = { Messages.getString("snmp.priv.protocol") };
-				InvalidSetting e = new InvalidSetting(Messages.getString("message.common.1", args));
+				String[] args = { MessageConstant.SNMP_PRIV_PROTOCOL.getMessage() };
+				InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_INPUT.getMessage(args));
 				m_log.info("validateNodeInfo() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
 			}
 		} else {
-			CommonValidator.validateString(Messages.getString("snmp.priv.password"), nodeInfo.getSnmpPrivPassword(), false, 0, 64);
+			CommonValidator.validateString(MessageConstant.SNMP_PRIV_PASSWORD.getMessage(), nodeInfo.getSnmpPrivPassword(), false, 0, 64);
 		}
 
-		CommonValidator.validateString(Messages.getString("snmp.user"),
+		CommonValidator.validateString(MessageConstant.SNMP_USER.getMessage(),
 				nodeInfo.getSnmpUser(), false, 0, 64);
-		CommonValidator.validateInt(Messages.getString("snmp.retries"),
+		CommonValidator.validateInt(MessageConstant.SNMP_RETRIES.getMessage(),
 				nodeInfo.getSnmpRetryCount(), 1, 10);
-		CommonValidator.validateInt(Messages.getString("snmp.timeout"),
+		CommonValidator.validateInt(MessageConstant.SNMP_TIMEOUT.getMessage(),
 				nodeInfo.getSnmpTimeout(), 1, Integer.MAX_VALUE);
 
 		//サービスのチェック(WBEM)
@@ -470,25 +460,25 @@ public class RepositoryValidator {
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
-		CommonValidator.validateString(Messages.getString("wbem.user"),
+		CommonValidator.validateString(MessageConstant.WBEM_USER.getMessage(),
 				nodeInfo.getWbemUser(), false, 0, 64);
-		CommonValidator.validateString(Messages.getString("wbem.user.password"),
+		CommonValidator.validateString(MessageConstant.WBEM_USER_PASSWORD.getMessage(),
 				nodeInfo.getWbemUserPassword(), false, 0, 64);
-		CommonValidator.validateInt(Messages.getString("wbem.retries"),
+		CommonValidator.validateInt(MessageConstant.WBEM_RETRIES.getMessage(),
 				nodeInfo.getWbemRetryCount(), 1, 10);
-		CommonValidator.validateInt(Messages.getString("wbem.timeout"),
+		CommonValidator.validateInt(MessageConstant.WBEM_TIMEOUT.getMessage(),
 				nodeInfo.getWbemTimeout(), 1, Integer.MAX_VALUE);
 
 		//サービスのチェック(IPMI)
-		CommonValidator.validateString(Messages.getString("ipmi.protocol"), nodeInfo.getIpmiProtocol(), false, 0, 32);
-		CommonValidator.validateString(Messages.getString("ipmi.level"), nodeInfo.getIpmiLevel(), false, 0, 32);
-		CommonValidator.validateString(Messages.getString("ipmi.user"),
+		CommonValidator.validateString(MessageConstant.IPMI_PROTOCOL.getMessage(), nodeInfo.getIpmiProtocol(), false, 0, 32);
+		CommonValidator.validateString(MessageConstant.IPMI_LEVEL.getMessage(), nodeInfo.getIpmiLevel(), false, 0, 32);
+		CommonValidator.validateString(MessageConstant.IPMI_USER.getMessage(),
 				nodeInfo.getIpmiUser(), false, 0, 64);
-		CommonValidator.validateString(Messages.getString("ipmi.user.password"),
+		CommonValidator.validateString(MessageConstant.IPMI_USER_PASSWORD.getMessage(),
 				nodeInfo.getIpmiUserPassword(), false, 0, 64);
-		CommonValidator.validateInt(Messages.getString("ipmi.retries"),
+		CommonValidator.validateInt(MessageConstant.IPMI_RETRIES.getMessage(),
 				nodeInfo.getIpmiRetries(), 1, 10);
-		CommonValidator.validateInt(Messages.getString("ipmi.timeout"),
+		CommonValidator.validateInt(MessageConstant.IPMI_TIMEOUT.getMessage(),
 				nodeInfo.getIpmiTimeout(), 1, Integer.MAX_VALUE);
 
 		//サービスのチェック(WinRM)
@@ -501,17 +491,17 @@ public class RepositoryValidator {
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
-		CommonValidator.validateString(Messages.getString("winrm.user"),
+		CommonValidator.validateString(MessageConstant.WINRM_USER.getMessage(),
 				nodeInfo.getWinrmUser(), false, 0, 64);
-		CommonValidator.validateString(Messages.getString("winrm.user.password"),
+		CommonValidator.validateString(MessageConstant.WINRM_USER_PASSWORD.getMessage(),
 				nodeInfo.getWinrmUserPassword(), false, 0, 64);
-		CommonValidator.validateInt(Messages.getString("winrm.retries"),
+		CommonValidator.validateInt(MessageConstant.WINRM_RETRIES.getMessage(),
 				nodeInfo.getWinrmRetries(), 1, 10);
-		CommonValidator.validateInt(Messages.getString("winrm.timeout"),
+		CommonValidator.validateInt(MessageConstant.WINRM_TIMEOUT.getMessage(),
 				nodeInfo.getWinrmTimeout(), 1, Integer.MAX_VALUE);
 
 		// administrator
-		CommonValidator.validateString(Messages.getString("administrator"), nodeInfo.getAdministrator(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.ADMINISTRATOR.getMessage(), nodeInfo.getAdministrator(), false, 0, 256);
 
 	}
 
@@ -554,13 +544,20 @@ public class RepositoryValidator {
 
 	public static void validateFacilityInfo (FacilityInfo facilityInfo) throws InvalidSetting {
 		// facilityId
-		CommonValidator.validateId(Messages.getString("facility.id"), facilityInfo.getFacilityId(), 512);
-
+		CommonValidator.validateId(MessageConstant.FACILITY_ID.getMessage(), facilityInfo.getFacilityId(), 512);
+		// 最上位スコープ（_ROOT_）は登録不可
+		if (facilityInfo.getFacilityId().equals(FacilityIdConstant.ROOT)) {
+			String[] args = { FacilityIdConstant.ROOT };
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_NOT_ALLOWED_IN_REPOSITORY.getMessage(args));
+			m_log.info("validateFacilityInfo() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage());
+			throw e;
+		}
 		// facilityName
-		CommonValidator.validateString(Messages.getString("facility.name"), facilityInfo.getFacilityName(), true, 1, 128);
+		CommonValidator.validateString(MessageConstant.FACILITY_NAME.getMessage(), facilityInfo.getFacilityName(), true, 1, 128);
 
 		// description
-		CommonValidator.validateString(Messages.getString("description"), facilityInfo.getDescription(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.DESCRIPTION.getMessage(), facilityInfo.getDescription(), false, 0, 256);
 
 		// ownerRoleId
 		CommonValidator.validateOwnerRoleId(facilityInfo.getOwnerRoleId(), true,
@@ -591,7 +588,7 @@ public class RepositoryValidator {
 
 		// facilityIds
 		if(facilityIds == null || facilityIds.length == 0){
-			InvalidSetting e = new InvalidSetting(Messages.getString("message.repository.2"));
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_NODE_REPOSITORY.getMessage());
 			m_log.info("validateaAssignNodeScope() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;

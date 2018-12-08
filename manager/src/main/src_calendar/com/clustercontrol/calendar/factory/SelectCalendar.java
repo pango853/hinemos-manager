@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.calendar.factory;
@@ -18,29 +11,29 @@ package com.clustercontrol.calendar.factory;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.TimeZone;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.fault.CalendarNotFound;
-import com.clustercontrol.fault.InvalidRole;
-import com.clustercontrol.bean.ValidConstant;
-import com.clustercontrol.calendar.bean.CalendarDetailInfo;
-import com.clustercontrol.calendar.bean.CalendarInfo;
-import com.clustercontrol.calendar.bean.CalendarPatternInfo;
-import com.clustercontrol.calendar.model.CalDetailInfoEntity;
-import com.clustercontrol.calendar.model.CalInfoEntity;
-import com.clustercontrol.calendar.model.CalPatternInfoEntity;
+import com.clustercontrol.calendar.model.CalendarDetailInfo;
+import com.clustercontrol.calendar.model.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarPatternInfo;
+import com.clustercontrol.calendar.model.YMD;
 import com.clustercontrol.calendar.util.CalendarCache;
 import com.clustercontrol.calendar.util.CalendarPatternCache;
 import com.clustercontrol.calendar.util.CalendarUtil;
 import com.clustercontrol.calendar.util.QueryUtil;
+import com.clustercontrol.fault.CalendarNotFound;
+import com.clustercontrol.fault.InvalidRole;
+import com.clustercontrol.util.HinemosTime;
 
 
 /**
@@ -53,8 +46,9 @@ public class SelectCalendar {
 
 	private static Log m_log = LogFactory.getLog( SelectCalendar.class );
 
-	private static final long TIMEZONE = TimeZone.getDefault().getRawOffset();
-	private static final long HOUR24 = 24 * 60 * 60 * 1000;
+	private static final long TIMEZONE = HinemosTime.getTimeZoneOffset();
+	private static final long HOUR = 60 * 60 * 1000;
+	private static final long HOUR24 = 24 * HOUR;
 
 	/**
 	 * カレンダ情報をキャッシュより取得します。
@@ -68,7 +62,6 @@ public class SelectCalendar {
 		if(id != null && !"".equals(id)){
 			ret = CalendarCache.getCalendarInfo(id);
 		}
-
 		return ret;
 	}
 
@@ -82,17 +75,9 @@ public class SelectCalendar {
 	 */
 	public CalendarInfo getCalendar(String id) throws CalendarNotFound, InvalidRole {
 		CalendarInfo ret = null;
-		if(id != null && !"".equals(id)){
+		if(id != null && !id.isEmpty()){
 			//カレンダ取得
-			CalInfoEntity entity = QueryUtil.getCalInfoPK(id);
-
-			//カレンダ情報のDTOを生成
-			ret = getCalendarInfoBean(entity);
-			//カレンダ詳細情報を追加
-			ArrayList<CalendarDetailInfo> detailList = getCalDetailList(entity.getCalendarId());
-			ret.getCalendarDetailList().clear();
-			ret.getCalendarDetailList().addAll(detailList);
-
+			ret = QueryUtil.getCalInfoPK(id);
 		}
 
 		return ret;
@@ -104,58 +89,8 @@ public class SelectCalendar {
 	 * @return カレンダ詳細情報のリスト
 	 */
 	public ArrayList<CalendarDetailInfo> getCalDetailList(String id) {
-		ArrayList<CalendarDetailInfo> list = new ArrayList<CalendarDetailInfo>();
-
 		//カレンダIDの曜日別情報を取得
-		List<CalDetailInfoEntity> ct = QueryUtil.getCalDetailByCalendarId(id);
-
-		Iterator<CalDetailInfoEntity> itr = ct.iterator();
-		while(itr.hasNext()){
-			CalDetailInfoEntity cal = itr.next();
-			CalendarDetailInfo info = new CalendarDetailInfo();
-			//説明
-			if(cal.getDescription() != null){
-				info.setDescription(cal.getDescription());
-			}
-			//年
-			info.setYear(cal.getYearNo());
-			//月
-			info.setMonth(cal.getMonthNo());
-			//曜日選択
-			info.setDayType(cal.getDayType());
-			//曜日
-			if(cal.getWeekNo() != null){
-				info.setDayOfWeek(cal.getWeekNo());
-			}
-			//第x週
-			if(cal.getWeekXth() != null){
-				info.setDayOfWeekInMonth(cal.getWeekXth());
-			}
-			//日
-			if(cal.getDayNo() != null){
-				info.setDate(cal.getDayNo());
-			}
-			//カレンダパターン
-			if(cal.getCalPatternId() != null){
-				info.setCalPatternId(cal.getCalPatternId());
-			}
-			//上記の日程からx日後
-			info.setAfterday(cal.getAfterDay());
-			//開始時間
-			if(cal.getStartTime() != null){
-				info.setTimeFrom(cal.getStartTime().getTime());
-			}
-			//終了時間
-			if(cal.getEndTime() != null){
-				info.setTimeTo(cal.getEndTime().getTime());
-			}
-			//稼動・非稼動
-			info.setOperateFlg(ValidConstant.typeToBoolean(cal.getExecuteFlg()));
-
-			list.add(info);
-		}
-
-		return list;
+		return new ArrayList<>(QueryUtil.getCalDetailByCalendarId(id));
 	}
 
 	/**
@@ -189,8 +124,7 @@ public class SelectCalendar {
 	 * @return カレンダ情報のリスト
 	 */
 	public ArrayList<CalendarInfo> getAllCalendarList(String ownerRoleId) {
-
-		List<CalInfoEntity> ct = null;
+		List<CalendarInfo> ct = null;
 		if (ownerRoleId == null || ownerRoleId.isEmpty()) {
 			//全カレンダを取得
 			ct = QueryUtil.getAllCalInfo();
@@ -198,13 +132,7 @@ public class SelectCalendar {
 			// オーナーロールIDを条件として全カレンダ取得
 			ct = QueryUtil.getAllCalInfo_OR(ownerRoleId);
 		}
-		ArrayList<CalendarInfo> list = new ArrayList<CalendarInfo>();
-		Iterator<CalInfoEntity> itr = ct.iterator();
-		while(itr.hasNext()){
-			CalInfoEntity entity = itr.next();
-			list.add(getCalendarInfoBean(entity));
-		}
-		return list;
+		return new ArrayList<>(ct);
 	}
 
 	/**
@@ -216,8 +144,8 @@ public class SelectCalendar {
 		ArrayList<String> list = new ArrayList<String>();
 
 		//全カレンダを取得
-		List<CalInfoEntity> ct = QueryUtil.getAllCalInfo();
-		for (CalInfoEntity cal : ct) {
+		List<CalendarInfo> ct = QueryUtil.getAllCalInfo();
+		for (CalendarInfo cal : ct) {
 			list.add(cal.getCalendarId());
 		}
 		return list;
@@ -254,16 +182,16 @@ public class SelectCalendar {
 		long validFrom = info.getValidTimeFrom();
 		long validTo = info.getValidTimeTo();
 
-		Calendar cal = Calendar.getInstance();
+		Calendar cal = HinemosTime.getCalendarInstance();
 		cal.set(year, month - 1, 1);
 		int lastDate = cal.getActualMaximum(Calendar.DATE) + 1;
 		m_log.debug("maxDate=" + year + "/" + month + "/" + lastDate);
 		for (int i = 1; i < lastDate; i ++) {
-			Calendar startCalendar = Calendar.getInstance();
+			Calendar startCalendar = HinemosTime.getCalendarInstance();
 			startCalendar.clear();
 			startCalendar.set(year, month - 1, i, 0, 0, 0);
 			long dayStartTime = startCalendar.getTimeInMillis();
-			Calendar endCalendar = Calendar.getInstance();
+			Calendar endCalendar = HinemosTime.getCalendarInstance();
 			endCalendar.clear();
 			endCalendar.set(year, month - 1, i + 1, 0, 0, 0);
 			long dayEndTime = endCalendar.getTimeInMillis();
@@ -329,26 +257,12 @@ public class SelectCalendar {
 			boolean isAllOK = true; // NGを見つけた時点でfalseに遷移
 			for (Long borderTime : borderTimeSet) {
 				// この境界時刻が動作時刻か、非動作時刻かを検証する
-				
-				boolean existValidCalendar = false;
 				// カレンダ詳細設定から、この境界時刻時点で稼動か否かを調査する
-				for (CalendarDetailInfo detail : list24) {
-					if (CalendarUtil.isRunByDetailDateTime(detail, new Date(borderTime))) {
-						// カレンダ詳細が有効期間内の場合は、このカレンダ詳細設定で有効・無効がわかるため、
-						// この時刻に関しては以降のカレンダ詳細の調査はスキップする
-						if (detail.isOperateFlg() == true) {
-							isAllNG = false;
-						} else {
-							isAllOK = false;
-						}
-						// 有効なカレンダ詳細設定が見つかった場合、この境界時刻に関しては
-						// これ以上のカレンダ詳細のチェックは行わない
-						existValidCalendar = true;
-						break;
-					}
-				}
-				// この境界時刻に有効なカレンダ詳細設定が１つもない場合、その時刻はNGになる
-				if (existValidCalendar == false) {
+				m_log.debug("date:" + new Date(borderTime));
+				boolean retRun = CalendarUtil.isRun(info, new Date(borderTime));
+				if (retRun) {
+					isAllNG = false;
+				} else {
 					isAllOK = false;
 				}
 				// 全OK・全NGではなくなったら△に確定なので、残りの処理は行わない
@@ -378,63 +292,135 @@ public class SelectCalendar {
 		return ret;
 	}
 	/**
-	 * カレンダ詳細定義 - 年、月、日が現在の時間が等しいか調べる
-	 * 時間、分、秒は見ない。
-	 * CalendarWeekViewで利用する。
+	 * 週間予定で使用するための{@link CalendarDetailInfo}(※)を作成する。
+	 *  <p>※ビューで使用する timeFrom, timeTo, operateFlg のみセットしている。
 	 * @throws CalendarNotFound
 	 * @throws InvalidRole
 	 */
-
 	public ArrayList<CalendarDetailInfo> getCalendarWeek(String id, Integer year, Integer month, Integer day) throws CalendarNotFound, InvalidRole {
-
 		CalendarInfo info = getCalendarFull(id);
 		return getCalendarWeek(info, year, month, day);
 	}
 
 	public ArrayList<CalendarDetailInfo> getCalendarWeek(CalendarInfo info, Integer year, Integer month, Integer day) throws CalendarNotFound {
-		long validFrom = info.getValidTimeFrom();
-		long validTo = info.getValidTimeTo();
-		ArrayList<CalendarDetailInfo> ret = new ArrayList<CalendarDetailInfo>();
-		Calendar startCalendar = Calendar.getInstance();
-		startCalendar.clear();
-		startCalendar.set(year, month - 1, day, 0, 0, 0);
-		long startTime = startCalendar.getTimeInMillis();
-		Calendar endCalendar = Calendar.getInstance();
-		endCalendar.clear();
-		endCalendar.set(year, month - 1, day + 1, 0, 0, 0);
-		long endTime = endCalendar.getTimeInMillis();
 
-		if (startTime <=  validFrom && endTime <= validFrom) {
+		ArrayList<CalendarDetailInfo> ret = new ArrayList<>();
+		
+		// 稼働/非稼働の切り替わりは、カレンダ詳細(&カレンダ有効期限)の開始・終了時刻に
+		// 限定される。
+		// 例えば、カレンダに含まれる全てのカレンダ詳細の開始・終了時刻が"10:00～15:00"である
+		// 場合(そして振り替え間隔が24の倍数である場合)、稼働/非稼働は必ず、10:00または
+		// 15:00のどちらで切り替わる。
+		// よって、開始・終了時刻を全てリストアップし、調査日の各時刻において判定を行い、
+		// 稼働となる時間帯を求めればよい。
+		// 調査日とは関わりのない時刻(例えば調査日が月曜の場合の、"振り替えなし毎週火曜日"の
+		// カレンダ詳細の開始・終了時刻など)を判定から除外することで計算量を減らせるが、
+		// 除外するかどうかの判断で逆に計算量が膨らみそうなので、未実装である。
+
+		// メソッド内で使い回すカレンダ (Hinemosタイムゾーン)
+		Calendar cal = HinemosTime.getCalendarInstance();
+		cal.clear();
+
+		// 調査日の始まりと終りの時刻を求める
+		cal.set(year, month - 1, day, 0, 0, 0);
+		long beginningOfDay = cal.getTimeInMillis();
+
+		cal.set(year, month - 1, day + 1, 0, 0, 0);
+		long endOfDay = cal.getTimeInMillis();
+
+		// 調査日がカレンダの有効期間外の場合を刈り取る
+		// (別にやらなくても問題ないが、少しでも効率化するため。)
+		if (endOfDay <= info.getValidTimeFrom() || info.getValidTimeTo() <= beginningOfDay) {
 			return ret;
 		}
-		if (validTo <= startTime && validTo <= endTime) {
-			return ret;
-		}
-		if (startTime < validFrom && validFrom < endTime) {
-			CalendarDetailInfo detail = new CalendarDetailInfo();
-			detail.setTimeFrom(0 - TIMEZONE);
-			detail.setTimeTo(validFrom - startTime - TIMEZONE);
-			detail.setOperateFlg(false);
-			ret.add(detail);
-		}
-		if (startTime < validTo && validTo < endTime) {
-			CalendarDetailInfo detail = new CalendarDetailInfo();
-			detail.setTimeFrom(validTo - startTime - TIMEZONE);
-			detail.setTimeTo(HOUR24 - TIMEZONE);
-			detail.setOperateFlg(false);
-			ret.add(detail);
-		}
 
+		// 判定時刻のリストアップ (ソート済み、重複なし)
+		SortedSet<Date> checkTimes = new TreeSet<>();
+
+		Consumer<Long> addCheckTime = new Consumer<Long>() {
+			@Override
+			public void accept(Long time) {
+				// 指定された日時について、時刻(hh:mm:ss)は変えずに
+				// 日付(yyyy-MM-dd)を調査日にすげ替えて、リストへ追加する
+				cal.setTimeInMillis(time);
+				cal.set(year, month - 1, day);
+				cal.set(Calendar.MILLISECOND, 0);  // もしミリ秒が入っていたら重複判断が狂うので潰す
+				checkTimes.add(cal.getTime());
+			}
+		};
+
+		/// 調査日の始まり(終わりは判定不要)
+		addCheckTime.accept(beginningOfDay);
+
+		/// 有効期間  開始・終了時刻
+		addCheckTime.accept(info.getValidTimeFrom());
+		addCheckTime.accept(info.getValidTimeTo());
+
+		/// カレンダ詳細  開始・終了時刻
 		for (CalendarDetailInfo detail : info.getCalendarDetailList()) {
-			for (CalendarDetailInfo detail24 : CalendarUtil.getDetail24(detail)) {
-				if (CalendarUtil.isRunByDetailDate(detail24, startCalendar.getTime())) {
-					ret.add(detail24);
+
+			// 振り替えが指定されている場合は、時刻をずらしながら上限回数分ループして追加する
+			int substLimit = 1;
+			long substDelta = 0;
+			if (detail.isSubstituteFlg()) {
+				substLimit = detail.getSubstituteLimit();
+				substDelta = detail.getSubstituteTime() * HOUR;
+			}
+		
+			for (int substCount = 0; substCount < substLimit; ++substCount) {
+				for (long t : new long[] { detail.getTimeFrom(), detail.getTimeTo() }) {
+					t += TIMEZONE;  // 日跨ぎ判定のため、0Lが"00:00:00"を指すUTCへ変換
+					t += substDelta * substCount;  // 振り替え補正
+					if (t < 0) {
+						t = HOUR24 - (-t) % HOUR24;
+					} else if (t > HOUR24) {
+						t %= HOUR24;
+					}
+					addCheckTime.accept(t - TIMEZONE);      // TZを戻す
 				}
 			}
 		}
-		if (m_log.isDebugEnabled()) {
-			for (CalendarDetailInfo detail : ret) {
-				m_log.debug("detail=" + detail);
+
+		// 時刻ごとの稼働判定と、時間帯オブジェクト(CalendarDetailInfo)の生成
+		List<CalendarDetailInfo> bands = new ArrayList<>();
+		boolean prevResult = false;
+		CalendarDetailInfo band = null;
+		long timeFromToOffset = TIMEZONE + beginningOfDay;  // checkTime(Date型)のgetTimeはUTC基準なのでTIMEZONEを引く
+
+		for (Date checkTime : checkTimes) {
+			boolean checkResult = CalendarUtil.isRun(info, checkTime);
+			if (m_log.isTraceEnabled()) {
+				m_log.trace(checkTime + ", " + checkResult);
+			}
+
+			if (band == null) {
+				// ループ初回(調査日の00:00:00)の場合は、最初の時間帯オブジェクトを用意するだけ
+				band = new CalendarDetailInfo();
+				band.setTimeFrom(checkTime.getTime() - timeFromToOffset);
+				band.setOperateFlg(checkResult);
+			} else {
+				if (checkResult != prevResult) {
+					// 稼働判定の切り替わりを検出したら、時間帯オブジェクトをリストへ追加
+					band.setTimeTo(checkTime.getTime() - timeFromToOffset);
+					bands.add(band);
+					// 次の時間帯オブジェクト
+					band = new CalendarDetailInfo();
+					band.setTimeFrom(checkTime.getTime() - timeFromToOffset);
+					band.setOperateFlg(checkResult);
+				}
+			}
+			prevResult = checkResult;
+
+		}
+
+		// 最後の時間帯オブジェクトが宙に浮いているので、忘れずにリストへ追加する
+		band.setTimeTo(endOfDay - timeFromToOffset);
+		bands.add(band);
+
+		// 稼働時間帯のみ返す
+		for (CalendarDetailInfo b : bands) {
+			if (b.isOperateFlg()) {
+				ret.add(b);
 			}
 		}
 		return ret;
@@ -452,6 +438,21 @@ public class SelectCalendar {
 		CalendarPatternInfo ret = null;
 		if(id != null && !"".equals(id)){
 			ret = CalendarPatternCache.getCalendarPatternInfo(id);
+		} else {
+			throw new CalendarNotFound("id is null");
+		}
+		// 年月日で昇順ソート
+		if (ret.getYmd() != null) {
+			Collections.sort(ret.getYmd(), new Comparator<YMD>(){
+				@Override
+				public int compare(YMD y1, YMD y2) {
+					Calendar ymd1 = Calendar.getInstance();
+					ymd1.set(y1.getYear(), y1.getMonth() - 1, y1.getDay());
+					Calendar ymd2 = Calendar.getInstance();
+					ymd2.set(y2.getYear(), y2.getMonth() - 1, y2.getDay());
+					return ymd1.getTime().compareTo(ymd2.getTime());
+				}
+			});
 		}
 		return ret;
 	}
@@ -469,14 +470,31 @@ public class SelectCalendar {
 		//全カレンダを取得
 		ArrayList<String> patternIdList = getCalendarPatternIdList(ownerRoleId);
 		for (String id : patternIdList) {
-			CalendarPatternInfo info = new CalendarPatternInfo();
-			info = CalendarPatternCache.getCalendarPatternInfo(id);
+			CalendarPatternInfo info = CalendarPatternCache.getCalendarPatternInfo(id);
+			// 年月日で昇順ソート
+			if (info.getYmd() != null) {
+				Collections.sort(info.getYmd(), new Comparator<YMD>(){
+					@Override
+					public int compare(YMD y1, YMD y2) {
+						Calendar ymd1 = Calendar.getInstance();
+						ymd1.set(y1.getYear(), y1.getMonth() - 1, y1.getDay());
+						Calendar ymd2 = Calendar.getInstance();
+						ymd2.set(y2.getYear(), y2.getMonth() - 1, y2.getDay());
+						return ymd1.getTime().compareTo(ymd2.getTime());
+					}
+				});
+			}
 			list.add(info);
 		}
 		/*
 		 * カレンダパターンIDで昇順ソート
 		 */
-		Collections.sort(list);
+		Collections.sort(list, new Comparator<CalendarPatternInfo>() {
+			@Override
+			public int compare(CalendarPatternInfo o1, CalendarPatternInfo o2) {
+				return o1.getCalPatternId().compareTo(o2.getCalPatternId());
+			}
+		});
 		return list;
 	}
 
@@ -489,13 +507,13 @@ public class SelectCalendar {
 	public ArrayList<String> getCalendarPatternIdList(String ownerRoleId) {
 		ArrayList<String> list = new ArrayList<String>();
 		//全カレンダパターンを取得
-		List<CalPatternInfoEntity> entityList = QueryUtil.getAllCalPatternInfo();
+		List<CalendarPatternInfo> entityList = QueryUtil.getAllCalPatternInfo();
 		if (ownerRoleId == null || ownerRoleId.isEmpty()) {
 			entityList = QueryUtil.getAllCalPatternInfo();
 		} else {
 			entityList = QueryUtil.getAllCalPatternInfo_OR(ownerRoleId);
 		}
-		for (CalPatternInfoEntity entity : entityList) {
+		for (CalendarPatternInfo entity : entityList) {
 			list.add(entity.getCalPatternId());
 		}
 		//ソート処理
@@ -564,53 +582,14 @@ public class SelectCalendar {
 		SelectCalendar selectCalendar = new SelectCalendar();
 		ArrayList<Integer> list = selectCalendar.getCalendarMonth(info, 2012, 2);
 		int j = 0;
-		String str = "";
+		StringBuilder str = new StringBuilder();
 		for (Integer i : list) {
 			if (j % 7 == 0) {
-				str += "\n";
+				str.append("\n");
 			}
-			str += i + " ";
+			str.append(i).append(" ");
 			j++;
 		}
 		m_log.trace("getCalendarMonthInfo=" + str);
-	}
-
-	/**
-	 * CalInfoEntityからCalendarInfoへ変換
-	 */
-	private CalendarInfo getCalendarInfoBean(CalInfoEntity entity) {
-
-		//カレンダ情報のDTOを生成
-		CalendarInfo info = new CalendarInfo();
-
-		//id
-		info.setId(entity.getCalendarId());
-		//名前
-		info.setName(entity.getCalendarName());
-		//有効期間(From)
-		if (entity.getValidTimeFrom() != null) {
-			info.setValidTimeFrom(entity.getValidTimeFrom().getTime());
-		}
-		//有効期間(To)
-		if (entity.getValidTimeTo() != null) {
-			info.setValidTimeTo(entity.getValidTimeTo().getTime());
-		}
-		//説明
-		info.setDescription(entity.getDescription());
-		//オーナーロールID
-		info.setOwnerRoleId(entity.getOwnerRoleId());
-		//登録者
-		info.setRegUser(entity.getRegUser());
-		//登録日時
-		if (entity.getRegDate() != null) {
-			info.setRegDate(entity.getRegDate().getTime());
-		}
-		//更新者
-		info.setUpdateUser(entity.getUpdateUser());
-		//更新日時
-		if (entity.getUpdateDate() != null) {
-			info.setUpdateDate(entity.getUpdateDate().getTime());
-		}
-		return info;
 	}
 }

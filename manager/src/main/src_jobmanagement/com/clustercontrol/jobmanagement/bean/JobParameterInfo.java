@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -40,7 +33,7 @@ public class JobParameterInfo implements Serializable, Comparable<JobParameterIn
 	private String paramId;
 
 	/** パラメータ種別 */
-	private Integer type = new Integer(0);
+	private Integer type = 0;
 
 	/** 説明 */
 	private String description;
@@ -115,6 +108,18 @@ public class JobParameterInfo implements Serializable, Comparable<JobParameterIn
 	}
 
 	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((description == null) ? 0 : description.hashCode());
+		result = prime * result + ((paramId == null) ? 0 : paramId.hashCode());
+		result = prime * result + ((type == null) ? 0 : type.hashCode());
+		result = prime * result + ((value == null) ? 0 : value.hashCode());
+		return result;
+	}
+
+	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof JobParameterInfo)) {
 			return false;
@@ -131,15 +136,12 @@ public class JobParameterInfo implements Serializable, Comparable<JobParameterIn
 	}
 
 	private boolean equalsSub(Object o1, Object o2) {
-		if (o1 == null && o2 == null) {
+		if (o1 == o2)
 			return true;
-		}
-		if (o1 != null && o2 == null) {
+		
+		if (o1 == null)
 			return false;
-		}
-		if (o1 == null && o2 != null) {
-			return false;
-		}
+		
 		boolean ret = o1.equals(o2);
 		if (!ret) {
 			if (m_log.isTraceEnabled()) {

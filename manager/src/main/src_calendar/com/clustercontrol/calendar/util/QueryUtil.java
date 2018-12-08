@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.calendar.util;
@@ -21,12 +14,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.calendar.model.CalDetailInfoEntity;
-import com.clustercontrol.calendar.model.CalDetailInfoEntityPK;
-import com.clustercontrol.calendar.model.CalInfoEntity;
-import com.clustercontrol.calendar.model.CalPatternDetailInfoEntity;
-import com.clustercontrol.calendar.model.CalPatternDetailInfoEntityPK;
-import com.clustercontrol.calendar.model.CalPatternInfoEntity;
+import com.clustercontrol.calendar.model.CalendarDetailInfo;
+import com.clustercontrol.calendar.model.CalendarDetailInfoPK;
+import com.clustercontrol.calendar.model.CalendarInfo;
+import com.clustercontrol.calendar.model.YMD;
+import com.clustercontrol.calendar.model.YMDPK;
+import com.clustercontrol.calendar.model.CalendarPatternInfo;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.CalendarNotFound;
@@ -37,15 +30,15 @@ public class QueryUtil {
 	/** ログ出力のインスタンス */
 	private static Log m_log = LogFactory.getLog( QueryUtil.class );
 
-	public static CalInfoEntity getCalInfoPK(String calendarId) throws CalendarNotFound, InvalidRole {
+	public static CalendarInfo getCalInfoPK(String calendarId) throws CalendarNotFound, InvalidRole {
 		return getCalInfoPK(calendarId, ObjectPrivilegeMode.READ);
 	}
 
-	public static CalInfoEntity getCalInfoPK(String calendarId, ObjectPrivilegeMode mode) throws CalendarNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		CalInfoEntity entity = null;
-		try {
-			entity = em.find(CalInfoEntity.class, calendarId, mode);
+	public static CalendarInfo getCalInfoPK(String calendarId, ObjectPrivilegeMode mode) throws CalendarNotFound, InvalidRole {
+		CalendarInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find(CalendarInfo.class, calendarId, mode);
 			if (entity == null) {
 				CalendarNotFound e = new CalendarNotFound("CalInfoEntity.findByPrimaryKey, " +
 						"calendarId = " + calendarId);
@@ -61,11 +54,11 @@ public class QueryUtil {
 		return entity;
 	}
 
-	public static CalInfoEntity getCalInfoPK_NONE(String calendarId) throws CalendarNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		CalInfoEntity entity = null;
-		try {
-			entity = em.find(CalInfoEntity.class, calendarId, ObjectPrivilegeMode.NONE);
+	public static CalendarInfo getCalInfoPK_NONE(String calendarId) throws CalendarNotFound {
+		CalendarInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find(CalendarInfo.class, calendarId, ObjectPrivilegeMode.NONE);
 			if (entity == null) {
 				CalendarNotFound e = new CalendarNotFound("CalInfoEntity.findByPrimaryKey, " +
 						"calendarId = " + calendarId);
@@ -79,11 +72,11 @@ public class QueryUtil {
 		return entity;
 	}
 
-	public static CalInfoEntity getCalInfoPK_OR(String calendarId, String ownerRoleId) throws CalendarNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		CalInfoEntity entity = null;
-		try {
-			entity = em.find_OR(CalInfoEntity.class, calendarId, ownerRoleId);
+	public static CalendarInfo getCalInfoPK_OR(String calendarId, String ownerRoleId) throws CalendarNotFound, InvalidRole {
+		CalendarInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find_OR(CalendarInfo.class, calendarId, ownerRoleId);
 			if (entity == null) {
 				CalendarNotFound e = new CalendarNotFound("CalInfoEntity.findByPrimaryKey, " +
 						"calendarId = " + calendarId);
@@ -100,32 +93,34 @@ public class QueryUtil {
 	}
 
 
-	public static CalDetailInfoEntity getCalDetailInfoPK(String calendarId, Integer orderNo) throws CalendarNotFound {
-		return getCalDetailInfoPK(new CalDetailInfoEntityPK(calendarId, orderNo));
+	public static CalendarDetailInfo getCalDetailInfoPK(String calendarId, Integer orderNo) throws CalendarNotFound {
+		return getCalDetailInfoPK(new CalendarDetailInfoPK(calendarId, orderNo));
 	}
 
-	public static CalDetailInfoEntity getCalDetailInfoPK(CalDetailInfoEntityPK pk) throws CalendarNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		CalDetailInfoEntity entity = em.find(CalDetailInfoEntity.class, pk, ObjectPrivilegeMode.READ);
-		if (entity == null) {
-			CalendarNotFound e = new CalendarNotFound("CalDetailInfoEntity.findByPrimaryKey, "
-					+ pk.toString());
-			m_log.info("getCalDetailInfoPK() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
+	public static CalendarDetailInfo getCalDetailInfoPK(CalendarDetailInfoPK pk) throws CalendarNotFound {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			CalendarDetailInfo entity = em.find(CalendarDetailInfo.class, pk, ObjectPrivilegeMode.READ);
+			if (entity == null) {
+				CalendarNotFound e = new CalendarNotFound("CalDetailInfoEntity.findByPrimaryKey, "
+						+ pk.toString());
+				m_log.info("getCalDetailInfoPK() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+			return entity;
 		}
-		return entity;
 	}
 
-	public static CalPatternInfoEntity getCalPatternInfoPK(String calPatternId) throws CalendarNotFound, InvalidRole {
+	public static CalendarPatternInfo getCalPatternInfoPK(String calPatternId) throws CalendarNotFound, InvalidRole {
 		return getCalPatternInfoPK(calPatternId, ObjectPrivilegeMode.READ);
 	}
 
-	public static CalPatternInfoEntity getCalPatternInfoPK(String calPatternId, ObjectPrivilegeMode mode) throws CalendarNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		CalPatternInfoEntity entity = null;
-		try {
-			entity = em.find(CalPatternInfoEntity.class, calPatternId, mode);
+	public static CalendarPatternInfo getCalPatternInfoPK(String calPatternId, ObjectPrivilegeMode mode) throws CalendarNotFound, InvalidRole {
+		CalendarPatternInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find(CalendarPatternInfo.class, calPatternId, mode);
 			if (entity == null) {
 				CalendarNotFound e = new CalendarNotFound("CalPatternInfoEntity.findByPrimaryKey, " +
 						"calPatternId = " + calPatternId);
@@ -141,11 +136,11 @@ public class QueryUtil {
 		return entity;
 	}
 
-	public static CalPatternInfoEntity getCalPatternInfoPK_OR(String calPatternId, String ownerRoleId) throws CalendarNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		CalPatternInfoEntity entity = null;
-		try {
-			entity = em.find_OR(CalPatternInfoEntity.class, calPatternId, ownerRoleId);
+	public static CalendarPatternInfo getCalPatternInfoPK_OR(String calPatternId, String ownerRoleId) throws CalendarNotFound, InvalidRole {
+		CalendarPatternInfo entity = null;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			entity = em.find_OR(CalendarPatternInfo.class, calPatternId, ownerRoleId);
 			if (entity == null) {
 				CalendarNotFound e = new CalendarNotFound("CalPatternInfoEntity.findByPrimaryKey, " +
 						"calPatternId = " + calPatternId);
@@ -161,103 +156,125 @@ public class QueryUtil {
 		return entity;
 	}
 
-	public static CalPatternDetailInfoEntity getCalPatternDetailInfoPK(String calendarId,
+	public static YMD getCalPatternDetailInfoPK(String calendarId,
 			Integer yearNo, Integer monthNo, Integer dayNo) throws CalendarNotFound {
-		return getCalPatternDetailInfoPK(new CalPatternDetailInfoEntityPK(calendarId, yearNo, monthNo, dayNo));
+		return getCalPatternDetailInfoPK(new YMDPK(calendarId, yearNo, monthNo, dayNo));
 	}
 
-	public static CalPatternDetailInfoEntity getCalPatternDetailInfoPK(CalPatternDetailInfoEntityPK pk) throws CalendarNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		CalPatternDetailInfoEntity entity = em.find(CalPatternDetailInfoEntity.class, pk, ObjectPrivilegeMode.READ);
-		if (entity == null) {
-			CalendarNotFound e = new CalendarNotFound("CalPatternDetailInfoEntity.findByPrimaryKey, "
-					+ pk.toString());
-			m_log.info("getCalPatternDetailInfoPK() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
+	public static YMD getCalPatternDetailInfoPK(YMDPK pk) throws CalendarNotFound {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			YMD entity = em.find(YMD.class, pk, ObjectPrivilegeMode.READ);
+			if (entity == null) {
+				CalendarNotFound e = new CalendarNotFound("CalPatternDetailInfoEntity.findByPrimaryKey, "
+						+ pk.toString());
+				m_log.info("getCalPatternDetailInfoPK() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+			return entity;
 		}
-		return entity;
 	}
 
-	public static List<CalInfoEntity> getAllCalInfo() {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalInfoEntity> list
-		= em.createNamedQuery("CalInfoEntity.findAll", CalInfoEntity.class).getResultList();
-		return list;
+	public static List<CalendarInfo> getAllCalInfo() {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarInfo> list
+			= em.createNamedQuery("CalInfoEntity.findAll", CalendarInfo.class).getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalInfoEntity> getAllCalInfo_OR(String ownerRoleId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalInfoEntity> list
-		= em.createNamedQuery_OR("CalInfoEntity.findAll", CalInfoEntity.class, ownerRoleId)
-		.getResultList();
-		return list;
+	public static List<CalendarInfo> getAllCalInfo_OR(String ownerRoleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarInfo> list
+			= em.createNamedQuery_OR("CalInfoEntity.findAll", CalendarInfo.class, ownerRoleId)
+			.getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalInfoEntity> getCalInfoFindByOwnerRoleId_NONE(String roleId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalInfoEntity> list
-		= em.createNamedQuery("CalInfoEntity.findByOwnerRoleId", CalInfoEntity.class, ObjectPrivilegeMode.NONE)
-		.setParameter("ownerRoleId", roleId)
-		.getResultList();
-		return list;
+	public static List<CalendarInfo> getCalInfoFindByOwnerRoleId_NONE(String roleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarInfo> list
+			= em.createNamedQuery("CalInfoEntity.findByOwnerRoleId", CalendarInfo.class, ObjectPrivilegeMode.NONE)
+			.setParameter("ownerRoleId", roleId)
+			.getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalDetailInfoEntity> getAllCalDetailInfo() {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalDetailInfoEntity> list
-		= em.createNamedQuery("CalDetailInfoEntity.findAll", CalDetailInfoEntity.class).getResultList();
-		return list;
+	public static List<CalendarDetailInfo> getAllCalDetailInfo() {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarDetailInfo> list
+			= em.createNamedQuery("CalDetailInfoEntity.findAll", CalendarDetailInfo.class).getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalDetailInfoEntity> getCalDetailByCalendarId(String calendarId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalDetailInfoEntity> list
-		= em.createNamedQuery("CalDetailInfoEntity.findByCalendarId", CalDetailInfoEntity.class)
-		.setParameter("calendarId", calendarId)
-		.getResultList();
-		return list;
+	public static List<CalendarDetailInfo> getCalDetailByCalendarId(String calendarId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarDetailInfo> list
+			= em.createNamedQuery("CalDetailInfoEntity.findByCalendarId", CalendarDetailInfo.class)
+			.setParameter("calendarId", calendarId)
+			.getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalDetailInfoEntity> getCalDetailByCalPatternId(String calPatternId){
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalDetailInfoEntity> list
-		= em.createNamedQuery("CalDetailInfoEntity.findByCalPatternId", CalDetailInfoEntity.class)
-		.setParameter("calPatternId", calPatternId)
-		.getResultList();
-		return list;
+	public static List<CalendarDetailInfo> getCalDetailByCalPatternId(String calPatternId){
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarDetailInfo> list
+			= em.createNamedQuery("CalDetailInfoEntity.findByCalPatternId", CalendarDetailInfo.class)
+			.setParameter("calPatternId", calPatternId)
+			.getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalPatternInfoEntity> getAllCalPatternInfo() {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalPatternInfoEntity> list
-		= em.createNamedQuery("CalPatternInfoEntity.findAll", CalPatternInfoEntity.class).getResultList();
-		return list;
+	public static List<CalendarPatternInfo> getAllCalPatternInfo() {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarPatternInfo> list
+			= em.createNamedQuery("CalPatternInfoEntity.findAll", CalendarPatternInfo.class).getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalPatternInfoEntity> getAllCalPatternInfo_OR(String ownerRoleId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalPatternInfoEntity> list
-		= em.createNamedQuery_OR("CalPatternInfoEntity.findAll", CalPatternInfoEntity.class, ownerRoleId)
-		.getResultList();
-		return list;
+	public static List<CalendarPatternInfo> getAllCalPatternInfo_OR(String ownerRoleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarPatternInfo> list
+			= em.createNamedQuery_OR("CalPatternInfoEntity.findAll", CalendarPatternInfo.class, ownerRoleId)
+			.getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalPatternInfoEntity> getCalPatternInfoFindByOwnerRoleId_NONE(String roleId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalPatternInfoEntity> list
-		= em.createNamedQuery("CalPatternInfoEntity.findByOwnerRoleId", CalPatternInfoEntity.class, ObjectPrivilegeMode.NONE)
-		.setParameter("ownerRoleId", roleId)
-		.getResultList();
-		return list;
+	public static List<CalendarPatternInfo> getCalPatternInfoFindByOwnerRoleId_NONE(String roleId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<CalendarPatternInfo> list
+			= em.createNamedQuery("CalPatternInfoEntity.findByOwnerRoleId", CalendarPatternInfo.class, ObjectPrivilegeMode.NONE)
+			.setParameter("ownerRoleId", roleId)
+			.getResultList();
+			return list;
+		}
 	}
 
-	public static List<CalPatternDetailInfoEntity> getCalPatternDetailByCalPatternId(String calPatternId) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		List<CalPatternDetailInfoEntity> list
-		= em.createNamedQuery("CalPatternDetailInfoEntity.findByCalendarPatternId", CalPatternDetailInfoEntity.class)
-		.setParameter("calPatternId", calPatternId)
-		.getResultList();
-		return list;
+	public static List<YMD> getCalPatternDetailByCalPatternId(String calPatternId) {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			List<YMD> list
+			= em.createNamedQuery("CalPatternDetailInfoEntity.findByCalendarPatternId", YMD.class)
+			.setParameter("calPatternId", calPatternId)
+			.getResultList();
+			return list;
+		}
 	}
 }

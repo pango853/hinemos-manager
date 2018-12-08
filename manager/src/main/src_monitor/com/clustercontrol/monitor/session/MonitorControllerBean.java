@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.session;
@@ -18,6 +11,7 @@ package com.clustercontrol.monitor.session;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import javax.activation.DataHandler;
 
@@ -31,7 +25,6 @@ import com.clustercontrol.fault.InvalidSetting;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.fault.ObjectPrivilege_InvalidRole;
 import com.clustercontrol.fault.UsedFacility;
-import com.clustercontrol.bean.PluginConstant;
 import com.clustercontrol.commons.session.CheckFacility;
 import com.clustercontrol.commons.util.CommonValidator;
 import com.clustercontrol.commons.util.HinemosSessionContext;
@@ -45,16 +38,18 @@ import com.clustercontrol.monitor.bean.StatusFilterInfo;
 import com.clustercontrol.monitor.bean.ViewListInfo;
 import com.clustercontrol.monitor.factory.DeleteStatus;
 import com.clustercontrol.monitor.factory.ManageStatus;
+import com.clustercontrol.monitor.factory.ModifyEventCollectGraphFlg;
 import com.clustercontrol.monitor.factory.ModifyEventComment;
 import com.clustercontrol.monitor.factory.ModifyEventConfirm;
 import com.clustercontrol.monitor.factory.SelectEvent;
 import com.clustercontrol.monitor.factory.SelectScope;
 import com.clustercontrol.monitor.factory.SelectStatus;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 import com.clustercontrol.monitor.run.util.QueryUtil;
 import com.clustercontrol.notify.util.MonitorStatusCache;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * 監視管理機能の管理を行う Session Bean です。<BR>
@@ -102,25 +97,24 @@ public class MonitorControllerBean implements CheckFacility {
 			jtm.begin();
 			list = select.getScopeList(facilityId, statusFlag, eventFlag, orderFlg);
 			jtm.commit();
-		} catch (MonitorNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (MonitorNotFound | InvalidRole | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("getScopeList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return list;
@@ -152,7 +146,8 @@ public class MonitorControllerBean implements CheckFacility {
 			list = select.getStatusList(facilityId, filter);
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
@@ -160,10 +155,12 @@ public class MonitorControllerBean implements CheckFacility {
 		} catch (Exception e) {
 			m_log.warn("getStatusList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return list;
@@ -201,22 +198,24 @@ public class MonitorControllerBean implements CheckFacility {
 			ret = status.delete(list);
 
 			jtm.commit();
-		}catch (InvalidRole e) {
-			jtm.rollback();
+		}catch (InvalidRole | MonitorNotFound e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		}catch (MonitorNotFound e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("deleteStatus() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return ret;
 	}
@@ -249,15 +248,18 @@ public class MonitorControllerBean implements CheckFacility {
 
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch(Exception e) {
 			m_log.warn("manageStatus() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -291,7 +293,8 @@ public class MonitorControllerBean implements CheckFacility {
 			list = select.getEventList(facilityId, filter, messages);
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
@@ -299,10 +302,12 @@ public class MonitorControllerBean implements CheckFacility {
 		} catch (Exception e) {
 			m_log.warn("getEventList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return list;
@@ -326,7 +331,7 @@ public class MonitorControllerBean implements CheckFacility {
 	 * 
 	 * @see com.clustercontrol.monitor.factory.SelectEvent#getEventListForReport(String, EventFilterInfo)
 	 */
-	public DataHandler downloadEventFile(String facilityId, EventFilterInfo filter, String filename)
+	public DataHandler downloadEventFile(String facilityId, EventFilterInfo filter, String filename, Locale locale)
 			throws InvalidRole, HinemosUnknown{
 
 		JpaTransactionManager jtm = null;
@@ -339,13 +344,14 @@ public class MonitorControllerBean implements CheckFacility {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 
-			long now = System.currentTimeMillis();
-			handler = select.getEventFile(facilityId, filter, filename, username);
-			long end = System.currentTimeMillis();
+			long now = HinemosTime.currentTimeMillis();
+			handler = select.getEventFile(facilityId, filter, filename, username, locale);
+			long end = HinemosTime.currentTimeMillis();
 			m_log.info("downloadEventFile, time=" + (end - now) + "ms");
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
@@ -360,7 +366,8 @@ public class MonitorControllerBean implements CheckFacility {
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return handler;
 	}
@@ -403,22 +410,24 @@ public class MonitorControllerBean implements CheckFacility {
 			jtm.begin();
 			eventDataInfo = SelectEvent.getEventInfo(monitorId, monitorDetailId, pluginId, facilityId, outputDate);
 			jtm.commit();
-		} catch (MonitorNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (MonitorNotFound | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getEventInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return eventDataInfo;
 	}
@@ -455,7 +464,7 @@ public class MonitorControllerBean implements CheckFacility {
 		JpaTransactionManager jtm = null;
 
 		// コメントの文字数が2048文字より多い場合は、コメント変更不可
-		CommonValidator.validateString(Messages.getString("comment"),
+		CommonValidator.validateString(MessageConstant.COMMENT.getMessage(),
 				comment, false, 0, 2048);
 
 		commentUser = (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID);
@@ -470,22 +479,24 @@ public class MonitorControllerBean implements CheckFacility {
 			modify.modifyComment(monitorId, monitorDetailId, pluginId, facilityId, outputDate, comment, commentDate, commentUser);
 
 			jtm.commit();
-		}catch(EventLogNotFound e){
-			jtm.rollback();
-			throw e;
-		}catch(InvalidRole e){
-			jtm.rollback();
+		}catch(EventLogNotFound | InvalidRole e){
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		}catch(Exception e){
 			m_log.warn("modifyComment() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -533,22 +544,24 @@ public class MonitorControllerBean implements CheckFacility {
 			modify.modifyConfirm(monitorId, monitorDetailId, pluginId, facilityId, priority, generateDate, outputDate, confirmDate, confirmType, confirmUser);
 
 			jtm.commit();
-		} catch (MonitorNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (MonitorNotFound | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("modifyConfirm() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -583,22 +596,24 @@ public class MonitorControllerBean implements CheckFacility {
 			modify.modifyConfirm(list, confirmType, confirmUser);
 
 			jtm.commit();
-		} catch(InvalidRole e){
-			jtm.rollback();
+		} catch(InvalidRole | MonitorNotFound e){
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch(MonitorNotFound e){
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("modifyConfirm() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -631,7 +646,8 @@ public class MonitorControllerBean implements CheckFacility {
 
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		}catch(HinemosUnknown e){
 			jtm.rollback();
@@ -639,10 +655,58 @@ public class MonitorControllerBean implements CheckFacility {
 		}catch(Exception e){
 			m_log.warn("modifyBatchConfirm() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
+		}
+	}
+
+	/**
+	 * 引数で指定されたイベント情報一覧の性能グラフ用フラグを更新します。<BR><BR>
+	 * 複数のイベント情報を更新します。
+	 * 
+	 * @param list 更新対象のイベント情報一覧（EventDataInfoが格納されたArrayList）
+	 * @param collectGraphFlg 性能グラフ用フラグ（ON:true、OFF:false）
+	 * @throws MonitorNotFound
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 */
+	public void modifyCollectGraphFlg(ArrayList<EventDataInfo> list,
+			Boolean collectGraphFlg) throws MonitorNotFound, InvalidRole, HinemosUnknown{
+
+		JpaTransactionManager jtm = null;
+
+		// イベントの性能グラフ用フラグを更新する
+		ModifyEventCollectGraphFlg modify = new ModifyEventCollectGraphFlg();
+
+		try{
+			jtm = new JpaTransactionManager();
+			jtm.begin();
+
+			modify.modifyCollectGraphFlg(list, collectGraphFlg);
+
+			jtm.commit();
+		} catch(InvalidRole | MonitorNotFound e){
+			if (jtm != null){
+				jtm.rollback();
+			}
+			throw e;
+		} catch (ObjectPrivilege_InvalidRole e) {
+			if (jtm != null)
+				jtm.rollback();
+			throw new InvalidRole(e.getMessage(), e);
+		} catch (Exception e) {
+			m_log.warn("modifyCollectGraphFlg() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			if (jtm != null)
+				jtm.rollback();
+			throw new HinemosUnknown(e.getMessage(), e);
+		} finally {
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -660,11 +724,20 @@ public class MonitorControllerBean implements CheckFacility {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 
-			List<MonitorInfoEntity> infoCollection
+			List<MonitorInfo> infoCollection
 			= QueryUtil.getMonitorInfoByFacilityId_NONE(facilityId);
 			if (infoCollection != null && infoCollection.size() > 0) {
-				m_log.info("isUseFacilityId,[" + facilityId + "]");
-				throw new UsedFacility(PluginConstant.TYPE_MONITOR);
+				// ID名を取得する
+				StringBuilder sb = new StringBuilder();
+				sb.append(MessageConstant.MONITOR_SETTING.getMessage() + " : ");
+				for (MonitorInfo entity : infoCollection) {
+					sb.append(entity.getMonitorId());
+					sb.append(", ");
+				}
+				UsedFacility e = new UsedFacility(sb.toString());
+				m_log.info("isUseFacilityId() : " + e.getClass().getSimpleName() +
+						", " + facilityId + ", " + e.getMessage());
+				throw e;
 			}
 			jtm.commit();
 		} catch (UsedFacility e) {
@@ -673,9 +746,11 @@ public class MonitorControllerBean implements CheckFacility {
 		} catch (Exception e) {
 			m_log.warn("isUseFacilityId() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 

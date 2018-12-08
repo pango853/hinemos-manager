@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.performance.monitor.model;
 
 import java.io.Serializable;
@@ -15,9 +23,6 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
-
 
 /**
  * The persistent class for the cc_collector_item_code_mst database table.
@@ -29,9 +34,9 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 public class CollectorItemCodeMstEntity implements Serializable {
 	private static final long serialVersionUID = 1L;
 	private String itemCode;
-	private Integer deviceSupport;
+	private Boolean deviceSupport;
 	private String deviceType;
-	private Integer graphRange;
+	private Boolean graphRange;
 	private String itemName;
 	private String measure;
 	private String parentItemCode;
@@ -43,14 +48,9 @@ public class CollectorItemCodeMstEntity implements Serializable {
 	public CollectorItemCodeMstEntity() {
 	}
 
-	public CollectorItemCodeMstEntity(String itemCode,
-			CollectorCategoryMstEntity collectorCategoryMstEntity) {
+	public CollectorItemCodeMstEntity(String itemCode) {
 		this.setItemCode(itemCode);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
-		this.relateToCollectorCategoryMstEntity(collectorCategoryMstEntity);
 	}
-
 
 	@Id
 	@Column(name="item_code")
@@ -64,11 +64,11 @@ public class CollectorItemCodeMstEntity implements Serializable {
 
 
 	@Column(name="device_support")
-	public Integer getDeviceSupport() {
+	public Boolean getDeviceSupport() {
 		return this.deviceSupport;
 	}
 
-	public void setDeviceSupport(Integer deviceSupport) {
+	public void setDeviceSupport(Boolean deviceSupport) {
 		this.deviceSupport = deviceSupport;
 	}
 
@@ -84,11 +84,11 @@ public class CollectorItemCodeMstEntity implements Serializable {
 
 
 	@Column(name="graph_range")
-	public Integer getGraphRange() {
+	public Boolean getGraphRange() {
 		return this.graphRange;
 	}
 
-	public void setGraphRange(Integer graphRange) {
+	public void setGraphRange(Boolean graphRange) {
 		this.graphRange = graphRange;
 	}
 
@@ -103,6 +103,7 @@ public class CollectorItemCodeMstEntity implements Serializable {
 	}
 
 
+	@Column(name="measure")
 	public String getMeasure() {
 		return this.measure;
 	}

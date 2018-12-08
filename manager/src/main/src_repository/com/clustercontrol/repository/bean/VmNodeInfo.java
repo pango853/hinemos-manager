@@ -1,26 +1,18 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.bean;
 
 import java.io.Serializable;
-import java.util.Locale;
 
 import javax.xml.bind.annotation.XmlType;
 
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.repository.model.NodeInfo;
 
 /**
  * リポジトリ機能－VMノードの追加・編集を行うテーブルデータ用Bean。<BR>
@@ -90,27 +82,6 @@ public class VmNodeInfo implements Serializable {
 
 	public void setNodeInfo(NodeInfo nodeInfo) {
 		this.nodeInfo = nodeInfo;
-	}
-
-
-	/**
-	 * 
-	 * @param locale
-	 * @return
-	 */
-	public String getRegistrationText(Locale locale){
-		switch (registration) {
-		case REGISTERED:
-			return Messages.getString("registered", locale);
-		case UNREGISTERED:
-			return Messages.getString("unregistered", locale);
-		case REGIST_SUCCESS:
-			return Messages.getString("regist.success", locale);
-		case REGIST_FAIL:
-			return Messages.getString("regist.fail", locale);
-		default:
-			return null;
-		}
 	}
 
 }

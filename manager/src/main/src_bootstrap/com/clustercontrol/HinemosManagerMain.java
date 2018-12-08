@@ -1,21 +1,15 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol;
 
 import java.io.IOException;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,9 +26,13 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.util.UserRoleCache;
+import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.PriorityConstant;
+import com.clustercontrol.binary.session.BinaryControllerBean;
 import com.clustercontrol.calendar.util.CalendarCache;
 import com.clustercontrol.calendar.util.CalendarPatternCache;
 import com.clustercontrol.commons.bean.SettingUpdateInfo;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.JpaPersistenceConfig;
 import com.clustercontrol.custom.factory.SelectCustom;
 import com.clustercontrol.jobmanagement.factory.FullJob;
@@ -44,19 +42,24 @@ import com.clustercontrol.maintenance.factory.HinemosPropertyInfoCache;
 import com.clustercontrol.notify.util.NotifyCache;
 import com.clustercontrol.notify.util.NotifyRelationCache;
 import com.clustercontrol.performance.util.CollectorMasterCache;
-import com.clustercontrol.performance.util.PerformanceDataUtil;
+import com.clustercontrol.platform.PlatformDivergence;
+import com.clustercontrol.platform.util.apllog.EventLogger;
 import com.clustercontrol.plugin.HinemosPluginService;
 import com.clustercontrol.process.factory.ProcessMasterCache;
 import com.clustercontrol.repository.factory.FacilitySelector;
 import com.clustercontrol.repository.factory.NodeProperty;
 import com.clustercontrol.repository.util.FacilityTreeCache;
 import com.clustercontrol.systemlog.util.SystemlogCache;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.StdOutErrLog;
 import com.clustercontrol.util.apllog.AplLogger;
 import com.clustercontrol.winevent.session.MonitorWinEventControllerBean;
 
 /**
  * Hinemos ManagerのMainクラス<br/>
+ * 
+ * @version 6.1.0 バイナリ監視追加
  */
 public class HinemosManagerMain {
 
@@ -83,9 +86,18 @@ public class HinemosManagerMain {
 	public static final boolean _isClustered;
 	
 	static {
+		Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler() {
+			@Override
+			public void uncaughtException(Thread t, Throwable e) {
+				EventLogger.error("uncaughtException." + t.getName(), e);
+			}
+		});
+		
 		// 最初にSNMP4jのAPIを叩くよりも前に、下記コマンドを実行する必要がある。
 		org.snmp4j.log.LogFactory.setLogFactory(new org.snmp4j.log.Log4jLogFactory());
 		log.info("setLogFactory(Log4jLogFactory)");
+		
+		PlatformDivergence.setupHostname();
 		
 		_hostname = System.getProperty("hinemos.manager.hostname", "");
 		
@@ -169,8 +181,17 @@ public class HinemosManagerMain {
 					", clustered=" + _isClustered + 
 					", locale=" + Locale.getDefault() +
 					")");
-
-
+			
+			
+			// Hinemos時刻(スケジューラが管理している現在時刻)の設定は、各プラグインサービス起動前に行う。
+			// (各プラグインの処理で現在時刻を取得する場合があるため、事前に設定しておく必要がある)
+			long offset = HinemosPropertyCommon.common_time_offset.getNumericValue();
+			HinemosTime.setTimeOffsetMillis(offset);
+			
+			// Hinemos独自のタイムゾーン(UTCからのオフセット)をプロパティから取得/設定(ミリ秒単位)
+			int timeZoneOffset = HinemosPropertyCommon.common_timezone.getIntegerValue();
+			HinemosTime.setTimeZoneOffset(timeZoneOffset);
+			
 			// 参照可能なHinemosPluginを全て生成(create)する
 			HinemosPluginService.getInstance().create();
 
@@ -185,9 +206,8 @@ public class HinemosManagerMain {
 							log.info("shutdown hook called.");
 							synchronized (shutdownLock) {
 								// Hinemos Managerの停止開始を通知する
-								AplLogger apllogShutdown = new AplLogger("MNG", "mng");
 								String[] msgArgsShutdown = {_hostname};
-								apllogShutdown.put("SYS", "002", msgArgsShutdown);
+								AplLogger.put(PriorityConstant.TYPE_INFO, HinemosModuleConstant.HINEMOS_MANAGER_MONITOR, MessageConstant.MESSAGE_SYS_002_MNG,  msgArgsShutdown);
 
 								// 参照可能なHinemosPluginを全て非活性化(deactivate)する
 								HinemosPluginService.getInstance().deactivate();
@@ -210,9 +230,8 @@ public class HinemosManagerMain {
 			log.info("Hinemos Manager Started in " + initializeSec + "s:" + initializeMSec + "ms");
 
 			// Hinemos Managerの起動完了を通知する
-			AplLogger apllogStart = new AplLogger("MNG", "mng");
 			String[] msgArgsStart = {_hostname};
-			apllogStart.put("SYS", "001", msgArgsStart);
+			AplLogger.put(PriorityConstant.TYPE_INFO, HinemosModuleConstant.HINEMOS_MANAGER_MONITOR, MessageConstant.MESSAGE_SYS_001_MNG, msgArgsStart);
 
 			// Hinemos Managerの停止が完了するまで待機する
 			synchronized (shutdownLock) {
@@ -259,11 +278,11 @@ public class HinemosManagerMain {
 		FullJob.init();
 		JobMultiplicityCache.refresh();
 		MonitorLogfileControllerBean.refreshCache();
+		BinaryControllerBean.refreshCache();
 		HinemosPropertyInfoCache.refresh();
 		NotifyCache.refresh();
 		NotifyRelationCache.refresh();
 		CollectorMasterCache.refresh();
-		PerformanceDataUtil.init();
 		ProcessMasterCache.refresh();
 		FacilitySelector.initCacheFacilityTree();
 		NodeProperty.init();
@@ -314,6 +333,7 @@ public class HinemosManagerMain {
 					WatchKey key = watcher.take();
 					for (WatchEvent<?> event : key.pollEvents()) {
 						if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
+							@SuppressWarnings("unchecked")
 							WatchEvent<Path> eventPath = (WatchEvent<Path>)event;
 							Path path = eventPath.context();
 							
@@ -343,5 +363,4 @@ public class HinemosManagerMain {
 			}
 		}
 	}
-	
 }

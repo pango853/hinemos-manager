@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.factory;
@@ -38,7 +31,7 @@ public class NotifyMailTaskFactory implements AsyncTaskFactory {
 		return new NotifyMailTask(param);
 	}
 
-	public class NotifyMailTask implements Runnable {
+	public static class NotifyMailTask implements Runnable {
 
 		private final NotifyRequestMessage msg;
 
@@ -74,6 +67,7 @@ public class NotifyMailTaskFactory implements AsyncTaskFactory {
 						
 						String sendMailClass = "com.clustercontrol.notify.util.ReportingSendMail";
 						try {
+							@SuppressWarnings("unchecked")
 							Class<? extends SendMail> clazz = (Class<? extends SendMail>) Class.forName(sendMailClass);
 							_reportingSendMail = clazz.newInstance();
 							log.info("load " + sendMailClass + ".");
@@ -91,10 +85,12 @@ public class NotifyMailTaskFactory implements AsyncTaskFactory {
 				
 				jtm.commit();
 			} catch (Exception e) {
-				jtm.rollback();
+				if (jtm != null)
+					jtm.rollback();
 				log.warn("asynchronous task failure.", e);
 			} finally {
-				jtm.close();
+				if (jtm != null)
+					jtm.close();
 			}
 
 		}

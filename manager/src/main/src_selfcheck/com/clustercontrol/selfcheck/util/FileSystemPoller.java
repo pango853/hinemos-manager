@@ -1,22 +1,15 @@
 /*
-
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.selfcheck.util;
 
 import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
@@ -24,11 +17,10 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.bean.SnmpVersionConstant;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.poller.SnmpPoller;
 import com.clustercontrol.poller.bean.PollerProtocolConstant;
 import com.clustercontrol.poller.impl.Snmp4jPollerImpl;
-import com.clustercontrol.sharedtable.DataTable;
-import com.clustercontrol.sharedtable.TableEntry;
+import com.clustercontrol.poller.util.DataTable;
+import com.clustercontrol.poller.util.TableEntry;
 
 /**
  * ファイルシステムの利用状況を確認する処理の実装クラス
@@ -40,7 +32,7 @@ public class FileSystemPoller {
 	private String mountPoint = null;
 
 	private int snmpPort = 161;
-	private String snmpVersion = "2c";
+	private int snmpVersion = SnmpVersionConstant.TYPE_V2;
 	private String snmpCommunity = "public";
 	private int snmpRetries = 0;
 	private int snmpTimeout = 3000;
@@ -62,7 +54,7 @@ public class FileSystemPoller {
 	 * @param snmpRetries SNMPリトライ回数
 	 * @param snmpTimeout SNMPタイムアウト[msec]
 	 */
-	public FileSystemPoller(String mountPoint, int snmpPort, String snmpVersion, String snmpCommunity, int snmpRetries, int snmpTimeout) {
+	public FileSystemPoller(String mountPoint, int snmpPort, int snmpVersion, String snmpCommunity, int snmpRetries, int snmpTimeout) {
 		this.mountPoint = mountPoint;
 		this.snmpPort = snmpPort;
 		this.snmpVersion = snmpVersion;
@@ -88,8 +80,7 @@ public class FileSystemPoller {
 	// 指定のファイルシステムの使用サイズを取得します（MB単位）。
 	private int getFileSystemSize(String oid){
 		/** ローカル変数 */
-		SnmpPoller poller = null;
-		List<String> oidList = null;
+		Snmp4jPollerImpl poller = null;
 		DataTable dataTable = null;
 		Set<TableEntry> mibValues = null;
 
@@ -107,19 +98,20 @@ public class FileSystemPoller {
 
 		try {
 			// 収集対象のOID
-			oidList = new ArrayList<String>();
-			oidList.add(POLLING_TARGET_OID);
+			Set<String> oidSet = null;
+			oidSet = new HashSet<String>();
+			oidSet.add(POLLING_TARGET_OID);
 
 			// ポーラを生成してポーリングを実行
 			poller = Snmp4jPollerImpl.getInstance();
 			dataTable = poller.polling(
 					SNMP_POLLING_IPADDRESS,
 					snmpPort,
-					SnmpVersionConstant.stringToSnmpType(snmpVersion),
+					snmpVersion,
 					snmpCommunity,
 					snmpRetries,
 					snmpTimeout,
-					oidList,
+					oidSet,
 					null,
 					null,
 					null,
@@ -161,7 +153,7 @@ public class FileSystemPoller {
 				return (int)sizeMByte;
 			}
 
-		} catch (Exception e) {
+		} catch (HinemosUnknown e) {
 			m_log.warn("failure in getting a size of a file system with snmp polling. " + e.getMessage());
 		}
 
@@ -194,7 +186,7 @@ public class FileSystemPoller {
 	public static void main(String[] args) {
 		String mountPoint = "/";
 
-		FileSystemPoller poller = new FileSystemPoller(mountPoint, 161, "2c", "public", 1, 3000);
+		FileSystemPoller poller = new FileSystemPoller(mountPoint, 161, SnmpVersionConstant.TYPE_V2, "public", 1, 3000);
 
 		int total = poller.getFileSystemTotal();
 		int usage = poller.getFileSystemUsage();

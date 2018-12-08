@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.custom.bean;
 
 import java.util.Map;
@@ -42,18 +50,15 @@ public class CommandVariableDTO {
 
 	@Override
 	public String toString() {
-		String ret = null;
-		String variableStr = null;
-
+		StringBuilder variableStr = new StringBuilder();
 		if (variables != null) {
-			variableStr = "";
-			for (String key : variables.keySet()) {
-				variableStr += variableStr.length() == 0 ? "" : ", ";
-				variableStr += "[key = " + key + ", value = " + variables.get(key) + "]";
+			for (Map.Entry<String, String> entry : variables.entrySet()) {
+				variableStr.append(variableStr.length() == 0 ? "" : ", ");
+				variableStr.append(String.format("[key = %s, value = %s]", entry.getKey(), entry.getValue()));
 			}
 		}
 
-		ret = this.getClass().getCanonicalName() + " [facilityId = " + facilityId
+		String ret = this.getClass().getCanonicalName() + " [facilityId = " + facilityId
 				+ ", variables = (" + variableStr + ")"
 				+ "]";
 

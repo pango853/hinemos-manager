@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.port.protocol;
@@ -26,7 +19,9 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.apache.commons.net.ntp.TimeInfo;
 
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
+
 
 /**
  * NTPサービスが動作しているかを確認するクラスです。
@@ -72,13 +67,12 @@ public class ReachAddressNTP extends ReachAddressProtocol {
 
 			for (int i = 0; i < m_sentCount && retry; i++) {
 				try {
-					Date d = new Date();
-					bufferOrg.append(d + " Tried to Connect: ");
+					bufferOrg.append(HinemosTime.getDateString() + " Tried to Connect: ");
 					client.setDefaultTimeout(m_timeout);
 
-					start = System.currentTimeMillis();
+					start = HinemosTime.currentTimeMillis();
 					time = client.getTime(address, m_portNo);
-					end = System.currentTimeMillis();
+					end = HinemosTime.currentTimeMillis();
 
 					m_response = end - start;
 
@@ -130,10 +124,10 @@ public class ReachAddressNTP extends ReachAddressProtocol {
 			m_messageOrg = bufferOrg.toString();
 			return isReachable;
 		} catch (UnknownHostException e) {
-			m_log.debug("isRunning(): " + Messages.getString("message.port.6")
+			m_log.debug("isRunning(): " + MessageConstant.MESSAGE_FAIL_TO_EXECUTE_TO_CONNECT.getMessage()
 					+ e.getMessage());
 
-			m_message = Messages.getString("message.port.6") + " ("
+			m_message = MessageConstant.MESSAGE_FAIL_TO_EXECUTE_TO_CONNECT.getMessage() + " ("
 					+ e.getMessage() + ")";
 
 			return false;

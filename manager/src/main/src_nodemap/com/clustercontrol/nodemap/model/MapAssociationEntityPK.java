@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.nodemap.model;
 
 import java.io.Serializable;
@@ -34,6 +42,7 @@ public class MapAssociationEntityPK implements Serializable {
 		this.mapId = mapId;
 	}
 
+	@Column(name="source")
 	public String getSource() {
 		return this.source;
 	}
@@ -41,6 +50,7 @@ public class MapAssociationEntityPK implements Serializable {
 		this.source = source;
 	}
 
+	@Column(name="target")
 	public String getTarget() {
 		return this.target;
 	}

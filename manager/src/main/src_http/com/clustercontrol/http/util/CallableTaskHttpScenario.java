@@ -1,17 +1,11 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.http.util;
 
 import java.util.ArrayList;
@@ -50,26 +44,25 @@ public class CallableTaskHttpScenario implements Callable<ArrayList<MonitorRunRe
 	@Override
 	public ArrayList<MonitorRunResultInfo> call() throws Exception {
 		JpaTransactionManager jtm = null;
-		// 結果を格納
-		List<MonitorRunResultInfo> infoList = new ArrayList<MonitorRunResultInfo>();
-
 		try{
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 
 			// 各監視処理を実行し、実行の可否を格納
-			infoList = m_runMonitor.collectList(m_facilityId);
+			List<MonitorRunResultInfo> infoList = m_runMonitor.collectList(m_facilityId);
 
 			// コミット
 			jtm.commit();
+			
+			return new ArrayList<>(infoList);
 		} catch (Exception e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw e;
 		} finally {
 			// 一時停止していたトランザクションを再開
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
-
-		return new ArrayList<>(infoList);
 	}
 }

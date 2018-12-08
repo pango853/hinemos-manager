@@ -1,26 +1,24 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.commons.util;
 
+import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * JDBCドライバを用いて、高速にinsertまたはupdateの一括処理を行うクラス
@@ -28,29 +26,49 @@ import org.apache.commons.logging.LogFactory;
 public class JdbcBatchExecutor {
 	private static final Log log = LogFactory.getLog(JdbcBatchExecutor.class);
 
+	public static void execute(JdbcBatchQuery query) {
+		List<JdbcBatchQuery> list = new ArrayList<JdbcBatchQuery>();
+		list.add(query);
+		execute(list);
+	}
+
 	/**
 	 * クエリを実行する
-	 * @param query insertまたはupdate
+	 * 
+	 * @param query
+	 *            insertまたはupdate
 	 */
-	public static void execute(JdbcBatchQuery query) {
+	public static void execute(List<JdbcBatchQuery> queryList) {
 		Connection conn = null;
-		long start = System.currentTimeMillis();
-		
+		long start = HinemosTime.currentTimeMillis();
 		JpaTransactionManager tm = null;
+		PreparedStatement pstmt = null;
 		try {
 			tm = new JpaTransactionManager();
+
+			// 実行前にJPAの内容をDBに反映させるためflushする。
+			tm.flush();
+
 			conn = tm.getEntityManager().unwrap(java.sql.Connection.class);
 			conn.setAutoCommit(false);
-
-			PreparedStatement pstmt = conn.prepareStatement(query.getSql());
-			query.addBatch(pstmt);
-			pstmt.executeBatch();
-			
-			if (! tm.isNestedEm()) {
+			for (JdbcBatchQuery query : queryList){
+				pstmt = conn.prepareStatement(query.getSql());
+				query.addBatch(pstmt);
+				pstmt.executeBatch();
+			}
+			if (!tm.isNestedEm()) {
 				conn.commit();
 			}
 		} catch (Exception e) {
-			log.warn(e);
+			if (e instanceof BatchUpdateException) {
+				BatchUpdateException bue = (BatchUpdateException)e;
+				SQLException sqe = bue.getNextException();
+				if (sqe != null) {
+					log.warn("SQLException: " + sqe);
+				}
+			} else {
+				log.warn(e);
+			}
 			if (conn != null) {
 				try {
 					conn.rollback();
@@ -59,12 +77,31 @@ public class JdbcBatchExecutor {
 				}
 			}
 		} finally {
+			if (pstmt != null) {
+				try {
+					pstmt.close();
+				} catch (SQLException e) {
+					log.warn("SQLException: " + e);
+				}
+			}
 			if (tm != null) {
+				tm.flush();
 				tm.close();
 			}
 		}
-		long time = System.currentTimeMillis() - start;
-		String message = String.format("Execute [%s] batch: %dms %s", query.getClass().getSimpleName(), time, query.getSql());
+		long time = HinemosTime.currentTimeMillis() - start;
+		String className = "";
+		if (queryList.size() != 0) {
+			className = queryList.get(0).getClass().getSimpleName();
+		}
+		String sizeStr = "";
+		for (JdbcBatchQuery query : queryList) {
+			if (0 < sizeStr.length()) {
+				sizeStr += ",";
+			}
+			sizeStr += query.getSize();
+		}
+		String message = String.format("Execute [%s] batch: %dms. size=%s", className, time, sizeStr);
 		if (time > 3000) {
 			log.warn(message);
 		} else if (time > 1000) {

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2007 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.maintenance.factory;
@@ -20,12 +13,11 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MaintenanceNotFound;
-import com.clustercontrol.commons.bean.Schedule;
-import com.clustercontrol.maintenance.bean.MaintenanceInfo;
-import com.clustercontrol.maintenance.model.MaintenanceInfoEntity;
+import com.clustercontrol.maintenance.model.MaintenanceInfo;
 import com.clustercontrol.maintenance.util.QueryUtil;
 import com.clustercontrol.notify.session.NotifyControllerBean;
 
@@ -53,7 +45,7 @@ public class SelectMaintenanceInfo {
 
 		MaintenanceInfo info = null;
 		// メンテナンス情報を取得
-		MaintenanceInfoEntity entity = QueryUtil.getMaintenanceInfoPK(maintenanceId);
+		MaintenanceInfo entity = QueryUtil.getMaintenanceInfoPK(maintenanceId);
 		info = getMaintenanceInfoBean(entity);
 		return info;
 	}
@@ -71,8 +63,8 @@ public class SelectMaintenanceInfo {
 		// メンテナンス情報一覧を取得
 		ArrayList<MaintenanceInfo> list = new ArrayList<MaintenanceInfo>();
 
-		List<MaintenanceInfoEntity> ct = QueryUtil.getAllMaintenanceInfoOrderByMaintenanceId();
-		for(MaintenanceInfoEntity entity : ct){
+		List<MaintenanceInfo> ct = QueryUtil.getAllMaintenanceInfoOrderByMaintenanceId();
+		for(MaintenanceInfo entity : ct){
 			list.add(getMaintenanceInfoBean(entity));
 			// for debug
 			if(m_log.isDebugEnabled()){
@@ -80,15 +72,15 @@ public class SelectMaintenanceInfo {
 						"maintenanceId = " + entity.getMaintenanceId() +
 						", description = " + entity.getDescription() +
 						", type_id = " + (entity.getMaintenanceTypeMstEntity() == null ? null :
-							entity.getMaintenanceTypeMstEntity().getTypeId()) +
+							entity.getMaintenanceTypeMstEntity().getType_id()) +
 							", dataRetentionPeriod = " + entity.getDataRetentionPeriod() +
 							", calendar_id = " + entity.getCalendarId() +
-							", schedule = " + entity.getScheduleType() +
-							", month = " + entity.getMonth() +
-							", day = " + entity.getDay() +
-							", week = " + entity.getWeek() +
-							", hour = " + entity.getHour() +
-							", minute = " + entity.getMinute() +
+							", schedule = " + entity.getSchedule().getType() +
+							", month = " + entity.getSchedule().getMonth() +
+							", day = " + entity.getSchedule().getDay() +
+							", week = " + entity.getSchedule().getWeek() +
+							", hour = " + entity.getSchedule().getHour() +
+							", minute = " + entity.getSchedule().getMinute() +
 							", notifyGroupId = " + entity.getNotifyGroupId() +
 							", application = " + entity.getApplication() +
 							", valid_flg = " + entity.getValidFlg() +
@@ -105,42 +97,11 @@ public class SelectMaintenanceInfo {
 	/**
 	 * MaintenanceInfoEntityからMaintenanceInfoBeanへ変換
 	 */
-	private MaintenanceInfo getMaintenanceInfoBean(MaintenanceInfoEntity entity)
+	private MaintenanceInfo getMaintenanceInfoBean(MaintenanceInfo entity)
 			throws InvalidRole, HinemosUnknown {
-
-		MaintenanceInfo info = new MaintenanceInfo();
-		info.setMaintenanceId(entity.getMaintenanceId());
-		info.setDescription(entity.getDescription());
-		info.setTypeId(entity.getMaintenanceTypeMstEntity() == null ? null :
-			entity.getMaintenanceTypeMstEntity().getTypeId());
-		info.setDataRetentionPeriod(entity.getDataRetentionPeriod());
-		info.setCalendarId(entity.getCalendarId());
-		info.setSchedule(new Schedule(entity.getScheduleType(),
-				entity.getMonth(), entity.getDay(), entity.getWeek(),
-				entity.getHour(), entity.getMinute()));
-
-		info.setNotifyGroupId(entity.getNotifyGroupId());
-		info.setApplication(entity.getApplication());
-		info.setValidFlg(entity.getValidFlg());
-		info.setOwnerRoleId(entity.getOwnerRoleId());
-		info.setRegUser(entity.getRegUser());
-		if(entity.getRegDate() == null){
-			info.setRegDate(null);
-		}
-		else{
-			info.setRegDate(entity.getRegDate().getTime());
-		}
-		info.setUpdateUser(entity.getUpdateUser());
-		if(entity.getUpdateDate() == null){
-			info.setUpdateDate(null);
-		}
-		else{
-			info.setUpdateDate(entity.getUpdateDate().getTime());
-		}
-
 		//通知情報の取得
-		info.setNotifyId(new NotifyControllerBean().getNotifyRelation(info.getNotifyGroupId()));
-
-		return info;
+		// FIXME: NotifyRelationCacheの適用
+		entity.setNotifyId(new NotifyControllerBean().getNotifyRelation(entity.getNotifyGroupId()));
+		return entity;
 	}
 }

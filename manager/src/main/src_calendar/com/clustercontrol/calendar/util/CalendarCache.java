@@ -1,25 +1,28 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.calendar.util;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.ValidConstant;
-import com.clustercontrol.calendar.bean.CalendarDetailInfo;
-import com.clustercontrol.calendar.bean.CalendarInfo;
-import com.clustercontrol.calendar.model.CalDetailInfoEntity;
-import com.clustercontrol.calendar.model.CalInfoEntity;
+import com.clustercontrol.calendar.model.CalendarInfo;
 import com.clustercontrol.commons.util.AbstractCacheManager;
 import com.clustercontrol.commons.util.CacheManagerFactory;
+import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
 import com.clustercontrol.fault.CalendarNotFound;
 
@@ -111,11 +114,14 @@ public class CalendarCache {
 		
 		// getCache後からここまでの間に他スレッドによりキャッシュが格納される可能性があり、多重の無駄なキャッシュ格納処理の場合がある。
 		// ただし、キャッシュが破損するわけでないため、本方式にて段階的なキャッシングの仕組みを採用する。
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			_lock.writeLock();
 			
 			ConcurrentHashMap<String, CalendarInfo> cache = getCache();
 			CalendarInfo calendar = getCalendarInfoDB(id);
+			em.refresh(calendar);
+			em.detach(calendar);
 			cache.put(id, calendar);
 			storeCache(cache);
 			
@@ -132,100 +138,11 @@ public class CalendarCache {
 	 */
 	private static CalendarInfo getCalendarInfoDB(String id) throws CalendarNotFound{
 		//カレンダ取得
-		CalInfoEntity entity = null;
-
-		entity = QueryUtil.getCalInfoPK_NONE(id);
-
-		//カレンダ情報のDTOを生成
-		CalendarInfo ret = new CalendarInfo();
-		//id
-		ret.setId(entity.getCalendarId());
-		//名前
-		ret.setName(entity.getCalendarName());
-		//有効期間(From)
-		if (entity.getValidTimeFrom() != null) {
-			ret.setValidTimeFrom(entity.getValidTimeFrom().getTime());
-		}
-		//有効期間(To)
-		if (entity.getValidTimeTo() != null) {
-			ret.setValidTimeTo(entity.getValidTimeTo().getTime());
-		}
-		//説明
-		ret.setDescription(entity.getDescription());
-		//登録者
-		ret.setRegUser(entity.getRegUser());
-		//登録日時
-		if (entity.getRegDate() != null) {
-			ret.setRegDate(entity.getRegDate().getTime());
-		}
-		//更新者
-		ret.setUpdateUser(entity.getUpdateUser());
-		//更新日時
-		if (entity.getUpdateDate() != null) {
-			ret.setUpdateDate(entity.getUpdateDate().getTime());
-		}
-		//カレンダ詳細情報
-		ArrayList<CalendarDetailInfo> detailList = getCalDetailList(id);
-		ret.getCalendarDetailList().addAll(detailList);
-
-		return ret;
+		return QueryUtil.getCalInfoPK_NONE(id);
 	}
 	/**
 	 * IDと一致するカレンダ詳細情報一覧をDBより取得します。
 	 * @param id
 	 * @return カレンダ詳細情報のリスト
 	 */
-	private static ArrayList<CalendarDetailInfo> getCalDetailList(String id) {
-		ArrayList<CalendarDetailInfo> list = new ArrayList<CalendarDetailInfo>();
-
-		//カレンダIDの曜日別情報を取得
-		List<CalDetailInfoEntity> ct = QueryUtil.getCalDetailByCalendarId(id);
-
-		for (CalDetailInfoEntity cal : ct) {
-			CalendarDetailInfo info = new CalendarDetailInfo();
-			//説明
-			if(cal.getDescription() != null){
-				info.setDescription(cal.getDescription());
-			}
-			//年
-			info.setYear(cal.getYearNo());
-			//月
-			info.setMonth(cal.getMonthNo());
-			//曜日選択
-			info.setDayType(cal.getDayType());
-			//曜日
-			if(cal.getWeekNo() != null){
-				info.setDayOfWeek(cal.getWeekNo());
-			}
-			//第x週
-			if(cal.getWeekXth() != null){
-				info.setDayOfWeekInMonth(cal.getWeekXth());
-			}
-			//日
-			if(cal.getDayNo() != null){
-				info.setDate(cal.getDayNo());
-			}
-			//カレンダパターン
-			if(cal.getCalPatternId() != null){
-				info.setCalPatternId(cal.getCalPatternId());
-			}
-			//上記の日程からx日後
-			info.setAfterday(cal.getAfterDay());
-			//開始時間
-			if(cal.getStartTime() != null){
-				info.setTimeFrom(cal.getStartTime().getTime());
-			}
-			//終了時間
-			if(cal.getEndTime() != null){
-				info.setTimeTo(cal.getEndTime().getTime());
-			}
-			//稼動・非稼動
-			info.setOperateFlg(ValidConstant.typeToBoolean(cal.getExecuteFlg()));
-
-			list.add(info);
-		}
-
-		return list;
-	}
-
 }

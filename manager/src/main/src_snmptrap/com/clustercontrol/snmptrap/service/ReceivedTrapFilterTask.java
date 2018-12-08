@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.snmptrap.service;
@@ -22,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -36,28 +30,35 @@ import javax.persistence.Query;
 import org.apache.log4j.Logger;
 
 import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.bean.ProcessConstant;
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.bean.SnmpVersionConstant;
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.calendar.session.CalendarControllerBean;
 import com.clustercontrol.commons.util.HinemosEntityManager;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.JpaTransactionManager;
+import com.clustercontrol.fault.CalendarNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
+import com.clustercontrol.fault.InvalidRole;
+import com.clustercontrol.hub.bean.StringSample;
+import com.clustercontrol.hub.util.CollectStringDataUtil;
+import com.clustercontrol.jobmanagement.bean.RunInstructionInfo;
+import com.clustercontrol.jobmanagement.util.MonitorJobWorker;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 import com.clustercontrol.monitor.run.util.QueryUtil;
+import com.clustercontrol.notify.bean.OutputBasicInfo;
+import com.clustercontrol.notify.util.NotifyCallback;
 import com.clustercontrol.repository.bean.FacilityTreeAttributeConstant;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.snmptrap.bean.MonitorTrapConstant;
 import com.clustercontrol.snmptrap.bean.SnmpTrap;
 import com.clustercontrol.snmptrap.bean.SnmpVarBind;
 import com.clustercontrol.snmptrap.bean.TrapId;
-import com.clustercontrol.snmptrap.model.MonitorTrapInfoEntity;
-import com.clustercontrol.snmptrap.model.MonitorTrapValueInfoEntity;
-import com.clustercontrol.snmptrap.model.MonitorTrapVarbindPatternInfoEntity;
+import com.clustercontrol.snmptrap.model.TrapCheckInfo;
+import com.clustercontrol.snmptrap.model.TrapValueInfo;
+import com.clustercontrol.snmptrap.model.VarBindPattern;
 import com.clustercontrol.snmptrap.util.SnmpTrapConstants;
 import com.clustercontrol.snmptrap.util.SnmpTrapNotifier;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -71,8 +72,8 @@ public class ReceivedTrapFilterTask implements Runnable {
 	/*
 	 * 受信したSNMPTRAPにマッチするSNMPTRAP監視設定を順番に処理するためのクラス
 	 * 
-	 * クエリの結果、受信したSNMPTRAPにマッチする(MonitorInfoEntity, MonitorTrapValueInfoEntity)の配列のリストが得られるので、
-	 * MonitorInfoEntityごとに順番に処理する
+	 * クエリの結果、受信したSNMPTRAPにマッチする(MonitorInfo, MonitorTrapValueInfoEntity)の配列のリストが得られるので、
+	 * MonitorInfoごとに順番に処理する
 	 * 
 	 * 例：SNMPTRAP監視設定A,Bがあり、受信したSNMPTRAPが、監視設定Aのトラップ定義A-1とトラップ定義A-2、監視設定Bのトラップ定義B-1にマッチする場合
 	 * resultsには、以下のように2要素の配列から成るリストが設定される
@@ -86,24 +87,24 @@ public class ReceivedTrapFilterTask implements Runnable {
 	 */
 	private static class QueryResultIterator<E> implements Iterator<E> {
 		
-		/* 受信したSNMPTRAPにマッチする(MonitorInfoEntity, MonitorTrapValueInfoEntity)の配列のリスト
-		 * 配列の0番目にはMonitorInfoEntityが、1番目にはMonitorTrapValueInfoEntityが入る
+		/* 受信したSNMPTRAPにマッチする(MonitorInfo, MonitorTrapValueInfoEntity)の配列のリスト
+		 * 配列の0番目にはMonitorInfoが、1番目にはMonitorTrapValueInfoEntityが入る
 		 */
 		private List<Object[]> results;
 		private static int MONITOR_INFO = 0;
 		private static int MONITOR_TRAP_VALUE_INFO = 1;
 		
-		// 処理しているMonitorInfoEntityを示すための、リストresultsのインデックス
+		// 処理しているMonitorInfoを示すための、リストresultsのインデックス
 		private int current;
-		// currentに対応するMonitorInfoEntity
-		private MonitorInfoEntity currentMonitorInfo;
+		// currentに対応するMonitorInfo
+		private MonitorInfo currentMonitorInfo;
 		// リストresultsのインデックス(next()で次に得られるものを示す）
 		private Integer nextIndex = null;
 		
 		public QueryResultIterator(List<Object[]> results) {
 			this.results = results;
 			this.current = 0;
-			this.currentMonitorInfo = results.isEmpty() ? null: (MonitorInfoEntity)results.get(current)[MONITOR_INFO];
+			this.currentMonitorInfo = results.isEmpty() ? null: (MonitorInfo)results.get(current)[MONITOR_INFO];
 			this.nextIndex = currentMonitorInfo == null ? -1: current;
 		}
 
@@ -111,7 +112,7 @@ public class ReceivedTrapFilterTask implements Runnable {
 		public boolean hasNext() {
 			if (nextIndex == null) {
 				for (int i = current; i < results.size(); ++i) {
-					MonitorInfoEntity o = (MonitorInfoEntity)results.get(i)[MONITOR_INFO];
+					MonitorInfo o = (MonitorInfo)results.get(i)[MONITOR_INFO];
 					if (o != null && o != currentMonitorInfo) {
 						nextIndex = i;
 						current = i;
@@ -125,15 +126,15 @@ public class ReceivedTrapFilterTask implements Runnable {
 			}
 			return nextIndex != -1;
 		}
-		
-		// MonitorInfoEntityに対応するMonitorTrapValueInfoEntity(受信したトラップにマッチするもの)のリストを返す
-		private List<MonitorTrapValueInfoEntity> getValueInfoList() {
-			List<MonitorTrapValueInfoEntity> list = new ArrayList<MonitorTrapValueInfoEntity>();
+
+		// MonitorInfoに対応するMonitorTrapValueInfoEntity(受信したトラップにマッチするもの)のリストを返す
+		private List<TrapValueInfo> getValueInfoList() {
+			List<TrapValueInfo> list = new ArrayList<TrapValueInfo>();
 			for (int i = current; i < results.size(); ++i) {
-				MonitorInfoEntity o = (MonitorInfoEntity)results.get(i)[MONITOR_INFO];
+				MonitorInfo o = (MonitorInfo)results.get(i)[MONITOR_INFO];
 				if (o != null && o == currentMonitorInfo) {
-					// MonitorInfoEntityに対応するMonitorTrapValueInfoEntityが複数ある場合はすべてリストにつめる
-					MonitorTrapValueInfoEntity entity = (MonitorTrapValueInfoEntity)results.get(i)[MONITOR_TRAP_VALUE_INFO];
+					// MonitorInfoに対応するMonitorTrapValueInfoEntityが複数ある場合はすべてリストにつめる
+					TrapValueInfo entity = (TrapValueInfo)results.get(i)[MONITOR_TRAP_VALUE_INFO];
 					if (entity != null) {
 						list.add(entity);
 					}
@@ -145,7 +146,7 @@ public class ReceivedTrapFilterTask implements Runnable {
 			return list;
 		}
 
-		// MonitorInfoEntityを順番に返す
+		// MonitorInfoを順番に返す
 		@SuppressWarnings("unchecked")
 		@Override
 		public E next() {
@@ -159,7 +160,7 @@ public class ReceivedTrapFilterTask implements Runnable {
 
 		@Override
 		public void remove() {
-			if ((MonitorInfoEntity)results.get(current)[MONITOR_INFO] == currentMonitorInfo) {
+			if ((MonitorInfo)results.get(current)[MONITOR_INFO] == currentMonitorInfo) {
 				results.remove(current);
 				nextIndex = null;
 			}
@@ -186,10 +187,14 @@ public class ReceivedTrapFilterTask implements Runnable {
 		this(Arrays.asList(receivedTrap), notifier, counter, defaultCharset);
 	}
 
+	/* (non-Javadoc)
+	 * @see java.lang.Runnable#run()
+	 */
 	@Override
 	public void run() {
 		JpaTransactionManager tm = null;
 		boolean warn = true;
+		List<OutputBasicInfo> notifyInfoList = new ArrayList<>();
 
 		try {
 			tm = new JpaTransactionManager();
@@ -197,7 +202,7 @@ public class ReceivedTrapFilterTask implements Runnable {
 
 			HinemosEntityManager em = tm.getEntityManager();
 
-			List<MonitorInfoEntity> monitorList = QueryUtil.getMonitorInfoByMonitorTypeId(HinemosModuleConstant.MONITOR_SNMPTRAP);
+			List<MonitorInfo> monitorList = QueryUtil.getMonitorInfoByMonitorTypeId(HinemosModuleConstant.MONITOR_SNMPTRAP);
 			if (monitorList == null) {
 				if (logger.isDebugEnabled()) {
 					for (SnmpTrap receivedTrap : receivedTrapList) {
@@ -208,18 +213,20 @@ public class ReceivedTrapFilterTask implements Runnable {
 			}
 
 			// 以下の処理は、未指定トラップの検出のために追加。
-			// 上記クエリは、MonitorTrapValueInfoEntity に焦点を置いている。トラップ情報にマッチしないと、MonitorInfoEntity が残らない。
+			// 上記クエリは、MonitorTrapValueInfoEntity に焦点を置いている。トラップ情報にマッチしないと、MonitorInfo が残らない。
 			// トラップ情報にマッチしなかった監視情報を抽出するために、以下の処理を行う。
-			List<MonitorInfoEntity> unspecifiedFlgMonitorInfoEntityList = em
+			List<MonitorInfo> unspecifiedFlgMonitorInfoList = em
 					.createNamedQuery(
-							"MonitorInfoEntity.findByNotifyofReceivingUnspecifiedFlg",
-							MonitorInfoEntity.class).getResultList();
+							"MonitorInfo.findByNotifyofReceivingUnspecifiedFlg",
+							MonitorInfo.class).getResultList();
 
+			// 収集、通知処理実行
 			List<SnmpTrap> receivedTrapBuffer = new ArrayList<SnmpTrap>();
-			List<MonitorInfoEntity> monitorBuffer = new ArrayList<MonitorInfoEntity>();
+			List<MonitorInfo> monitorBuffer = new ArrayList<MonitorInfo>();
 			List<Integer> priorityBuffer = new ArrayList<Integer>();
 			List<String> facilityIdBuffer = new ArrayList<String>();
 			List<String[]> msgsBuffer = new ArrayList<String[]>();
+			List<RunInstructionInfo> runInstructionBuffer = new ArrayList<>();
 			Map<String, List<String>> matchedFacilityIdListMap = new HashMap<String, List<String>>();
 
 			RepositoryControllerBean repositoryCtrl = new RepositoryControllerBean();
@@ -230,188 +237,111 @@ public class ReceivedTrapFilterTask implements Runnable {
 					matchedFacilityIdListMap.put(ipAddr, matchedFacilityIdList);
 				}
 			}
+
+			/* 監視ジョブ以外 */
+			// 収集項目がTrueのものを取得
+			List<MonitorInfo> collectorFlgTrueMonitorFlgFlaseList = em
+					.createNamedQuery(
+							"MonitorInfo.findByCollectorFlg",
+							MonitorInfo.class).getResultList();
+			
+			//監視True または、収集True AND 監視Falseを満たす監視項目のリスト
+			unspecifiedFlgMonitorInfoList.addAll(collectorFlgTrueMonitorFlgFlaseList);
+
+			
+			// 収集値の入れ物を作成
+			List<StringSample> collectedSamples = new ArrayList<>();
 			
 			for (SnmpTrap receivedTrap : receivedTrapList) {
 				List<Object[]> results = getTargetMonitorTrapList(
-						receivedTrap, em, unspecifiedFlgMonitorInfoEntityList);
+						receivedTrap, em, unspecifiedFlgMonitorInfoList, false);
 
-				QueryResultIterator<MonitorInfoEntity> monitorIter = new QueryResultIterator<MonitorInfoEntity>(results);
+				QueryResultIterator<MonitorInfo> monitorIter = new QueryResultIterator<MonitorInfo>(results);
 				while (monitorIter.hasNext()) {
-					MonitorInfoEntity currentMonitor = monitorIter.next();
-	
-					// カレンダの有効期間外の場合、スキップする
-					if (isInDisabledCalendar(currentMonitor, receivedTrap)) {
-						continue;
-					}
-
-					MonitorTrapInfoEntity trapInfo = currentMonitor.getMonitorTrapInfoEntity();
-					// コミュニティのチェック
-					if (trapInfo.getCommunityCheck() != MonitorTrapConstant.COMMUNITY_CHECK_OFF) {
-						if (!trapInfo.getCommunityName().equals(receivedTrap.getCommunity())) {
-							if (logger.isDebugEnabled()) {
-								logger.debug("community " + trapInfo.getCommunityName() + " is not matched. [" + receivedTrap + "]");
-							}
-							continue;
-						}
-					}
-					
-					String ipAddr = receivedTrap.getAgentAddr();
-					List<String> notifyFacilityIdList = getNotifyFacilityIdList(
-							currentMonitor, receivedTrap,
-							matchedFacilityIdListMap.get(ipAddr));
-					if (notifyFacilityIdList.isEmpty()) {
-						if (logger.isDebugEnabled()) {
-							logger.debug("notification facilities not found [" + receivedTrap + "]");
-						}
-						continue;
-					}
-	
-					// varbindの文字列変換
-					Charset charset = defaultCharset;
-					if (trapInfo.getCharsetConvert() == MonitorTrapConstant.CHARSET_CONVERT_ON) {
-						if (trapInfo.getCharsetName() != null) {
-							if (Charset.isSupported(trapInfo.getCharsetName())) {
-								charset = Charset.forName(trapInfo.getCharsetName());
-							} else {
-								logger.warn("not supported charset : " + trapInfo.getCharsetName());
-							}
-						}
-					}
-	
-					List<SnmpVarBind> varBinds = receivedTrap.getVarBinds();
-					String[] varBindStrs = new String[varBinds.size()];
-					for (int i = 0; i < varBinds.size(); i++) {
-						switch (varBinds.get(i).getType()) {
-						case OctetString :
-						case Opaque :
-							varBindStrs[i] = new String(varBinds.get(i).getObject(), charset);
-							break;
-						default :
-							varBindStrs[i] = new String(varBinds.get(i).getObject());
-						}
-					}
-
-					MonitorTrapValueInfoEntity matchedTrapValueInfo = null;
-					MonitorTrapVarbindPatternInfoEntity matchedPattern = null;
-					String matchedString = null;
-					
-					List<MonitorTrapValueInfoEntity> valueList = monitorIter.getValueInfoList();
-					Iterator<MonitorTrapValueInfoEntity> valueIterator = valueList.iterator();
-					
-					if (!valueIterator.hasNext() && ValidConstant.typeToBoolean(trapInfo.getNotifyofReceivingUnspecifiedFlg())) {
-						// マッチするTRAPの設定が存在せず、存在しない場合に通知する場合
-						String[] msgs = createReceivingUnspecifiedMessages(trapInfo, varBindStrs, receivedTrap);
-						for (String facilityId : notifyFacilityIdList) {
-							receivedTrapBuffer.add(receivedTrap);
-							monitorBuffer.add(currentMonitor);
-							priorityBuffer.add(trapInfo.getPriorityUnspecified());
-							facilityIdBuffer.add(facilityId);
-							msgsBuffer.add(msgs);
-							counter.countupNotified();
-						}
-						continue;
-					}
-
-					while (valueIterator.hasNext()) {
-						MonitorTrapValueInfoEntity currentValueInfo = valueIterator.next();
-							
-
-						if (currentValueInfo.getProcessingVarbindType() == MonitorTrapConstant.PROC_VARBIND_ANY) {
-							// varbindで判定をおこなわない場合
-							matchedTrapValueInfo = currentValueInfo;
-							if (!SnmpTrapConstants.genericTrapV2Set.contains(currentValueInfo.getId().getTrapOid())) {
-								// GENERIC TRAPのOIDより、個別のOIDを優先する
-								break;
-							}
-						} else {
-							// varbindで判定をおこなう場合
-							
-							String varBindStr = getBindedString(currentValueInfo.getFormatVarBinds(), varBindStrs);
-							List<MonitorTrapVarbindPatternInfoEntity> patterns = new ArrayList<>(currentValueInfo.getMonitorTrapVarbindPatternInfoEntities());
-							Collections.sort(patterns, new Comparator<MonitorTrapVarbindPatternInfoEntity>() {
-								@Override
-								public int compare(MonitorTrapVarbindPatternInfoEntity o1, MonitorTrapVarbindPatternInfoEntity o2) {
-									return o1.getId().getOrderNo().compareTo(o2.getId().getOrderNo());
-								}
-							});
-								
-							for (MonitorTrapVarbindPatternInfoEntity currentPattern: patterns) {
-								if (!ValidConstant.typeToBoolean(trapInfo.getNotifyofReceivingUnspecifiedFlg()) && !ValidConstant.typeToBoolean(currentPattern.getValidFlg()))
-									continue;
-	
-								
-								Pattern pattern = null;
-								if (ValidConstant.typeToBoolean(currentPattern.getCaseSensitivityFlg())) {
-									// 大文字・小文字を区別しない場合
-									pattern = Pattern.compile(currentPattern.getPattern(), Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
-								} else {
-									// 大文字・小文字を区別する場合
-									pattern = Pattern.compile(currentPattern.getPattern(), Pattern.DOTALL);
-								}
-	
-								// パターンマッチ表現でマッチング
-								Matcher matcher = pattern.matcher(varBindStr);
-								if (matcher.matches()) {
-									matchedTrapValueInfo = currentValueInfo;
-									matchedPattern = currentPattern;
-									matchedString = varBindStr;
-									break;
-								}
-							}
-								
-							if (matchedTrapValueInfo != null && !SnmpTrapConstants.genericTrapV2Set.contains(currentValueInfo.getId().getTrapOid())) {
-								// GENERIC TRAPのOIDより、個別のOIDを優先する
-								break;
-							}
-						}
-					} // while valueIterator
-					
-					if (matchedTrapValueInfo == null) {
-						continue;
-					}
-
-					if (matchedTrapValueInfo.getProcessingVarbindType() == MonitorTrapConstant.PROC_VARBIND_ANY) {
-						// 変数にかかわらず常に通知する
-						String[] msgs = createMessages(trapInfo, matchedTrapValueInfo, varBindStrs, receivedTrap);
-						
-						for (String facilityId : notifyFacilityIdList) {
-							receivedTrapBuffer.add(receivedTrap);
-							monitorBuffer.add(currentMonitor);
-							priorityBuffer.add(matchedTrapValueInfo.getPriorityAnyVarbind());
-							facilityIdBuffer.add(facilityId);
-							msgsBuffer.add(msgs);
-							counter.countupNotified();
-						}
-					} else {
-						// 変数で判定する
-						if (matchedPattern.getProcessType() == ProcessConstant.TYPE_YES) {
-							// 処理する
-							String[] msgs = createPattenMatchedOrgMessage(
-									trapInfo, matchedTrapValueInfo,
-									matchedPattern, matchedString,
-									varBindStrs, receivedTrap);
-							
-							for (String facilityId : notifyFacilityIdList) {
-								receivedTrapBuffer.add(receivedTrap);
-								monitorBuffer.add(currentMonitor);
-								priorityBuffer.add(matchedPattern.getPriority());
-								facilityIdBuffer.add(facilityId);
-								msgsBuffer.add(msgs);
-								counter.countupNotified();
-							}
-						} else {
-							//処理しない
-						}
-					}
+					MonitorInfo currentMonitor = monitorIter.next();
+					collectionAndNotifySnmptrap(
+							em, 
+							currentMonitor,
+							null,
+							receivedTrap,
+							monitorIter.getValueInfoList(),
+							matchedFacilityIdListMap,
+							receivedTrapBuffer,
+							monitorBuffer,
+							priorityBuffer,
+							facilityIdBuffer,
+							msgsBuffer,
+							runInstructionBuffer,
+							collectedSamples);
 				}//while monitorIter
-				
 			}//for
-			
-			notifier.put(receivedTrapBuffer, monitorBuffer, priorityBuffer, facilityIdBuffer, msgsBuffer);
-			
+
+			//収集 文字列を蓄積
+			if (!collectedSamples.isEmpty()) {
+				CollectStringDataUtil.store(collectedSamples);
+			}
+			notifyInfoList.addAll(notifier.createOutputBasicInfoList(
+					receivedTrapBuffer, monitorBuffer, priorityBuffer, facilityIdBuffer, msgsBuffer, null));
+
+			/* 監視ジョブ */
+			receivedTrapBuffer = new ArrayList<SnmpTrap>();
+			monitorBuffer = new ArrayList<MonitorInfo>();
+			priorityBuffer = new ArrayList<Integer>();
+			facilityIdBuffer = new ArrayList<String>();
+			msgsBuffer = new ArrayList<String[]>();
+			runInstructionBuffer = new ArrayList<>();
+			unspecifiedFlgMonitorInfoList = em
+					.createNamedQuery(
+					"MonitorInfo.findByNotifyofReceivingUnspecifiedFlgForMonitorJob",
+					MonitorInfo.class).getResultList();
+			for (SnmpTrap receivedTrap : receivedTrapList) {
+				List<Object[]> results = getTargetMonitorTrapList(
+						receivedTrap, em, unspecifiedFlgMonitorInfoList, true);
+
+				for (Map.Entry<RunInstructionInfo, MonitorInfo> entry 
+						: MonitorJobWorker.getMonitorJobMap(HinemosModuleConstant.MONITOR_SNMPTRAP).entrySet()) {
+
+					boolean isCheck = false;
+					List<TrapValueInfo> trapValueList = null;
+					QueryResultIterator<MonitorInfo> monitorIter = new QueryResultIterator<MonitorInfo>(results);
+					while (monitorIter.hasNext()) {
+						MonitorInfo currentMonitor = monitorIter.next();
+						if (entry.getValue().getMonitorId().equals(currentMonitor.getMonitorId())) {
+							trapValueList = monitorIter.getValueInfoList();
+							isCheck = true;
+							break;
+						}
+					}
+					if (!isCheck) {
+						// 監視対象外の監視の場合は次の処理を行う
+						continue;
+					}
+					collectionAndNotifySnmptrap(
+							em, 
+							entry.getValue(),
+							entry.getKey(),
+							receivedTrap,
+							trapValueList,
+							matchedFacilityIdListMap,
+							receivedTrapBuffer,
+							monitorBuffer,
+							priorityBuffer,
+							facilityIdBuffer,
+							msgsBuffer,
+							runInstructionBuffer,
+							collectedSamples);
+				}//while monitorIter
+			}//for
+
+			notifyInfoList.addAll(notifier.createOutputBasicInfoList(
+					receivedTrapBuffer, monitorBuffer, priorityBuffer, facilityIdBuffer, msgsBuffer, runInstructionBuffer));
+
+			// 通知設定
+			tm.addCallback(new NotifyCallback(notifyInfoList));
+
 			tm.commit();
 			warn = false;
-		} catch (Exception e) {
+		} catch (HinemosUnknown | UnknownHostException e) {
 			logger.warn("unexpected internal error. : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			// HA構成のため、例外を握りつぶしてはいけない
@@ -426,21 +356,257 @@ public class ReceivedTrapFilterTask implements Runnable {
 					TrapId trapV1 = receivedTrap.getTrapId().asTrapV1Id();
 					
 					// Internal Event
-					AplLogger apllog = new AplLogger("TRAP", "trap");
 					String[] args = {
 							trapV1.getEnterpriseId(),
 							String.valueOf(trapV1.getGenericId()),
 							String.valueOf(trapV1.getSpecificId())};
-					apllog.put("SYS", "009", args);
+					AplLogger.put(PriorityConstant.TYPE_CRITICAL, HinemosModuleConstant.MONITOR_SNMPTRAP, MessageConstant.MESSAGE_SYS_009_TRAP, args);
 				}
 			}
 		}
 	}
 
-	private boolean isInDisabledCalendar(MonitorInfoEntity monitorInfoEntity,
+	/**
+	 * SNMPトラップの収集・通知情報の取得を行う
+	 * 
+	 * @param em エンティティマネージャ
+	 * @param monitorInfo 監視情報
+	 * @param receivedTrap SNMPTRAP情報
+	 * @param monitorIter
+	 * @param matchedFacilityIdListMap
+	 * @param receivedTrapBuffer
+	 * @param monitorBuffer
+	 * @param priorityBuffer
+	 * @param facilityIdBuffer
+	 * @param msgsBuffer
+	 * @param collectedSamples
+	 * @throws HinemosUnknown
+	 * @throws UnknownHostException
+	 */
+	private void collectionAndNotifySnmptrap(
+		HinemosEntityManager em,
+		MonitorInfo monitorInfo,
+		RunInstructionInfo runInstructionInfo,
+		SnmpTrap receivedTrap,
+		List<TrapValueInfo> valueInfoList,
+		Map<String, List<String>> matchedFacilityIdListMap,
+		List<SnmpTrap> receivedTrapBuffer,
+		List<MonitorInfo> monitorBuffer,
+		List<Integer> priorityBuffer,
+		List<String> facilityIdBuffer,
+		List<String[]> msgsBuffer,
+		List<RunInstructionInfo> runInstructionBuffer,
+		List<StringSample> collectedSamples) throws HinemosUnknown, UnknownHostException {
+
+		// カレンダの有効期間外の場合、スキップする
+		if (runInstructionInfo == null && isInDisabledCalendar(monitorInfo, receivedTrap)) {
+			return;
+		}
+
+		TrapCheckInfo trapInfo = monitorInfo.getTrapCheckInfo();
+		// コミュニティのチェック
+		if (trapInfo.getCommunityCheck().booleanValue()) {
+			if (!trapInfo.getCommunityName().equals(receivedTrap.getCommunity())) {
+				if (logger.isDebugEnabled()) {
+					logger.debug("community " + trapInfo.getCommunityName() + " is not matched. [" + receivedTrap + "]");
+				}
+				return;
+			}
+		}
+
+		String ipAddr = receivedTrap.getAgentAddr();
+		List<String> notifyFacilityIdList = new ArrayList<>();
+		if (runInstructionInfo == null) {
+			// 監視ジョブ以外
+			notifyFacilityIdList = getNotifyFacilityIdList(
+				monitorInfo, receivedTrap,
+				matchedFacilityIdListMap.get(ipAddr));
+			if (notifyFacilityIdList.isEmpty()) {
+				if (logger.isDebugEnabled()) {
+					logger.debug("notification facilities not found [" + receivedTrap + "]");
+				}
+				return;
+			}
+		} else {
+			// 監視ジョブ
+			if (matchedFacilityIdListMap.get(ipAddr) != null
+					&& matchedFacilityIdListMap.get(ipAddr).contains(runInstructionInfo.getFacilityId())) {
+				notifyFacilityIdList.add(runInstructionInfo.getFacilityId());
+			} else {
+				if (logger.isDebugEnabled()) {
+					logger.debug("notification facilities not found [" + receivedTrap + "]");
+				}
+				return;
+			}
+		}
+
+		// varbindの文字列変換
+		Charset charset = defaultCharset;
+		if (trapInfo.getCharsetConvert().booleanValue()) {
+			if (trapInfo.getCharsetName() != null) {
+				if (Charset.isSupported(trapInfo.getCharsetName())) {
+					charset = Charset.forName(trapInfo.getCharsetName());
+				} else {
+					logger.warn("not supported charset : " + trapInfo.getCharsetName());
+				}
+			}
+		}
+
+		List<SnmpVarBind> varBinds = receivedTrap.getVarBinds();
+		String[] varBindStrs = new String[varBinds.size()];
+		for (int i = 0; i < varBinds.size(); i++) {
+			switch (varBinds.get(i).getType()) {
+			case OctetString :
+			case Opaque :
+				varBindStrs[i] = new String(varBinds.get(i).getObject(), charset);
+				break;
+			default :
+				varBindStrs[i] = new String(varBinds.get(i).getObject());
+			}
+		}
+
+		TrapValueInfo matchedTrapValueInfo = null;
+		VarBindPattern matchedPattern = null;
+		String matchedString = null;
+
+		Iterator<TrapValueInfo> valueIterator = valueInfoList.iterator();
+
+		if (runInstructionInfo == null) {
+			// 監視ジョブ以外
+			//収集
+			if (monitorInfo.getCollectorFlg() != null && monitorInfo.getCollectorFlg()) {
+
+				String[] msgs = createMessages(trapInfo, varBindStrs, receivedTrap);
+	
+				Date date = new Date(HinemosTime.currentTimeMillis());
+				// 収集値の入れ物を作成
+				StringSample strSample = new StringSample(date, monitorInfo.getMonitorId());
+				for (String facilityId : notifyFacilityIdList) {
+					//masg[1]はオリジナルメッセージ
+					strSample.set(facilityId, "", msgs[1]);
+				}
+				if (strSample != null) {
+					collectedSamples.add(strSample);
+				}
+			}
+			if (!monitorInfo.getMonitorFlg()) {
+				return;
+			}
+		}
+
+		if (!valueIterator.hasNext() && trapInfo.getNotifyofReceivingUnspecifiedFlg()) {
+			// マッチするTRAPの設定が存在せず、存在しない場合に通知する場合
+			String[] msgs = createMessages(trapInfo, varBindStrs, receivedTrap);
+
+			for (String facilityId : notifyFacilityIdList) {
+				receivedTrapBuffer.add(receivedTrap);
+				monitorBuffer.add(monitorInfo);
+				priorityBuffer.add(trapInfo.getPriorityUnspecified());
+				facilityIdBuffer.add(facilityId);
+				msgsBuffer.add(msgs);
+				runInstructionBuffer.add(runInstructionInfo);
+				counter.countupNotified();
+			}
+			return;
+		}
+
+		while (valueIterator.hasNext()) {
+			TrapValueInfo currentValueInfo = valueIterator.next();
+
+			if (!currentValueInfo.getProcessingVarbindSpecified()) {
+				// varbindで判定をおこなわない場合
+				matchedTrapValueInfo = currentValueInfo;
+				if (!SnmpTrapConstants.genericTrapV2Set.contains(currentValueInfo.getId().getTrapOid())) {
+					// GENERIC TRAPのOIDより、個別のOIDを優先する
+					break;
+				}
+			} else {
+				// varbindで判定をおこなう場合
+
+				String varBindStr = getBindedString(currentValueInfo.getFormatVarBinds(), varBindStrs);
+				List<VarBindPattern> patterns = new ArrayList<>(currentValueInfo.getVarBindPatterns());
+				Collections.sort(patterns, new Comparator<VarBindPattern>() {
+					@Override
+					public int compare(VarBindPattern o1, VarBindPattern o2) {
+						return o1.getId().getOrderNo().compareTo(o2.getId().getOrderNo());
+					}
+				});
+
+				for (VarBindPattern currentPattern: patterns) {
+					if (!trapInfo.getNotifyofReceivingUnspecifiedFlg() && !currentPattern.getValidFlg())
+						continue;
+
+					Pattern pattern = null;
+					if (currentPattern.getCaseSensitivityFlg()) {
+						// 大文字・小文字を区別しない場合
+						pattern = Pattern.compile(currentPattern.getPattern(), Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+					} else {
+						// 大文字・小文字を区別する場合
+						pattern = Pattern.compile(currentPattern.getPattern(), Pattern.DOTALL);
+					}
+
+					// パターンマッチ表現でマッチング
+					Matcher matcher = pattern.matcher(varBindStr);
+					if (matcher.matches()) {
+						matchedTrapValueInfo = currentValueInfo;
+						matchedPattern = currentPattern;
+						matchedString = varBindStr;
+						break;
+					}
+				}
+
+				if (matchedTrapValueInfo != null && !SnmpTrapConstants.genericTrapV2Set.contains(currentValueInfo.getId().getTrapOid())) {
+					// GENERIC TRAPのOIDより、個別のOIDを優先する
+					break;
+				}
+			}
+		} // while valueIterator
+
+		if (matchedTrapValueInfo == null) {
+			return;
+		}
+
+		if (!matchedTrapValueInfo.getProcessingVarbindSpecified()) {
+			// 変数にかかわらず常に通知する
+			String[] msgs = createMessages(trapInfo, matchedTrapValueInfo, varBindStrs, receivedTrap);
+
+			for (String facilityId : notifyFacilityIdList) {
+				receivedTrapBuffer.add(receivedTrap);
+				monitorBuffer.add(monitorInfo);
+				priorityBuffer.add(matchedTrapValueInfo.getPriorityAnyVarbind());
+				facilityIdBuffer.add(facilityId);
+				msgsBuffer.add(msgs);
+				runInstructionBuffer.add(runInstructionInfo);
+				counter.countupNotified();
+			}
+		} else {
+			// 変数で判定する
+			if (matchedPattern.getProcessType().booleanValue()) {
+				// 処理する
+				String[] msgs = createPattenMatchedOrgMessage(
+						trapInfo, matchedTrapValueInfo,
+						matchedPattern, matchedString,
+						varBindStrs, receivedTrap);
+
+				for (String facilityId : notifyFacilityIdList) {
+					receivedTrapBuffer.add(receivedTrap);
+					monitorBuffer.add(monitorInfo);
+					priorityBuffer.add(matchedPattern.getPriority());
+					facilityIdBuffer.add(facilityId);
+					msgsBuffer.add(msgs);
+					runInstructionBuffer.add(runInstructionInfo);
+					counter.countupNotified();
+				}
+			} else {
+				//処理しない
+			}
+		}
+	}
+
+	private boolean isInDisabledCalendar(MonitorInfo monitorInfo,
 			SnmpTrap trap) {
 		
-		String calendarId = monitorInfoEntity.getCalendarId();
+		String calendarId = monitorInfo.getCalendarId();
 		boolean inDisabledCalendar = false;
 		if (calendarId != null && !"".equals(calendarId)) {
 			try {
@@ -450,7 +616,7 @@ public class ReceivedTrapFilterTask implements Runnable {
 						logger.debug("calendar " + calendarId + " is not enabled term. [" + trap + "]");
 					}
 				}
-			} catch (Exception e) {
+			} catch (CalendarNotFound | InvalidRole | HinemosUnknown | RuntimeException e) {
 				// カレンダが未定義の場合は、スキップせずに継続する（予期せぬロストの回避）
 				logger.info("calendar " + calendarId
 						+ " is not found, skip calendar check. [" + trap + "]");
@@ -462,7 +628,8 @@ public class ReceivedTrapFilterTask implements Runnable {
 
 	private List<Object[]> getTargetMonitorTrapList (
 			SnmpTrap receivedTrap, HinemosEntityManager em,
-			List<MonitorInfoEntity> unspecifiedFlgMonitorInfoEntityList) {
+			List<MonitorInfo> unspecifiedFlgMonitorInfoList,
+			boolean isMonitorJob) {
 		TrapId trapV1;
 		List<TrapId> trapV2List;
 		if (receivedTrap.getTrapId().getVersion() == SnmpVersionConstant.TYPE_V1) {
@@ -474,7 +641,14 @@ public class ReceivedTrapFilterTask implements Runnable {
 			trapV2List = Arrays.asList(trap2);
 		}
 
-		Query query = em.createNamedQuery("MonitorTrapValueInfoEntity.findByReceivedTrap");
+		Query query = null;
+		if (isMonitorJob) {
+			// 監視ジョブ
+			query = em.createNamedQuery("MonitorTrapValueInfoEntity.findByReceivedTrapForMonitorJob");
+		} else {
+			// 監視ジョブ以外
+			query = em.createNamedQuery("MonitorTrapValueInfoEntity.findByReceivedTrap");
+		}
 		query.setParameter("enterpriseId", trapV1.getEnterpriseId());
 		query.setParameter("genericId", trapV1.getGenericId());
 		query.setParameter("specificId", trapV1.getSpecificId());
@@ -486,29 +660,29 @@ public class ReceivedTrapFilterTask implements Runnable {
 		query.setParameter("enterpriseSpecific", SnmpTrapConstants.SNMP_GENERIC_enterpriseSpecific);
 		query.setParameter("genericTrapOid", SnmpTrapConstants.genericTrapV1Map.get(trapV1.getGenericId()));
 
-		long startTime = System.currentTimeMillis();
+		long startTime = HinemosTime.currentTimeMillis();
 		@SuppressWarnings("unchecked")
 		List<Object[]> results = (List<Object[]>)query.getResultList();
 		if (logger.isDebugEnabled()) {
-			logger.debug(String.format("finished searching traps. elapsed time = %d, matched count = %d", System.currentTimeMillis() -startTime, results.size()));
+			logger.debug(String.format("finished searching traps. elapsed time = %d, matched count = %d", HinemosTime.currentTimeMillis() -startTime, results.size()));
 		}
 
 		Set<String> monitorIds = new HashSet<>();
 		for (Object[] m: results) {
-			monitorIds.add(((MonitorInfoEntity)m[0]).getMonitorId());
+			monitorIds.add(((MonitorInfo)m[0]).getMonitorId());
 		}
-		for (MonitorInfoEntity m: unspecifiedFlgMonitorInfoEntityList) {
+		for (MonitorInfo m: unspecifiedFlgMonitorInfoList) {
 			if (!monitorIds.contains(m.getMonitorId()))
 				results.add(new Object[]{m, null,null});
 		}
 		return results;
 	}
 
-	private List<String> getNotifyFacilityIdList(MonitorInfoEntity monitor, SnmpTrap receivedTrap, List<String>matchedFacilityIdList) throws HinemosUnknown, UnknownHostException {
+	private List<String> getNotifyFacilityIdList(MonitorInfo monitorInfo, SnmpTrap receivedTrap, List<String>matchedFacilityIdList) throws HinemosUnknown, UnknownHostException {
 		RepositoryControllerBean repositoryCtrl = new RepositoryControllerBean();
 
 		if (matchedFacilityIdList == null || matchedFacilityIdList.isEmpty()) {
-			matchedFacilityIdList = Arrays.asList(FacilityTreeAttributeConstant.UNREGISTEREFD_SCOPE);
+			matchedFacilityIdList = Arrays.asList(FacilityTreeAttributeConstant.UNREGISTERED_SCOPE);
 		}
 		if (logger.isDebugEnabled()) {
 			logger.debug("matched facilities : " + matchedFacilityIdList + " [" + receivedTrap + "]");
@@ -516,10 +690,10 @@ public class ReceivedTrapFilterTask implements Runnable {
 
 		// 監視対象のファシリティID一覧を取得する
 		List<String> targetFacilityIdList = Collections.emptyList();
-		if (FacilityTreeAttributeConstant.UNREGISTEREFD_SCOPE.equals(monitor.getFacilityId())) {
-			targetFacilityIdList = Arrays.asList(FacilityTreeAttributeConstant.UNREGISTEREFD_SCOPE);
+		if (FacilityTreeAttributeConstant.UNREGISTERED_SCOPE.equals(monitorInfo.getFacilityId())) {
+			targetFacilityIdList = Arrays.asList(FacilityTreeAttributeConstant.UNREGISTERED_SCOPE);
 		}	else {
-			targetFacilityIdList = repositoryCtrl.getExecTargetFacilityIdList(monitor.getFacilityId(), monitor.getOwnerRoleId());
+			targetFacilityIdList = repositoryCtrl.getExecTargetFacilityIdList(monitorInfo.getFacilityId(), monitorInfo.getOwnerRoleId());
 		}
 		if (logger.isDebugEnabled()) {
 			logger.debug("target facilities : " + targetFacilityIdList + " [" + receivedTrap + "]");
@@ -532,7 +706,7 @@ public class ReceivedTrapFilterTask implements Runnable {
 		return notifyFacilityIdList;
 	}
 
-	private String[] createMessages(MonitorTrapInfoEntity checkInfo, MonitorTrapValueInfoEntity valueInfo, String[] varBindStrs, SnmpTrap receivedTrap) {
+	private String[] createMessages(TrapCheckInfo checkInfo, TrapValueInfo valueInfo, String[] varBindStrs, SnmpTrap receivedTrap) {
 		StringBuilder orgMessage = new StringBuilder();
 
 		if (receivedTrap.getTrapId().getVersion() == SnmpVersionConstant.TYPE_V1) {
@@ -545,10 +719,10 @@ public class ReceivedTrapFilterTask implements Runnable {
 		}
 
 		StringBuilder detail = new StringBuilder();
-		if (HinemosPropertyUtil.getHinemosPropertyBool("monitor.snmptrap.org.message.community", true))
-			detail.append(Messages.getString("CommunityName")).append("=").append(receivedTrap.getCommunity()).append(" \n");
+		if (HinemosPropertyCommon.monitor_snmptrap_org_message_community.getBooleanValue())
+			detail.append(MessageConstant.COMMUNITY_NAME.getMessage()).append("=").append(receivedTrap.getCommunity()).append(" \n");
 
-		if (HinemosPropertyUtil.getHinemosPropertyBool("monitor.snmptrap.org.message.varbind", true)) {
+		if (HinemosPropertyCommon.monitor_snmptrap_org_message_varbind.getBooleanValue()) {
 			boolean first = true;
 			for (String value: varBindStrs) {
 				if (first) {
@@ -560,18 +734,18 @@ public class ReceivedTrapFilterTask implements Runnable {
 			}
 			detail.append(" \n");
 		}
-		detail.append(Messages.getString("Description")).append("=").append(valueInfo.getDescription());
+		detail.append(MessageConstant.DESCRIPTION.getMessage()).append("=").append(valueInfo.getDescription());
 		orgMessage.append(getBindedString(detail.toString(), varBindStrs));
 
 		return new String[]{getBindedString(valueInfo.getLogmsg(), varBindStrs), orgMessage.toString()};
 	}
 
-	private String[] createReceivingUnspecifiedMessages(MonitorTrapInfoEntity checkInfo, String[] varBindStrs, SnmpTrap receivedTrap) {
+	private String[] createMessages(TrapCheckInfo checkInfo, String[] varBindStrs, SnmpTrap receivedTrap) {
 		StringBuilder orgMessage = new StringBuilder();
-		if (HinemosPropertyUtil.getHinemosPropertyBool("monitor.snmptrap.org.message.community", true))
-			orgMessage.append(Messages.getString("CommunityName")).append("=").append(receivedTrap.getCommunity()).append(" \n");
+		if (HinemosPropertyCommon.monitor_snmptrap_org_message_community.getBooleanValue())
+			orgMessage.append(MessageConstant.COMMUNITY_NAME.getMessage()).append("=").append(receivedTrap.getCommunity()).append(" \n");
 
-		if (HinemosPropertyUtil.getHinemosPropertyBool("monitor.snmptrap.org.message.varbind", true)) {
+		if (HinemosPropertyCommon.monitor_snmptrap_org_message_varbind.getBooleanValue()) {
 			boolean first = true;
 			for (String value: varBindStrs) {
 				if (first) {
@@ -602,9 +776,9 @@ public class ReceivedTrapFilterTask implements Runnable {
 	}
 
 	private String[] createPattenMatchedOrgMessage(
-			MonitorTrapInfoEntity checkInfo,
-			MonitorTrapValueInfoEntity valueInfo,
-			MonitorTrapVarbindPatternInfoEntity pattern, String matchedString,
+			TrapCheckInfo checkInfo,
+			TrapValueInfo valueInfo,
+			VarBindPattern pattern, String matchedString,
 			String[] varBindStrs, SnmpTrap receivedTrap) {
 		
 		String[] msgs = createMessages(checkInfo, valueInfo, varBindStrs, receivedTrap);

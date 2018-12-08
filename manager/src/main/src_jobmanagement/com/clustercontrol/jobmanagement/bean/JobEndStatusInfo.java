@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -37,16 +30,16 @@ public class JobEndStatusInfo implements Serializable, Comparable<JobEndStatusIn
 	private static Log m_log = LogFactory.getLog( JobEndStatusInfo.class );
 
 	/** 終了状態の種別 */
-	private Integer m_type = new Integer(0);
+	private Integer m_type = 0;
 
 	/** 終了状態の終了値 */
-	private Integer m_value = new Integer(0);
+	private Integer m_value = 0;
 
 	/** 終了値範囲(開始) */
-	private Integer m_startRangeValue = new Integer(0);
+	private Integer m_startRangeValue = 0;
 
 	/** 終了値範囲(終了) */
-	private Integer m_endRangeValue = new Integer(0);
+	private Integer m_endRangeValue = 0;
 
 	/**
 	 * 終了値範囲(終了)を返す
@@ -115,6 +108,21 @@ public class JobEndStatusInfo implements Serializable, Comparable<JobEndStatusIn
 	}
 
 	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((m_endRangeValue == null) ? 0 : m_endRangeValue.hashCode());
+		result = prime
+				* result
+				+ ((m_startRangeValue == null) ? 0 : m_startRangeValue
+						.hashCode());
+		result = prime * result + ((m_type == null) ? 0 : m_type.hashCode());
+		result = prime * result + ((m_value == null) ? 0 : m_value.hashCode());
+		return result;
+	}
+
+	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof JobEndStatusInfo)) {
 			return false;
@@ -138,17 +146,13 @@ public class JobEndStatusInfo implements Serializable, Comparable<JobEndStatusIn
 	}
 
 	private boolean equalsSub(Object o1, Object o2) {
-		if (o1 == null && o2 == null) {
+		if (o1 == o2)
 			return true;
-		}
-		if (o1 != null && o2 == null) {
+		
+		if (o1 == null)
 			return false;
-		}
-		if (o1 == null && o2 != null) {
-			return false;
-		}
-		boolean ret = o1.equals(o2);
-		return ret;
+		
+		return o1.equals(o2);
 	}
 
 	@Override

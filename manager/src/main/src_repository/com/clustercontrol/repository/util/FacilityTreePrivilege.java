@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.repository.util;
 
 import java.io.Serializable;
@@ -270,9 +278,8 @@ public class FacilityTreePrivilege implements Serializable, Cloneable {
 	 */
 	@Override
 	public FacilityTreePrivilege clone(){
-		FacilityTreePrivilege cloneInfo = new FacilityTreePrivilege();
 		try {
-			cloneInfo = (FacilityTreePrivilege) super.clone();
+			FacilityTreePrivilege cloneInfo = (FacilityTreePrivilege) super.clone();
 			cloneInfo.parent = null;
 			cloneInfo.privileges = new HashMap<ObjectPrivilegeMode, Boolean>(this.privileges);
 			cloneInfo.facilityId = this.facilityId;
@@ -282,10 +289,9 @@ public class FacilityTreePrivilege implements Serializable, Cloneable {
 			for (FacilityTreePrivilege item : this.children) {
 				cloneInfo.children.add(item.clone());
 			}
-
+			return cloneInfo;
 		} catch (CloneNotSupportedException e) {
-			// do nothing
+			throw new InternalError(e.toString());
 		}
-		return cloneInfo;
 	}
 }

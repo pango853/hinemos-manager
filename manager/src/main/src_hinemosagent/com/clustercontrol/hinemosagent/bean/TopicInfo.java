@@ -1,11 +1,29 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.hinemosagent.bean;
 
 import java.io.Serializable;
 
+import javax.xml.bind.annotation.XmlType;
+
 import com.clustercontrol.jobmanagement.bean.RunInstructionInfo;
 import com.clustercontrol.agent.bean.TopicFlagConstant;
 
+import com.clustercontrol.util.HinemosTime;
+
+@XmlType(namespace = "http://agent.ws.clustercontrol.com")
 public class TopicInfo implements Serializable {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
 	// job
 	private RunInstructionInfo runInstructionInfo = null;
 
@@ -19,15 +37,15 @@ public class TopicInfo implements Serializable {
 	private long generateDate = 0;
 
 	public TopicInfo () {
-		generateDate = System.currentTimeMillis();
+		generateDate = HinemosTime.currentTimeMillis();
 	}
 
 	// 古いトピックは無効とする。
 	public boolean isValid() {
 		// TODO hinemos.propertiesで与えたい。
 		int topicValidPeriod = 3600;
-		return (System.currentTimeMillis() <
-				generateDate + topicValidPeriod * 1000);
+		return (HinemosTime.currentTimeMillis() <
+				generateDate + topicValidPeriod * 1000l);
 	}
 
 	public long getFlag() {
@@ -77,6 +95,17 @@ public class TopicInfo implements Serializable {
 			flag = flag - (flag & TopicFlagConstant.LOGFILE_CHANGED);
 		}
 	}
+	private boolean isBinaryMonitorChanged() {
+		return (flag & TopicFlagConstant.BINARY_CHANGED) != 0;
+	}
+
+	public void setBinaryMonitorChanged(boolean changed) {
+		if (changed) {
+			flag = flag | TopicFlagConstant.BINARY_CHANGED;
+		} else {
+			flag = flag - (flag & TopicFlagConstant.BINARY_CHANGED);
+		}
+	}
 	private boolean isFileCheckChanged() {
 		return (flag & TopicFlagConstant.FILECHECK_CHANGED) != 0;
 	}
@@ -120,29 +149,35 @@ public class TopicInfo implements Serializable {
 		this.agentCommand = agentCommand;
 	}
 
-	/**
-	 * 複数のトピックが送信されるのを防ぐため、equalsを定義する。
-	 * (エージェントが切断されている間に、同一のジョブトピックが蓄積されて、
-	 * エージェント接続時に複数の同一トピック送信されてしまうのを防ぐ。)
-	 */
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + agentCommand;
+		result = prime * result + (int) (flag ^ (flag >>> 32));
+		result = prime * result + (int) (generateDate ^ (generateDate >>> 32));
+		result = prime
+				* result
+				+ ((runInstructionInfo == null) ? 0 : runInstructionInfo
+						.hashCode());
+		return result;
+	}
+
 	@Override
 	public boolean equals(Object otherObject) {
-		if (otherObject == null || !(otherObject instanceof TopicInfo)) {
+		if (!(otherObject instanceof TopicInfo))
 			return false;
-		}
+		
 		TopicInfo otherTopic = (TopicInfo)otherObject;
-		if (otherTopic.getFlag() != this.getFlag()) {
+		if (otherTopic.getFlag() != this.getFlag())
 			return false;
-		}
-		if (otherTopic.runInstructionInfo == null && this.runInstructionInfo != null) {
-			return false;
-		}
-		if (otherTopic.runInstructionInfo != null && this.runInstructionInfo == null) {
-			return false;
-		}
-		if (otherTopic.runInstructionInfo == null && this.runInstructionInfo == null) {
+		
+		if (otherTopic.runInstructionInfo == this.runInstructionInfo)
 			return true;
-		}
+		
+		if (otherTopic.runInstructionInfo == null)
+			return false;
+		
 		return otherTopic.runInstructionInfo.equals(this.runInstructionInfo);
 	}
 	
@@ -222,6 +257,13 @@ public class TopicInfo implements Serializable {
 		flag = true;
 		info.setLogfileMonitorChanged(flag);
 		System.out.println((flag ^ info.isLogfileMonitorChanged() ? "NG" : "OK") + ", flag=" + info.getFlag());
+
+		flag = false;
+		info.setBinaryMonitorChanged(flag);
+		System.out.println((flag ^ info.isBinaryMonitorChanged() ? "NG" : "OK") + ", flag=" + info.getFlag());
+		flag = true;
+		info.setBinaryMonitorChanged(flag);
+		System.out.println((flag ^ info.isBinaryMonitorChanged() ? "NG" : "OK") + ", flag=" + info.getFlag());
 
 		flag = false;
 		info.setFileCheckChanged(flag);

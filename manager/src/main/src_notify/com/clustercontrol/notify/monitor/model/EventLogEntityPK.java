@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.notify.monitor.model;
 
 import java.io.Serializable;
@@ -16,7 +24,7 @@ public class EventLogEntityPK implements Serializable {
 	private String monitorId;
 	private String monitorDetailId;
 	private String pluginId;
-	private java.util.Date outputDate;
+	private Long outputDate;
 	private String facilityId;
 
 	public EventLogEntityPK() {
@@ -25,7 +33,7 @@ public class EventLogEntityPK implements Serializable {
 	public EventLogEntityPK(String monitorId,
 			String monitorDetailId,
 			String pluginId,
-			java.util.Date outputDate,
+			Long outputDate,
 			String facilityId) {
 		this.setMonitorId(monitorId);
 		this.setMonitorDetailId(monitorDetailId);
@@ -58,12 +66,11 @@ public class EventLogEntityPK implements Serializable {
 		this.pluginId = pluginId;
 	}
 
-	@Temporal(TemporalType.TIMESTAMP)
 	@Column(name="output_date")
-	public java.util.Date getOutputDate() {
+	public Long getOutputDate() {
 		return this.outputDate;
 	}
-	public void setOutputDate(java.util.Date outputDate) {
+	public void setOutputDate(Long outputDate) {
 		this.outputDate = outputDate;
 	}
 

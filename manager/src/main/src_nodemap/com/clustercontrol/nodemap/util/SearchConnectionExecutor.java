@@ -1,22 +1,17 @@
 /*
-
-Copyright (C) 2013 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.nodemap.util;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -29,16 +24,16 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.SnmpVersionConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.MonitoredThreadPoolExecutor;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.nodemap.bean.Association;
 import com.clustercontrol.poller.impl.Snmp4jPollerImpl;
-import com.clustercontrol.repository.bean.NodeInfo;
-import com.clustercontrol.repository.bean.NodeNetworkInterfaceInfo;
+import com.clustercontrol.poller.util.DataTable;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.NodeNetworkInterfaceInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.sharedtable.DataTable;
+import com.clustercontrol.util.HinemosTime;
 
 
 public class SearchConnectionExecutor {
@@ -52,7 +47,7 @@ public class SearchConnectionExecutor {
 
 	//
 	private final boolean isL3;
-	private final List<String> oidList;
+	private final Set<String> oidSet;
 	private final List<String> facilityIdList;
 	private final RepositoryControllerBean bean = new RepositoryControllerBean();
 	private ConcurrentHashMap<String, List<String>>macFacilityMap;
@@ -65,18 +60,18 @@ public class SearchConnectionExecutor {
 	 * @throws HinemosUnknown
 	 */
 	public SearchConnectionExecutor(String scopeId, boolean isL3) throws HinemosUnknown {
-		start = System.currentTimeMillis();
+		start = HinemosTime.currentTimeMillis();
 		this.isL3 = isL3;
 
 		// 同時にSNMPリクエストするスレッド数
-		int threadSize = HinemosPropertyUtil.getHinemosPropertyNum("nodemap.search.connection.thread" , 4);
+		int threadSize = HinemosPropertyCommon.nodemap_search_connection_thread.getIntegerValue();
 		m_log.info("static() : Thread Size = " + threadSize);
 		m_log.info("SearchConnectionExecutor() : scopeId="+scopeId+",L3="+isL3);
 
 		// 取得する接続状況に応じてOIDを設定する
 		String oid = isL3 ? SearchConnectionProperties.DEFAULT_OID_ARP : SearchConnectionProperties.DEFAULT_OID_FDB;
-		oidList = new ArrayList<String>();
-		oidList.add(oid);
+		oidSet = new HashSet<String>();
+		oidSet.add(oid);
 
 		facilityIdList = bean.getFacilityIdList(scopeId, RepositoryControllerBean.ONE_LEVEL);
 
@@ -90,7 +85,7 @@ public class SearchConnectionExecutor {
 			}
 		}, new ThreadPoolExecutor.AbortPolicy());
 
-		now = System.currentTimeMillis();
+		now = HinemosTime.currentTimeMillis();
 		m_log.debug("Constructer : " + (now - start) + "ms");
 	}
 
@@ -111,12 +106,12 @@ public class SearchConnectionExecutor {
 				String nicMacAddress = info.getNicMacAddress().toUpperCase();
 				if (!macFacilityMap.containsKey(nicMacAddress)) {
 					// まだマップに登録されていないMACアドレスの場合
-					macFacilityMap.put(nicMacAddress, new ArrayList<String>());
+					macFacilityMap.putIfAbsent(nicMacAddress, new ArrayList<String>());
 				}
 				macFacilityMap.get(nicMacAddress).add(id);
 			}
 		}
-		now = System.currentTimeMillis();
+		now = HinemosTime.currentTimeMillis();
 		m_log.debug("get mac map : " + (now - start) + "ms");
 
 		for (String facilityId : facilityIdList) {
@@ -147,7 +142,7 @@ public class SearchConnectionExecutor {
 		for (Future<List<Association>> future : futures) {
 			result.addAll(future.get());
 		}
-		now = System.currentTimeMillis();
+		now = HinemosTime.currentTimeMillis();
 		m_log.debug("end : " + (now - start) + "ms");
 		return result;
 	}
@@ -169,11 +164,11 @@ public class SearchConnectionExecutor {
 			tmpTable = Snmp4jPollerImpl.getInstance().polling(
 					node.getAvailableIpAddress(),
 					node.getSnmpPort(),
-					SnmpVersionConstant.stringToSnmpType(node.getSnmpVersion()),
+					node.getSnmpVersion(),
 					node.getSnmpCommunity(),
 					node.getSnmpRetryCount(),
 					node.getSnmpTimeout(),
-					oidList,
+					oidSet,
 					node.getSnmpSecurityLevel(),
 					node.getSnmpUser(),
 					node.getSnmpAuthPassword(),
@@ -181,7 +176,7 @@ public class SearchConnectionExecutor {
 					node.getSnmpAuthProtocol(),
 					node.getSnmpPrivProtocol());
 
-			now = System.currentTimeMillis();
+			now = HinemosTime.currentTimeMillis();
 			m_log.debug("polling done (" + node.getFacilityId() +") : " + (now - start) + "ms");
 
 			for (String key : tmpTable.keySet()) {
@@ -197,7 +192,7 @@ public class SearchConnectionExecutor {
 				}
 			}
 
-			now = System.currentTimeMillis();
+			now = HinemosTime.currentTimeMillis();
 			m_log.debug("create association (" + node.getFacilityId() +") : " + (now - start) + "ms");
 
 			return result;

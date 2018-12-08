@@ -17,7 +17,7 @@
 	<named-query name="MailTemplateInfoEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM MailTemplateInfoEntity a
+				SELECT a FROM MailTemplateInfo a
 				ORDER BY a.mailTemplateId
 			]]>
 		</query>
@@ -25,7 +25,7 @@
 	<named-query name="MailTemplateInfoEntity.findAllOrderByMailTemplateId">
 		<query>
 			<![CDATA[
-				SELECT a FROM MailTemplateInfoEntity a
+				SELECT a FROM MailTemplateInfo a
 				ORDER BY a.mailTemplateId
 			]]>
 		</query>
@@ -33,7 +33,7 @@
 	<named-query name="MailTemplateInfoEntity.findByOwnerRoleId">
 		<query>
 			<![CDATA[
-				SELECT a FROM MailTemplateInfoEntity a
+				SELECT a FROM MailTemplateInfo a
 				WHERE a.ownerRoleId = :ownerRoleId
 				ORDER BY a.mailTemplateId
 			]]>
@@ -43,7 +43,7 @@
 	<named-query name="NotifyRelationInfoEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyRelationInfoEntity a
+				SELECT a FROM NotifyRelationInfo a
 				ORDER BY a.id.notifyGroupId, a.id.notifyId
 			]]>
 		</query>
@@ -51,7 +51,7 @@
 	<named-query name="NotifyRelationInfoEntity.findAllWithoutJob">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyRelationInfoEntity a WHERE NOT(a.id.notifyGroupId LIKE 'JOB_SES_%') AND NOT(a.id.notifyGroupId LIKE 'JOB_MST_%')
+				SELECT a FROM NotifyRelationInfo a WHERE NOT(a.id.notifyGroupId LIKE 'JOB_SES_%') AND NOT(a.id.notifyGroupId LIKE 'JOB_MST_%')
 				ORDER BY a.id.notifyGroupId, a.id.notifyId
 			]]>
 		</query>
@@ -59,7 +59,7 @@
 	<named-query name="NotifyRelationInfoEntity.findByNotifyGroupId">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyRelationInfoEntity a
+				SELECT a FROM NotifyRelationInfo a
 				WHERE a.id.notifyGroupId = :notifyGroupId
 				ORDER BY a.id.notifyId
 			]]>
@@ -68,7 +68,7 @@
 	<named-query name="NotifyRelationInfoEntity.findByNotifyId">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyRelationInfoEntity a
+				SELECT a FROM NotifyRelationInfo a
 				WHERE a.id.notifyId = :notifyId
 				ORDER BY a.id.notifyGroupId
 			]]>
@@ -77,7 +77,7 @@
 		<named-query name="NotifyRelationInfoEntity.deleteByNotifyGroupId">
 		<query>
 			<![CDATA[
-				DELETE FROM NotifyRelationInfoEntity a
+				DELETE FROM NotifyRelationInfo a
 				WHERE a.id.notifyGroupId like :notifyGroupId
 			]]>
 		</query>
@@ -86,7 +86,7 @@
 	<named-query name="NotifyInfoEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyInfoEntity a
+				SELECT a FROM NotifyInfo a
 				ORDER BY a.notifyId
 			]]>
 		</query>
@@ -94,7 +94,7 @@
 	<named-query name="NotifyInfoEntity.findAllOrderByNotifyId">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyInfoEntity a
+				SELECT a FROM NotifyInfo a
 				ORDER BY a.notifyId
 			]]>
 		</query>
@@ -102,7 +102,7 @@
 	<named-query name="NotifyInfoEntity.findByOwnerRoleId">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyInfoEntity a
+				SELECT a FROM NotifyInfo a
 				WHERE a.ownerRoleId = :ownerRoleId
 				ORDER BY a.notifyId
 			]]>
@@ -111,7 +111,7 @@
 		<named-query name="NotifyInfoEntity.findByCalendarId">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyInfoEntity a
+				SELECT a FROM NotifyInfo a
 				WHERE a.calendarId = :calendarId
 				ORDER BY a.notifyId
 			]]>
@@ -183,9 +183,9 @@
 	<named-query name="NotifyJobInfoEntity.findByJobExecFacilityId">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyJobInfoEntity a
-				WHERE a.jobExecFacilityId = :facilityId
-				ORDER BY a.id.notifyId
+				SELECT a FROM NotifyJobInfo a
+				WHERE a.jobExecFacility = :facilityId
+				ORDER BY a.notifyId
 			]]>
 		</query>
 	</named-query>
@@ -193,9 +193,19 @@
 	<named-query name="NotifyLogEscalateInfoEntity.findByEscalateFacilityId">
 		<query>
 			<![CDATA[
-				SELECT a FROM NotifyLogEscalateInfoEntity a
-				WHERE a.escalateFacilityId = :facilityId
-				ORDER BY a.id.notifyId
+				SELECT a FROM NotifyLogEscalateInfo a
+				WHERE a.escalateFacility = :facilityId
+				ORDER BY a.notifyId
+			]]>
+		</query>
+	</named-query>
+	<!--  NotifyInfraInfoEntity -->
+		<named-query name="NotifyInfraInfoEntity.findByInfraExecFacilityId">
+		<query>
+			<![CDATA[
+				SELECT a FROM NotifyInfraInfo a
+				WHERE a.infraExecFacility = :facilityId
+				ORDER BY a.notifyId
 			]]>
 		</query>
 	</named-query>

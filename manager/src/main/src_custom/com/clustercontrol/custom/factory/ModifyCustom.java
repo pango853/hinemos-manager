@@ -1,28 +1,21 @@
 /*
-
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.custom.factory;
 
-import com.clustercontrol.custom.bean.CustomCheckInfo;
-import com.clustercontrol.custom.bean.CustomConstant;
-import com.clustercontrol.custom.model.MonitorCustomInfoEntity;
+import com.clustercontrol.commons.util.HinemosEntityManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
+import com.clustercontrol.custom.model.CustomCheckInfo;
 import com.clustercontrol.custom.util.QueryUtil;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.monitor.run.factory.ModifyMonitorNumericValueType;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.TriggerType;
 
 /**
@@ -30,6 +23,20 @@ import com.clustercontrol.plugin.impl.SchedulerPlugin.TriggerType;
  * @since 4.0
  */
 public class ModifyCustom extends ModifyMonitorNumericValueType {
+	/**
+	 * コマンド監視特有の設定情報を登録する。<br/>
+	 */
+	@Override
+	protected boolean addCheckInfo() throws MonitorNotFound, InvalidRole {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			// コマンド監視設定を登録する
+			CustomCheckInfo checkInfo = m_monitorInfo.getCustomCheckInfo();
+			checkInfo.setMonitorId(m_monitorInfo.getMonitorId());
+			em.persist(checkInfo);
+			return true;
+		}
+	}
 
 	/**
 	 * コマンド監視特有の設定情報を更新する。<br/>
@@ -38,25 +45,23 @@ public class ModifyCustom extends ModifyMonitorNumericValueType {
 	@Override
 	protected boolean modifyCheckInfo() throws MonitorNotFound, InvalidRole {
 
-		MonitorInfoEntity monitorEntity
+		MonitorInfo monitorEntity
 		= com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK(m_monitorInfo.getMonitorId());
-		// Local Variables
-		CustomCheckInfo checkInfo = null;
 
-		checkInfo = m_monitorInfo.getCustomCheckInfo();
+		CustomCheckInfo checkInfo = m_monitorInfo.getCustomCheckInfo();
 
 		// 変更前の実行対象の一覧を取得する
-		MonitorCustomInfoEntity entity = QueryUtil.getMonitorCustomInfoPK(m_monitorInfo.getMonitorId());
+		CustomCheckInfo entity = QueryUtil.getMonitorCustomInfoPK(m_monitorInfo.getMonitorId());
 
 		// コマンド監視設定を更新する
-		entity.setExecuteType(
-				checkInfo.getCommandExecType() == CustomConstant.CommandExecType.INDIVIDUAL ? CustomConstant._execIndividual : CustomConstant._execSelected);
+		entity.setCommandExecType(checkInfo.getCommandExecType());
 		entity.setSelectedFacilityId(checkInfo.getSelectedFacilityId());
 		entity.setSpecifyUser(checkInfo.getSpecifyUser());
 		entity.setEffectiveUser(checkInfo.getEffectiveUser());
 		entity.setCommand(checkInfo.getCommand());
 		entity.setTimeout(checkInfo.getTimeout());
-		monitorEntity.setMonitorCustomInfoEntity(entity);
+		entity.setConvertFlg(checkInfo.getConvertFlg());
+		monitorEntity.setCustomCheckInfo(entity);
 		return true;
 	}
 

@@ -1,6 +1,12 @@
-package com.clustercontrol.notify.monitor.model;
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
 
-import java.sql.Timestamp;
+package com.clustercontrol.notify.monitor.model;
 
 import javax.persistence.AttributeOverride;
 import javax.persistence.Column;
@@ -9,11 +15,8 @@ import javax.persistence.Entity;
 import javax.persistence.Table;
 
 import com.clustercontrol.accesscontrol.annotation.HinemosObjectPrivilege;
-import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetEntity;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
-import com.clustercontrol.notify.util.NotifyUtil;
 
 
 /**
@@ -26,16 +29,15 @@ import com.clustercontrol.notify.util.NotifyUtil;
 		objectType=HinemosModuleConstant.MONITOR)
 @AttributeOverride(name="objectId",
 column=@Column(name="monitor_id", insertable=false, updatable=false))
-public class StatusInfoEntity extends ObjectPrivilegeTargetEntity {
+public class StatusInfoEntity extends ObjectPrivilegeTargetInfo {
 	private static final long serialVersionUID = 1L;
 	private StatusInfoEntityPK id;
 	private String application;
-	private Timestamp expirationDate;
+	private Long expirationDate;
 	private Integer expirationFlg;
-	private Timestamp generationDate;
+	private Long generationDate;
 	private String message;
-	private String messageId;
-	private Timestamp outputDate;
+	private Long outputDate;
 	private Integer priority;
 
 	@Deprecated
@@ -44,27 +46,8 @@ public class StatusInfoEntity extends ObjectPrivilegeTargetEntity {
 
 	public StatusInfoEntity(StatusInfoEntityPK pk) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
 		this.setObjectId(this.getId().getMonitorId());
-
-		this.setOwnerRoleId(NotifyUtil.getOwnerRoleId(pk.getPluginId(), pk.getMonitorId(),
-				pk.getMonitorDetailId(), pk.getFacilityId(), false));
 	}
-
-	public StatusInfoEntity(String facilityId,
-			String monitorId,
-			String monitorDetailId,
-			String pluginId) {
-		this(new StatusInfoEntityPK(facilityId, monitorId, monitorDetailId, pluginId));
-	}
-
-	public StatusInfoEntity(StatusInfoEntityPK pk, String ownerRoleId) {
-		this.setId(pk);
-		this.setObjectId(this.getId().getMonitorId());
-		this.setOwnerRoleId(ownerRoleId);
-	}
-
 
 	@EmbeddedId
 	public StatusInfoEntityPK getId() {
@@ -76,6 +59,7 @@ public class StatusInfoEntity extends ObjectPrivilegeTargetEntity {
 	}
 
 
+	@Column(name="application")
 	public String getApplication() {
 		return this.application;
 	}
@@ -86,11 +70,11 @@ public class StatusInfoEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="expiration_date")
-	public Timestamp getExpirationDate() {
+	public Long getExpirationDate() {
 		return this.expirationDate;
 	}
 
-	public void setExpirationDate(Timestamp expirationDate) {
+	public void setExpirationDate(Long expirationDate) {
 		this.expirationDate = expirationDate;
 	}
 
@@ -106,15 +90,16 @@ public class StatusInfoEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="generation_date")
-	public Timestamp getGenerationDate() {
+	public Long getGenerationDate() {
 		return this.generationDate;
 	}
 
-	public void setGenerationDate(Timestamp generationDate) {
+	public void setGenerationDate(Long generationDate) {
 		this.generationDate = generationDate;
 	}
 
 
+	@Column(name="message")
 	public String getMessage() {
 		return this.message;
 	}
@@ -124,26 +109,17 @@ public class StatusInfoEntity extends ObjectPrivilegeTargetEntity {
 	}
 
 
-	@Column(name="message_id")
-	public String getMessageId() {
-		return this.messageId;
-	}
-
-	public void setMessageId(String messageId) {
-		this.messageId = messageId;
-	}
-
-
 	@Column(name="output_date")
-	public Timestamp getOutputDate() {
+	public Long getOutputDate() {
 		return this.outputDate;
 	}
 
-	public void setOutputDate(Timestamp outputDate) {
+	public void setOutputDate(Long outputDate) {
 		this.outputDate = outputDate;
 	}
 
 
+	@Column(name="priority")
 	public Integer getPriority() {
 		return this.priority;
 	}

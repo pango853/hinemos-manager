@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.run.factory;
@@ -20,13 +13,23 @@ import java.util.List;
 
 import javax.persistence.EntityExistsException;
 
+import com.clustercontrol.commons.util.HinemosEntityManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
+import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.monitor.run.bean.MonitorNumericValueInfo;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
-import com.clustercontrol.monitor.run.model.MonitorNumericValueInfoEntity;
-import com.clustercontrol.monitor.run.model.MonitorNumericValueInfoEntityPK;
+import com.clustercontrol.fault.NotifyNotFound;
+import com.clustercontrol.monitor.run.bean.MonitorNumericType;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
+import com.clustercontrol.monitor.run.model.MonitorNumericValueInfo;
+import com.clustercontrol.monitor.run.model.MonitorNumericValueInfoPK;
+import com.clustercontrol.monitor.run.util.CollectMonitorManagerUtil;
+import com.clustercontrol.monitor.run.util.MonitorCollectDataCacheRefreshCallback;
+import com.clustercontrol.monitor.run.util.MonitorJudgementInfoCacheRefreshCallback;
 import com.clustercontrol.monitor.run.util.QueryUtil;
+import com.clustercontrol.notify.factory.ModifyNotifyRelation;
+import com.clustercontrol.notify.model.NotifyRelationInfo;
+import com.clustercontrol.notify.session.NotifyControllerBean;
 
 /**
  * 数値監視の判定情報を変更する抽象クラス<BR>
@@ -37,7 +40,65 @@ import com.clustercontrol.monitor.run.util.QueryUtil;
  * @since 2.0.0
  */
 abstract public class ModifyMonitorNumericValueType extends ModifyMonitor{
+	/**
+	 * 数値監視の判定情報を作成し、監視情報に設定します。
+	 * 
+	 * @see com.clustercontrol.monitor.run.ejb.entity.MonitorInfoBean
+	 * @see com.clustercontrol.monitor.run.ejb.entity.MonitorNumericValueInfoBean
+	 */
+	@Override
+	protected boolean addJudgementInfo() throws MonitorNotFound, InvalidRole, HinemosUnknown {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			for(MonitorNumericValueInfo value: m_monitorInfo.getNumericValueInfo()){
+				if (!MonitorNumericType.TYPE_BASIC.getType().equals(value.getMonitorNumericType())
+						&& !MonitorNumericType.TYPE_CHANGE.getType().equals(value.getMonitorNumericType())) {
+					// 対象外データ
+					continue;
+				}
+				em.persist(value);
+				value.relateToMonitorInfo(m_monitorInfo);
+			}
 
+			// 判定キャッシュを更新
+			jtm.addCallback(new MonitorJudgementInfoCacheRefreshCallback(
+					m_monitorInfo.getMonitorId(), m_monitorInfo.getMonitorType(), null, null, m_monitorInfo.getNumericValueInfo()));
+
+			// 通知情報（将来予測用）の登録
+			if (m_monitorInfo.getPredictionNotifyRelationList() != null
+					&& m_monitorInfo.getPredictionNotifyRelationList().size() > 0) {
+				for (NotifyRelationInfo predictionNotifyRelationInfo : m_monitorInfo.getPredictionNotifyRelationList()) {
+					predictionNotifyRelationInfo.setNotifyGroupId(
+							CollectMonitorManagerUtil.getPredictionNotifyGroupId(m_monitorInfo.getNotifyGroupId()));
+				}
+				// 通知情報(将来予測用)を登録
+				new ModifyNotifyRelation().add(m_monitorInfo.getPredictionNotifyRelationList());
+			}
+			// 通知情報（変化点用）の登録
+			if (m_monitorInfo.getChangeNotifyRelationList() != null
+					&& m_monitorInfo.getChangeNotifyRelationList().size() > 0) {
+				for (NotifyRelationInfo changeNotifyRelationInfo : m_monitorInfo.getChangeNotifyRelationList()) {
+					changeNotifyRelationInfo.setNotifyGroupId(
+							CollectMonitorManagerUtil.getChangeNotifyGroupId(m_monitorInfo.getNotifyGroupId()));
+				}
+				// 通知情報(将来予測用)を登録
+				new ModifyNotifyRelation().add(m_monitorInfo.getChangeNotifyRelationList());
+			}
+			
+			
+			// この監視で収集値を保持しなければいけない期間を更新する
+			int range = m_monitorInfo.getPredictionAnalysysRange();
+			if (range < m_monitorInfo.getChangeAnalysysRange()) {
+				range = m_monitorInfo.getChangeAnalysysRange();
+			}
+			// この監視で収集値を保持しなければいけない期間を更新する
+			jtm.addCallback(new MonitorCollectDataCacheRefreshCallback(
+					m_monitorInfo.getMonitorId(), m_monitorInfo.getMonitorTypeId(), range));
+			
+			return true;
+		}
+	}
+	
 	/**
 	 * 監視情報より数値監視の判定情報を取得し、変更します。
 	 * <p>
@@ -50,38 +111,99 @@ abstract public class ModifyMonitorNumericValueType extends ModifyMonitor{
 	 * @see com.clustercontrol.monitor.run.ejb.entity.MonitorNumericValueInfoBean
 	 */
 	@Override
-	protected boolean modifyJudgementInfo() throws MonitorNotFound, EntityExistsException, InvalidRole {
+	protected boolean modifyJudgementInfo() throws MonitorNotFound, EntityExistsException, InvalidRole, HinemosUnknown {
 
-		MonitorInfoEntity monitorEntity = QueryUtil.getMonitorInfoPK(m_monitorInfo.getMonitorId());
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		// 数値監視判定情報を設定
-		ArrayList<MonitorNumericValueInfo> valueList = m_monitorInfo.getNumericValueInfo();
+			MonitorInfo monitorInfo = QueryUtil.getMonitorInfoPK(m_monitorInfo.getMonitorId());
 
-		List<MonitorNumericValueInfoEntityPK> monitorNumericValueInfoEntityPkList = new ArrayList<MonitorNumericValueInfoEntityPK>();
+			// 数値監視判定情報を設定
+			List<MonitorNumericValueInfo> valueList = m_monitorInfo.getNumericValueInfo();
 
-		for(MonitorNumericValueInfo value : valueList){
-			if(value != null){
-				MonitorNumericValueInfoEntityPK entityPk = new MonitorNumericValueInfoEntityPK(
+			List<MonitorNumericValueInfoPK> monitorNumericValueInfoEntityPkList = new ArrayList<MonitorNumericValueInfoPK>();
+
+			for(MonitorNumericValueInfo value : valueList){
+				if(value == null){
+					continue;
+				}
+				if (!MonitorNumericType.TYPE_BASIC.getType().equals(value.getMonitorNumericType())
+						&& !MonitorNumericType.TYPE_CHANGE.getType().equals(value.getMonitorNumericType())) {
+					// 対象外データ
+					continue;
+				}
+				MonitorNumericValueInfoPK entityPk = new MonitorNumericValueInfoPK(
 						m_monitorInfo.getMonitorId(),
+						value.getMonitorNumericType(),
 						value.getPriority());
-				MonitorNumericValueInfoEntity entity = null;
+				MonitorNumericValueInfo entity = null;
 				try {
 					entity = QueryUtil.getMonitorNumericValueInfoPK(entityPk);
 				} catch (MonitorNotFound e) {
 					// 新規登録
-					entity = new MonitorNumericValueInfoEntity(entityPk, monitorEntity);
+					entity = value;
+					em.persist(entity);
+					entity.relateToMonitorInfo(monitorInfo);
 				}
 				entity.setMessage(value.getMessage());
-				entity.setMessageId(value.getMessageId());
-				entity.setThresholdLowerLimit(Double.valueOf(value.getThresholdLowerLimit()));
-				entity.setThresholdUpperLimit(Double.valueOf(value.getThresholdUpperLimit()));
+				entity.setThresholdLowerLimit(value.getThresholdLowerLimit());
+				entity.setThresholdUpperLimit(value.getThresholdUpperLimit());
 				monitorNumericValueInfoEntityPkList.add(entityPk);
 			}
-		}
-		// 不要なMonitorNumericValueInfoEntityを削除
-		monitorEntity.deleteMonitorNumericValueInfoEntities(monitorNumericValueInfoEntityPkList);
+			// 不要なMonitorNumericValueInfoEntityを削除
+			monitorInfo.deleteMonitorNumericValueInfoEntities(monitorNumericValueInfoEntityPkList);
 
-		return true;
+			// 判定キャッシュを更新
+			jtm.addCallback(new MonitorJudgementInfoCacheRefreshCallback(
+					m_monitorInfo.getMonitorId(), m_monitorInfo.getMonitorType(), null, null, m_monitorInfo.getNumericValueInfo()));
+
+			// 通知情報（将来予測用）を更新
+			try {
+				String predictionNotifyGroupId = CollectMonitorManagerUtil.getPredictionNotifyGroupId(m_monitor.getNotifyGroupId());
+				if (m_monitorInfo.getPredictionNotifyRelationList() != null
+						&& m_monitorInfo.getPredictionNotifyRelationList().size() > 0) {
+					for (NotifyRelationInfo predictionNotifyRelationInfo : m_monitorInfo.getPredictionNotifyRelationList()) {
+						predictionNotifyRelationInfo.setNotifyGroupId(
+								predictionNotifyGroupId);
+					}
+				}
+				new NotifyControllerBean().modifyNotifyRelation(
+						m_monitorInfo.getPredictionNotifyRelationList(), predictionNotifyGroupId);
+		
+				// 通知情報（変化点監視用）を更新
+				String changeNotifyGroupId = CollectMonitorManagerUtil.getChangeNotifyGroupId(m_monitor.getNotifyGroupId());
+				if (m_monitorInfo.getChangeNotifyRelationList() != null
+						&& m_monitorInfo.getChangeNotifyRelationList().size() > 0) {
+					for (NotifyRelationInfo changeNotifyRelationInfo : m_monitorInfo.getChangeNotifyRelationList()) {
+						changeNotifyRelationInfo.setNotifyGroupId(changeNotifyGroupId);
+					}
+				}
+				new NotifyControllerBean().modifyNotifyRelation(
+						m_monitorInfo.getChangeNotifyRelationList(), changeNotifyGroupId);
+			} catch (NotifyNotFound e) {
+				throw new MonitorNotFound(e.getMessage(), e);
+			}
+			
+			
+			// この監視で収集値を保持しなければいけない期間を更新する
+			int range = m_monitorInfo.getPredictionAnalysysRange();
+			if (range < m_monitorInfo.getChangeAnalysysRange()) {
+				range = m_monitorInfo.getChangeAnalysysRange();
+			}
+			jtm.addCallback(new MonitorCollectDataCacheRefreshCallback(
+					m_monitorInfo.getMonitorId(), m_monitorInfo.getMonitorTypeId(), range));
+
+			m_monitor.setPredictionFlg(m_monitorInfo.getPredictionFlg());
+			m_monitor.setPredictionMethod(m_monitorInfo.getPredictionMethod());
+			m_monitor.setPredictionAnalysysRange(m_monitorInfo.getPredictionAnalysysRange());
+			m_monitor.setPredictionTarget(m_monitorInfo.getPredictionTarget());
+			m_monitor.setPredictionApplication(m_monitorInfo.getPredictionApplication());
+			m_monitor.setChangeFlg(m_monitorInfo.getChangeFlg());
+			m_monitor.setChangeAnalysysRange(m_monitorInfo.getChangeAnalysysRange());
+			m_monitor.setChangeApplication(m_monitorInfo.getChangeApplication());
+
+			return true;
+		}
 	}
 
 }

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.maintenance.util;
@@ -18,14 +11,14 @@ package com.clustercontrol.maintenance.util;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.commons.util.CommonValidator;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidSetting;
-import com.clustercontrol.commons.util.CommonValidator;
-import com.clustercontrol.maintenance.bean.MaintenanceInfo;
-import com.clustercontrol.maintenance.bean.MaintenanceTypeMst;
 import com.clustercontrol.maintenance.factory.SelectMaintenanceTypeMst;
-import com.clustercontrol.util.Messages;
-import com.clustercontrol.notify.bean.NotifyRelationInfo;
+import com.clustercontrol.maintenance.model.MaintenanceInfo;
+import com.clustercontrol.maintenance.model.MaintenanceTypeMst;
+import com.clustercontrol.notify.model.NotifyRelationInfo;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * 履歴削除の入力チェッククラス
@@ -49,23 +42,21 @@ public class MaintenanceValidator {
 		// maintenanceId
 		if (maintenanceInfo.getMaintenanceId() == null ||
 				"".equals(maintenanceInfo.getMaintenanceId())) {
-			InvalidSetting e = new InvalidSetting(Messages.getString("message.maintenance.9"));
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_MAINTENANCE_ID.getMessage());
 			m_log.info("validateMaintenanceInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
-		CommonValidator.validateId(Messages.getString("maintenance.id"), maintenanceInfo.getMaintenanceId(), 64);
+		CommonValidator.validateId(MessageConstant.MAINTENANCE_ID.getMessage(), maintenanceInfo.getMaintenanceId(), 64);
 
 		// ownerRoleId
-		CommonValidator.validateString(Messages.getString("owner.role.id"), maintenanceInfo.getOwnerRoleId(), true, 1, 64);
+		CommonValidator.validateString(MessageConstant.OWNER_ROLE_ID.getMessage(), maintenanceInfo.getOwnerRoleId(), true, 1, 64);
 
 		// schedule
 		CommonValidator.validateScheduleHour(maintenanceInfo.getSchedule());
 
 		// calendarId
 		CommonValidator.validateCalenderId(maintenanceInfo.getCalendarId(), false, maintenanceInfo.getOwnerRoleId());
-
-		maintenanceInfo.getSchedule();
 
 		// notifyId
 		if(maintenanceInfo.getNotifyId() != null){
@@ -77,8 +68,8 @@ public class MaintenanceValidator {
 		// typeId
 		String typeId = maintenanceInfo.getTypeId();
 		if (typeId == null || "".equals(typeId)) {
-			InvalidSetting e = new InvalidSetting(Messages.getString("message.maintenance.16"));
-			m_log.info("validateMaintenanceInfo() : "
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_MAINTENANCE_TYPE.getMessage());
+					m_log.info("validateMaintenanceInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
@@ -92,7 +83,7 @@ public class MaintenanceValidator {
 				}
 			}
 			if (flag) {
-				InvalidSetting e = new InvalidSetting(Messages.getString("message.maintenance.16"));
+				InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_MAINTENANCE_TYPE.getMessage());
 				m_log.info("validateMaintenanceInfo() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
@@ -106,27 +97,27 @@ public class MaintenanceValidator {
 
 		// dataRetentionPeriod
 		if(maintenanceInfo.getDataRetentionPeriod() == null){
-			InvalidSetting e = new InvalidSetting(Messages.getString("message.maintenance.17"));
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_RETENTION_PERIOD.getMessage());
 			m_log.info("validateMaintenanceInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
-		CommonValidator.validateInt(Messages.getString("maintenance.retention.period"),
+		CommonValidator.validateInt(MessageConstant.MAINTENANCE_RETENTION_PERIOD.getMessage(),
 				maintenanceInfo.getDataRetentionPeriod(), -32768, 32767);
 
 		// description
-		CommonValidator.validateString(Messages.getString("description"),
+		CommonValidator.validateString(MessageConstant.DESCRIPTION.getMessage(),
 				maintenanceInfo.getDescription(), false, 0, 256);
 
 		// application
 		if (maintenanceInfo.getApplication() == null ||
 				"".equals(maintenanceInfo.getApplication())) {
-			InvalidSetting e = new InvalidSetting(Messages.getString("message.monitor.10"));
+			InvalidSetting e = new InvalidSetting(MessageConstant.MESSAGE_PLEASE_SET_APPLICATION.getMessage());
 			m_log.info("validateMaintenanceInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw e;
 		}
-		CommonValidator.validateString(Messages.getString("application"),
+		CommonValidator.validateString(MessageConstant.APPLICATION.getMessage(),
 				maintenanceInfo.getApplication(), true, 0, 64);
 	}
 }

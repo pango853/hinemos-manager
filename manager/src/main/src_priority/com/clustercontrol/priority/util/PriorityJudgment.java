@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.priority.util;
@@ -20,8 +13,8 @@ import java.util.HashMap;
 
 import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.priority.bean.PriorityJudgmentInfo;
 import com.clustercontrol.priority.factory.SelectPriorityJudgment;
+import com.clustercontrol.priority.model.PriorityJudgmentInfo;
 
 /**
  * 重要度判定のBeanクラス<BR>
@@ -82,77 +75,77 @@ public class PriorityJudgment {
 		}
 
 		if(normal && !warning && !critical && !unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 1: ○　 | ×　 | ×　 | ×
 			priority = m_patternMap.get(PATTERN_1);
 		}
 		else if(normal && !warning && !critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 2: ○　 | ×　 | ×　 | ○
 			priority = m_patternMap.get(PATTERN_2);
 		}
 		else if(normal && warning && !critical && !unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 3: ○　 | ○　 | ×　 | ×
 			priority = m_patternMap.get(PATTERN_3);
 		}
 		else if(normal && warning && !critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 4: ○　 | ○　 | ×　 | ○
 			priority = m_patternMap.get(PATTERN_4);
 		}
 		else if(!normal && warning && !critical && !unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 5: ×　 | ○　 | ×　 | ×
 			priority = m_patternMap.get(PATTERN_5);
 		}
 		else if(!normal && warning && !critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 6: ×　 | ○　 | ×　 | ○
 			priority = m_patternMap.get(PATTERN_6);
 		}
 		else if(normal && !warning && critical && !unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 7: ○　 | ×　 | ○　 | ×
 			priority = m_patternMap.get(PATTERN_7);
 		}
 		else if(normal && !warning && critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 8: ○　 | ×　 | ○　 | ○
 			priority = m_patternMap.get(PATTERN_8);
 		}
 		else if(normal && warning && critical && !unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン 9: ○　 | ○　 | ○　 | ×
 			priority = m_patternMap.get(PATTERN_9);
 		}
 		else if(normal && warning && critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン10: ○　 | ○　 | ○　 | ○
 			priority = m_patternMap.get(PATTERN_10);
 		}
 		else if(!normal && warning && critical && !unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン11: ×　 | ○　 | ○　 | ×
 			priority = m_patternMap.get(PATTERN_11);
 		}
 		else if(!normal && warning && critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン12: ×　 | ○　 | ○　 | ○
 			priority = m_patternMap.get(PATTERN_12);
 		}
 		else if(!normal && !warning && critical && !unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン13: ×　 | ×　 | ○　 | ×
 			priority = m_patternMap.get(PATTERN_13);
 		}
 		else if(!normal && !warning && critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン14: ×　 | ×　 | ○　 | ○
 			priority = m_patternMap.get(PATTERN_14);
 		}
 		else if(!normal && !warning && !critical && unknown){
-			// 　　　　    通知 | 警告 | 危険 | 不明
+			// 　　　　    情報 | 警告 | 危険 | 不明
 			// パターン15: ×　 | ×　 | ×　 | ○
 			priority = m_patternMap.get(PATTERN_15);
 		}
@@ -171,9 +164,9 @@ public class PriorityJudgment {
 	private static void setPattern() {
 		// 重要度のパターンをハッシュに保持
 		//
-		// 通知＜警告＜不明＜危険
+		// 情報＜警告＜不明＜危険
 		//
-		// 　　　　    通知 | 警告 | 危険 | 不明
+		// 　　　　    情報 | 警告 | 危険 | 不明
 		// パターン 1: ○　 | ×　 | ×　 | ×
 		// パターン 2: ○　 | ×　 | ×　 | ○
 		// パターン 3: ○　 | ○　 | ×　 | ×
@@ -199,38 +192,38 @@ public class PriorityJudgment {
 		}
 
 		if(info != null){
-			m_patternMap.put(PATTERN_1, info.getPattern_01());
-			m_patternMap.put(PATTERN_2, info.getPattern_02());
-			m_patternMap.put(PATTERN_3, info.getPattern_03());
-			m_patternMap.put(PATTERN_4, info.getPattern_04());
-			m_patternMap.put(PATTERN_5, info.getPattern_05());
-			m_patternMap.put(PATTERN_6, info.getPattern_06());
-			m_patternMap.put(PATTERN_7, info.getPattern_07());
-			m_patternMap.put(PATTERN_8, info.getPattern_08());
-			m_patternMap.put(PATTERN_9, info.getPattern_09());
-			m_patternMap.put(PATTERN_10, info.getPattern_10());
-			m_patternMap.put(PATTERN_11, info.getPattern_11());
-			m_patternMap.put(PATTERN_12, info.getPattern_12());
-			m_patternMap.put(PATTERN_13, info.getPattern_13());
-			m_patternMap.put(PATTERN_14, info.getPattern_14());
-			m_patternMap.put(PATTERN_15, info.getPattern_15());
+			m_patternMap.put(PATTERN_1, info.getPattern01());
+			m_patternMap.put(PATTERN_2, info.getPattern02());
+			m_patternMap.put(PATTERN_3, info.getPattern03());
+			m_patternMap.put(PATTERN_4, info.getPattern04());
+			m_patternMap.put(PATTERN_5, info.getPattern05());
+			m_patternMap.put(PATTERN_6, info.getPattern06());
+			m_patternMap.put(PATTERN_7, info.getPattern07());
+			m_patternMap.put(PATTERN_8, info.getPattern08());
+			m_patternMap.put(PATTERN_9, info.getPattern09());
+			m_patternMap.put(PATTERN_10, info.getPattern10());
+			m_patternMap.put(PATTERN_11, info.getPattern11());
+			m_patternMap.put(PATTERN_12, info.getPattern12());
+			m_patternMap.put(PATTERN_13, info.getPattern13());
+			m_patternMap.put(PATTERN_14, info.getPattern14());
+			m_patternMap.put(PATTERN_15, info.getPattern15());
 		}
 		else{
-			m_patternMap.put(PATTERN_1, new Integer(PriorityConstant.TYPE_INFO));
-			m_patternMap.put(PATTERN_2, new Integer(PriorityConstant.TYPE_UNKNOWN));
-			m_patternMap.put(PATTERN_3, new Integer(PriorityConstant.TYPE_WARNING));
-			m_patternMap.put(PATTERN_4, new Integer(PriorityConstant.TYPE_UNKNOWN));
-			m_patternMap.put(PATTERN_5, new Integer(PriorityConstant.TYPE_WARNING));
-			m_patternMap.put(PATTERN_6, new Integer(PriorityConstant.TYPE_UNKNOWN));
-			m_patternMap.put(PATTERN_7, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_8, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_9, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_10, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_11, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_12, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_13, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_14, new Integer(PriorityConstant.TYPE_CRITICAL));
-			m_patternMap.put(PATTERN_15, new Integer(PriorityConstant.TYPE_UNKNOWN));
+			m_patternMap.put(PATTERN_1, PriorityConstant.TYPE_INFO);
+			m_patternMap.put(PATTERN_2, PriorityConstant.TYPE_UNKNOWN);
+			m_patternMap.put(PATTERN_3, PriorityConstant.TYPE_WARNING);
+			m_patternMap.put(PATTERN_4, PriorityConstant.TYPE_UNKNOWN);
+			m_patternMap.put(PATTERN_5, PriorityConstant.TYPE_WARNING);
+			m_patternMap.put(PATTERN_6, PriorityConstant.TYPE_UNKNOWN);
+			m_patternMap.put(PATTERN_7, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_8, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_9, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_10, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_11, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_12, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_13, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_14, PriorityConstant.TYPE_CRITICAL);
+			m_patternMap.put(PATTERN_15, PriorityConstant.TYPE_UNKNOWN);
 		}
 	}
 }

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) since 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.factory;
@@ -23,7 +16,9 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -35,6 +30,10 @@ import com.clustercontrol.hinemosagent.bean.AgentInfo;
 import com.clustercontrol.hinemosagent.util.AgentConnectUtil;
 import com.clustercontrol.jobmanagement.util.JobMultiplicityCache;
 import com.clustercontrol.repository.bean.AgentStatusInfo;
+import com.clustercontrol.repository.model.CollectorPlatformMstEntity;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.session.RepositoryControllerBean;
+import com.clustercontrol.repository.util.QueryUtil;
 
 /**
  * マネージャが保持しているエージェントライブラリを管理するクラス<BR>
@@ -42,29 +41,89 @@ import com.clustercontrol.repository.bean.AgentStatusInfo;
 public class AgentLibDownloader {
 
 	private static Log m_log = LogFactory.getLog(AgentLibDownloader.class);
-
+	
+	private static final String Agent_Lib_Dir = System.getProperty("hinemos.manager.home.dir", "/opt/hinemos/") + "/lib/agent";
+	
+	
 	/**
 	 * マネージャが保持しているエージェントライブラリのリストを返す。
 	 * @return
+	 * @throws HinemosUnknown 
 	 */
-	public static HashMap<String, String> getAgentLibMap() {
+	public static HashMap<String, String> getAgentLibMap(ArrayList<String> facilityIdList, boolean isGetAll) throws HinemosUnknown {
 		HashMap<String, String> fileMap = new HashMap<String, String>();
-
-		// TODO HINEMOS_HOMEを利用すること。
-		String agentLibDir = "/opt/hinemos/lib/agent";
-		File dir = new File(agentLibDir);
+		
+		File dir = new File(Agent_Lib_Dir);
+		String facilityId = facilityIdList == null ? null : facilityIdList.get(0);
+		return putAgentLibMap(fileMap, dir, facilityId, isGetAll);
+	}
+	
+	private static HashMap<String, String> putAgentLibMap(HashMap<String, String> fileMap, File dir, String facilityId, boolean isGetAll) throws HinemosUnknown {
 		File[] files = dir.listFiles();
-		if (files != null) {
-			for (File file : files) {
-				if (file.isFile()) {
-					fileMap.put(file.getName(), getMD5(file.getAbsolutePath()));
+		if (files == null) {
+			m_log.info(String.format("files is null, %s=%s",dir.getName(), dir.getAbsolutePath()));
+			return fileMap;
+		}
+		
+		for (File file : files) {
+			if (file.isDirectory()) {
+				if (isTargetDir(file.getName(), facilityId, isGetAll)) {
+					putAgentLibMap(fileMap, file, facilityId, isGetAll);
+				}
+			} else {
+				if(file.isFile()) {
+					String libPath = file.getAbsolutePath().replace(new File(Agent_Lib_Dir).getAbsolutePath() + File.separator, "");
+					fileMap.put(libPath, getMD5(file.getAbsolutePath()));
 				}
 			}
-		} else {
-			m_log.info("files is null, agentLibDir=" + agentLibDir);
 		}
 		return fileMap;
 	}
+	
+	/**
+	 * 取得対象のフォルダか判定
+	 */
+	private static boolean isTargetDir(String dir, String facilityId, boolean isGetAll) {
+		if(isGetAll) {
+			return true;
+		}
+		if(facilityId == null || facilityId.isEmpty()) {
+			return false;
+		}
+
+		HashSet<String> platformIdSet = new HashSet<>();
+		for (CollectorPlatformMstEntity platformMstEntity : QueryUtil.getAllCollectorPlatformMst()) {
+			String platformId = platformMstEntity.getPlatformId();
+			platformIdSet.add(platformId);
+		}
+		
+		if(!platformIdSet.contains(dir)) {
+			return true;
+		}
+		
+		try {
+			NodeInfo nodeInfo = new RepositoryControllerBean().getNode(facilityId);
+			if (nodeInfo == null) {
+				return false;
+			}
+			String platformFamily = nodeInfo.getPlatformFamily();
+			if(platformFamily == null || platformFamily.isEmpty()) {
+				return false;
+			}
+			return dir.equals(platformFamily);
+		} catch (FacilityNotFound | HinemosUnknown e) {
+			m_log.info("NOT FOUND NODE facilityId=" + facilityId);
+			return false;
+		}
+	}
+	
+	private static boolean isTargetDirPath(String dirPath, String facilityId) {
+		if (!dirPath.contains(File.separator)) {
+			return true;
+		}
+		return isTargetDir(dirPath.substring(0, dirPath.indexOf(File.separator)), facilityId, false);
+	}
+	
 
 	/**
 	 * エージェントの状態を返します。<BR>
@@ -76,7 +135,7 @@ public class AgentLibDownloader {
 		// ユーザが所属するロールを取得する
 		List<String> ownerRoleIdList = new AccessControllerBean().getOwnerRoleIdList();
 
-		HashMap<String, String> managerMap = getAgentLibMap();
+		HashMap<String, String> managerMap = getAgentLibMap(null, true);
 		ArrayList<AgentStatusInfo> ret = new ArrayList<AgentStatusInfo>();
 		for (AgentInfo agentInfo : AgentConnectUtil.getAgentList()) {
 			// ファシリティID
@@ -134,33 +193,26 @@ public class AgentLibDownloader {
 			// 最新チェック
 			boolean flag = true;
 			HashMap<String, String> agentMap = AgentConnectUtil.getAgentLibMd5(facilityId);
-			if (agentMap == null) {
-				/*
-				 *  該当ファシリティIDがエージェントリストに存在するけど、
-				 *  ライブラリマップが存在しない状態だとここに到達する。
-				 *  エージェント接続直後は、タイミングによってはこの状態になる。
-				 */
-				m_log.info("getAgentStatusList() agentMap is null " + facilityId);
-				continue;
-			} else {
-				for (String filename : managerMap.keySet()) {
-					String agentMd5 = agentMap.get(filename);
-					String managerMd5 = managerMap.get(filename);
-					// マネージャが保持しているのに、エージェントが保持していない場合は、
-					// エージェントが最新でない。
-					if (agentMd5 == null) {
-						m_log.info("getAgentStatusList() agentMd5 is null + [" + facilityId +
-								"] filename=" + filename);
-						flag = false;
-						break;
+			for (Map.Entry<String, String> filenameEntry: managerMap.entrySet()) {
+				String agentMd5 = agentMap.get(filenameEntry.getKey());
+				String managerMd5 = filenameEntry.getValue();
+				// マネージャが保持しているのに、エージェントが保持していない場合は、
+				// エージェントが最新でない。
+				if (agentMd5 == null) {
+					if(!isTargetDirPath(filenameEntry.getKey(), facilityId)) {
+						continue;
 					}
-					if (!agentMd5.equals(managerMd5)) {
-						m_log.debug("getAgentStatusList() agentMd5 differs from managerMd5 [" + facilityId +
-								"] filename=" + filename +
-								", managerMd5=" + managerMd5 + ", agentMd5=" + agentMd5);
-						flag = false;
-						break;
-					}
+					m_log.info("getAgentStatusList() agentMd5 is null + [" + facilityId +
+							"] filename=" + filenameEntry.getKey());
+					flag = false;
+					break;
+				}
+				if (!agentMd5.equals(managerMd5)) {
+					m_log.debug("getAgentStatusList() agentMd5 differs from managerMd5 [" + facilityId +
+							"] filename=" + filenameEntry.getKey() +
+							", managerMd5=" + managerMd5 + ", agentMd5=" + agentMd5);
+					flag = false;
+					break;
 				}
 			}
 			agent.setNewFlag(flag);
@@ -175,8 +227,9 @@ public class AgentLibDownloader {
 	 * MD5を取得する。
 	 * @param filepath
 	 * @return
+	 * @throws HinemosUnknown 
 	 */
-	private static String getMD5(String filepath) {
+	private static String getMD5(String filepath) throws HinemosUnknown {
 		MessageDigest md = null;
 		DigestInputStream inStream = null;
 		byte[] digest = null;
@@ -196,19 +249,21 @@ public class AgentLibDownloader {
 					m_log.warn("getMD5() : close " + e.getClass(), e);
 				}
 			}
+			if (digest == null)
+				throw new HinemosUnknown("MD5 digest is null");
 		}
 		return hashByte2MD5(digest);
 	}
 
 	private static String hashByte2MD5(byte []input) {
-		String ret = "";
+		StringBuilder ret = new StringBuilder();
 		for (byte b : input) {
 			if ((0xff & b) < 0x10) {
-				ret += "0" + Integer.toHexString((0xFF & b));
+				ret.append("0" + Integer.toHexString((0xFF & b)));
 			} else {
-				ret += Integer.toHexString(0xFF & b);
+				ret.append(Integer.toHexString(0xFF & b));
 			}
 		}
-		return ret;
+		return ret.toString();
 	}
 }

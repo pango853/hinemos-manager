@@ -1,21 +1,13 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.maintenance.factory;
 
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,10 +21,12 @@ import com.clustercontrol.commons.util.ILockManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
 import com.clustercontrol.jobmanagement.factory.JobSessionImpl;
 import com.clustercontrol.jobmanagement.util.JobMultiplicityCache;
+import com.clustercontrol.jobmanagement.util.JobSessionChangeDataCache;
+import com.clustercontrol.jobmanagement.util.MonitorJobWorker;
 import com.clustercontrol.maintenance.util.QueryUtil;
 import com.clustercontrol.notify.model.MonitorStatusEntity;
-import com.clustercontrol.notify.session.NotifyControllerBean;
 import com.clustercontrol.notify.util.MonitorStatusCache;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * ジョブ履歴の削除処理
@@ -49,25 +43,24 @@ public class MaintenanceJob extends MaintenanceObject{
 	 * 削除処理
 	 */
 	@Override
-	protected int _delete(Timestamp keep, boolean status, String ownerRoleId) {
-		m_log.debug("_delete() start : keep = " + keep.toString() + ", status = " + status);
+	protected int _delete(Long boundary, boolean status, String ownerRoleId) {
+		m_log.debug("_delete() start : status = " + status);
 
 		int ret = 0;	// target job_session_id count
 		int ret1 = 0;	// target notify_relation_info count
 		int ret2 = 0;	// target monitor_status count
 		int ret3 = 0;	// target notify_history
-		long time1 = 0; // job_session_idのカウント時間
-		long time2 = 0; // MonitorStatusCacheの削除時間
-		long time3 = 0; // NotifyControllerBean_Cacheの削除時間
-		long time4 = 0; // ロックオブジェクトの削除時間
-		long time5 = 0; // DBの削除時間
+		long time1 = 0;	// time job_session_id count
+		long time2 = 0;	// time remove cache
+		long time3 = 0;	// time remove lock
+		long time4 = 0;	// time remove db
 
 		///////////////////////////////////////////////
 		// RUN SQL STATEMENT
 		///////////////////////////////////////////////
 
-		long start = System.currentTimeMillis();
-
+		long start = HinemosTime.currentTimeMillis();
+		
 		// 削除対象となるsession_idを格納するテンポラリテーブル作成(スキーマ定義引継ぎ)
 		m_log.debug("_delete() : CREATE TEMPORARY TABLE AND INSERT JOB_SESSION_ID");
 		m_log.debug("_delete() : sql = JobCompletedSessionsEntity.createTable");
@@ -77,50 +70,54 @@ public class MaintenanceJob extends MaintenanceObject{
 		//オーナーロールIDがADMINISTRATORSの場合
 		if(RoleIdConstant.isAdministratorRole(ownerRoleId)) {
 			if(status){
-				ret = QueryUtil.insertJobCompletedSessionsJobSessionJob(keep);
+				ret = QueryUtil.insertJobCompletedSessionsJobSessionJob(boundary);
 			} else {
-				ret = QueryUtil.insertJobCompletedSessionsJobSessionJobByStatus(keep);
+				ret = QueryUtil.insertJobCompletedSessionsJobSessionJobByStatus(boundary);
 			}
 		}
 		//オーナーロールが一般ロールの場合
 		else {
 			if(status){
-				ret = QueryUtil.insertJobCompletedSessionsJobSessionJobByOwnerRoleId(keep, ownerRoleId);
+				ret = QueryUtil.insertJobCompletedSessionsJobSessionJobByOwnerRoleId(boundary, ownerRoleId);
 			} else {
-				ret = QueryUtil.insertJobCompletedSessionsJobSessionJobByStatusAndOwnerRoleId(keep, ownerRoleId);
+				ret = QueryUtil.insertJobCompletedSessionsJobSessionJobByStatusAndOwnerRoleId(boundary, ownerRoleId);
 			}
 		}
-
-		//ロックオブジェクトとキャッシュの削除
+		
 		ArrayList<String> sessionIdList = QueryUtil.selectCompletedSession();
-		
+
 		HashMap<String, String> sessionMap = new HashMap<String, String>();
-		for (String sessionId : sessionIdList) { 
-			sessionMap.put(sessionId,  sessionId);
+		for(String sessionId : sessionIdList) {
+			sessionMap.put(sessionId, sessionId);
 		}
+
+		time1 = HinemosTime.currentTimeMillis() - start;
+
+		//ロックオブジェクトの削除とキャッシュの削除
+		start = HinemosTime.currentTimeMillis();
 		
-		time1 = System.currentTimeMillis() - start;
-		
-		start = System.currentTimeMillis();
 		List<MonitorStatusEntity> monitorStatusList = MonitorStatusCache.getByPluginIdAndMonitorMap(HinemosModuleConstant.JOB, sessionMap);
-		for(MonitorStatusEntity monitorStatus : monitorStatusList){
+		m_log.info("_delete() : monitorStatusList = " + monitorStatusList.size());
+		for (MonitorStatusEntity monitorStatus : monitorStatusList) {
 			MonitorStatusCache.remove(monitorStatus);
 		}
-		time2 = System.currentTimeMillis() - start;
 
-		start = System.currentTimeMillis();
-		// NotifyControllerBeanにあるキャッシュも削除する
-		NotifyControllerBean.removeCache(HinemosModuleConstant.JOB, sessionMap);
-		time3 = System.currentTimeMillis() - start;
+		// 監視ジョブで使用するキャッシュも削除する
+		for(String sessionId : sessionIdList) {
+			MonitorJobWorker.removeInfoBySessionId(sessionId);
+		}
 
-		start = System.currentTimeMillis();
+		time2 = HinemosTime.currentTimeMillis() - start;
+		
+		start = HinemosTime.currentTimeMillis();
 		ILockManager lm = LockManagerFactory.instance().create();
 		for (String sessionId : sessionIdList) {
 			lm.delete(JobSessionImpl.class.getName() + "-" + sessionId);
 		}
-		time4 = System.currentTimeMillis() - start;
+		
+		time3 = HinemosTime.currentTimeMillis() - start;
 
-		start = System.currentTimeMillis();
+		start = HinemosTime.currentTimeMillis();
 		m_log.info("_delete() : completed session list size = " + sessionIdList.size()); 
 		
 		// 削除:cc_job_sessionと関連テーブル(CASCADE)
@@ -154,14 +151,16 @@ public class MaintenanceJob extends MaintenanceObject{
 		m_log.debug("_delete() : sql = JobCompletedSessionsEntity.dropTable");
 		QueryUtil.dropJobCompletedSessionsTable();
 
-		time5 = System.currentTimeMillis() - start;
+		time4 = HinemosTime.currentTimeMillis() - start;
 		
-		m_log.info("_delete() count : " + ret +", count time : " + time1 +"ms, delete time (MonitorStatus) : " + time2 
-				+ "ms, delete time (NotifyController) : " + time3 + "ms, delete time (Lock) : " + time4 
-				+ "ms, delete time (DB) " + time5 + "ms");
+		m_log.info("_delete() count : " + ret +", count time : " + time1 +"ms, delete time (MonitorStatus) : " + time2
+				+ "ms, delete time (lock) : " + time3 +"ms, delete time (DB) : " + time4 +"ms");
 
 		// ジョブ多重度のリフレッシュ
 		JobMultiplicityCache.refresh();
+
+		// ジョブ履歴キャッシュ上の不要なデータを削除する。
+		JobSessionChangeDataCache.removeUnnecessaryData();
 
 		return ret;
 	}

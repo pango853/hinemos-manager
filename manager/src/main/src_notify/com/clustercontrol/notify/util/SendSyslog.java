@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.util;
@@ -27,7 +20,6 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,21 +27,25 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.bean.PriorityConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.NotifyNotFound;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.notify.bean.ExecFacilityConstant;
 import com.clustercontrol.notify.bean.NotifyRequestMessage;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
 import com.clustercontrol.notify.bean.SyslogFacilityConstant;
 import com.clustercontrol.notify.bean.SyslogSeverityConstant;
 import com.clustercontrol.notify.entity.NotifyLogEscalateInfoData;
-import com.clustercontrol.notify.model.NotifyLogEscalateInfoEntity;
+import com.clustercontrol.notify.model.NotifyLogEscalateInfo;
 import com.clustercontrol.repository.bean.FacilityTreeAttributeConstant;
-import com.clustercontrol.repository.model.FacilityEntity;
+import com.clustercontrol.repository.model.FacilityInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 import com.clustercontrol.repository.util.FacilityUtil;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.StringBinder;
 import com.clustercontrol.util.apllog.AplLogger;
 
@@ -60,11 +56,6 @@ import com.clustercontrol.util.apllog.AplLogger;
  * @since 3.0.0
  */
 public class SendSyslog implements Notifier {
-	private static final String PROP_HOSTNAME = "notify.log.escalate.manager.hostname";
-	private static final String PROP_PROTOCOL = "notify.log.escalate.manager.protocol";
-	private static final String PROP_RETRY_COUNT = "notify.log.escalate.manager.retry.count";
-	private static final String PROP_RETRY_INTERVAL = "notify.log.escalate.manager.retry.interval";
-	private static final String PROP_TCP_TIMEOUT = "notify.log.escalate.manager.tcp.timeout";
 
 	/** ログ出力のインスタンス。 */
 	private static Log m_log = LogFactory.getLog( SendSyslog.class );
@@ -97,33 +88,33 @@ public class SendSyslog implements Notifier {
 			m_log.debug("sendlog() " + outputInfo);
 		}
 		// 該当する重要度の通知情報を取得する
-		NotifyLogEscalateInfoEntity logEscalateInfo
+		NotifyLogEscalateInfo logEscalateInfo
 		= QueryUtil.getNotifyLogEscalateInfoPK(notifyId);
 
 		NotifyLogEscalateInfoData escalateInfoData = new NotifyLogEscalateInfoData();
-		escalateInfoData.setNotifyId(logEscalateInfo.getId().getNotifyId());
+		escalateInfoData.setNotifyId(logEscalateInfo.getNotifyId());
 
 		switch (outputInfo.getPriority()) {
 		case PriorityConstant.TYPE_INFO:
-			escalateInfoData.setValidFlg(logEscalateInfo.getInfoEscalateFlg());
+			escalateInfoData.setValidFlg(logEscalateInfo.getInfoValidFlg());
 			escalateInfoData.setEscalateMessage(logEscalateInfo.getInfoEscalateMessage());
 			escalateInfoData.setSyslogPriority(logEscalateInfo.getInfoSyslogPriority());
 			escalateInfoData.setSyslogFacility(logEscalateInfo.getInfoSyslogFacility());
 			break;
 		case PriorityConstant.TYPE_WARNING:
-			escalateInfoData.setValidFlg(logEscalateInfo.getWarnEscalateFlg());
+			escalateInfoData.setValidFlg(logEscalateInfo.getWarnValidFlg());
 			escalateInfoData.setEscalateMessage(logEscalateInfo.getWarnEscalateMessage());
 			escalateInfoData.setSyslogPriority(logEscalateInfo.getWarnSyslogPriority());
 			escalateInfoData.setSyslogFacility(logEscalateInfo.getWarnSyslogFacility());
 			break;
 		case PriorityConstant.TYPE_CRITICAL:
-			escalateInfoData.setValidFlg(logEscalateInfo.getCriticalEscalateFlg());
+			escalateInfoData.setValidFlg(logEscalateInfo.getCriticalValidFlg());
 			escalateInfoData.setEscalateMessage(logEscalateInfo.getCriticalEscalateMessage());
 			escalateInfoData.setSyslogPriority(logEscalateInfo.getCriticalSyslogPriority());
 			escalateInfoData.setSyslogFacility(logEscalateInfo.getCriticalSyslogFacility());
 			break;
 		case PriorityConstant.TYPE_UNKNOWN:
-			escalateInfoData.setValidFlg(logEscalateInfo.getUnknownEscalateFlg());
+			escalateInfoData.setValidFlg(logEscalateInfo.getUnknownValidFlg());
 			escalateInfoData.setEscalateMessage(logEscalateInfo.getUnknownEscalateMessage());
 			escalateInfoData.setSyslogPriority(logEscalateInfo.getUnknownSyslogPriority());
 			escalateInfoData.setSyslogFacility(logEscalateInfo.getUnknownSyslogFacility());
@@ -133,7 +124,7 @@ public class SendSyslog implements Notifier {
 		}
 
 		escalateInfoData.setEscalateFacilityFlg(logEscalateInfo.getEscalateFacilityFlg());
-		escalateInfoData.setEscalateFacility(logEscalateInfo.getEscalateFacilityId());
+		escalateInfoData.setEscalateFacility(logEscalateInfo.getEscalateFacility());
 		escalateInfoData.setEscalatePort(logEscalateInfo.getEscalatePort() );
 		escalateInfoData.setOwnerRoleId(logEscalateInfo.getNotifyInfoEntity().getOwnerRoleId());
 
@@ -147,12 +138,13 @@ public class SendSyslog implements Notifier {
 		if(ipAddresses == null){
 			String detailMsg = "IP Address is empty.";
 			m_log.info(detailMsg);
-			internalErrorNotify(notifyId, "007", detailMsg);
+			internalErrorNotify(PriorityConstant.TYPE_CRITICAL, notifyId, MessageConstant.MESSAGE_SYS_007_NOTIFY, detailMsg);
 		}
 
 		// ヘッダー部分のTIMESTAMPを生成
 		SimpleDateFormat sdf = new SimpleDateFormat(HEADER_DATE_FORMAT, Locale.US);
-		String headerTimeStamp = sdf.format(new Date());
+		sdf.setTimeZone(HinemosTime.getTimeZone());
+		String headerTimeStamp = sdf.format(HinemosTime.getDateInstance());
 		if(m_log.isDebugEnabled()){
 			m_log.debug("sendlog() target message. notifyId = " + escalateInfoData.getNotifyId() +
 					", headerTimeStamp = " + headerTimeStamp +
@@ -173,7 +165,7 @@ public class SendSyslog implements Notifier {
 				String detailMsg = e.getMessage() + " IP Address = " + address;
 				m_log.info("sendlog() " + detailMsg + " : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
-				internalErrorNotify(notifyId, "007", detailMsg);
+				internalErrorNotify(PriorityConstant.TYPE_CRITICAL, notifyId, MessageConstant.MESSAGE_SYS_007_NOTIFY, detailMsg);
 				// 続けて次のIPを処理する
 			}
 		}
@@ -214,7 +206,7 @@ public class SendSyslog implements Notifier {
 			ArrayList<String> facilityIdList = new RepositoryControllerBean().getExecTargetFacilityIdList(facilityId, logEscalateInfo.getOwnerRoleId());
 
 			for(String targetFacilityId : facilityIdList){
-				FacilityEntity facility
+				FacilityInfo facility
 				= new RepositoryControllerBean().getFacilityEntityByPK(targetFacilityId);
 				try {
 					ipAddresses.add(getInetAdress(facility));
@@ -235,7 +227,7 @@ public class SendSyslog implements Notifier {
 	}
 
 	// 文字列を置換する
-	private String getMessage(OutputBasicInfo outputInfo, NotifyLogEscalateInfoEntity logEscalateInfo){
+	private String getMessage(OutputBasicInfo outputInfo, NotifyLogEscalateInfo logEscalateInfo){
 		// 文字列を置換する
 		String message = "";
 		switch (outputInfo.getPriority()) {
@@ -260,7 +252,7 @@ public class SendSyslog implements Notifier {
 					logEscalateInfo.getNotifyInfoEntity());
 			StringBinder binder = new StringBinder(param);
 
-			return binder.bindParam(message);
+			return binder.replace(message);
 		} catch (Exception e) {
 			m_log.warn("getMessage() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
@@ -269,25 +261,27 @@ public class SendSyslog implements Notifier {
 		}
 	}
 
-	private InetAddress getInetAdress(FacilityEntity facility) throws UnknownHostException {
+	private InetAddress getInetAdress(FacilityInfo facility) throws UnknownHostException {
+		if (!(facility instanceof NodeInfo))
+			return InetAddress.getByName(null);
+		
+		NodeInfo node = (NodeInfo)facility;
+		
 		InetAddress ret = null;
-
+		
 		// IPアドレスの取得
-		int version = 4;
-		if(facility.getNodeEntity() != null
-				&& facility.getNodeEntity().getIpAddressVersion() != null){
-			version = facility.getNodeEntity().getIpAddressVersion();
+		int version;
+		if(node.getIpAddressVersion() != null){
+			version = ((NodeInfo)facility).getIpAddressVersion();
 		}else{
 			version = 4;
 		}
 		// 入力されているバージョンを比較し、対応するIPアドレスを取得する
 		if(version == 4) {
-			ret = InetAddress.getByName(
-					facility.getNodeEntity() == null ? null : facility.getNodeEntity().getIpAddressV4());
+			ret = InetAddress.getByName(node.getIpAddressV4());
 		}
 		else {
-			ret = InetAddress.getByName(
-					facility.getNodeEntity() == null ? null : facility.getNodeEntity().getIpAddressV6());
+			ret = InetAddress.getByName(node.getIpAddressV6());
 		}
 
 		return ret;
@@ -358,7 +352,7 @@ public class SendSyslog implements Notifier {
 	private static String getSyslogHeaderHost(String facilityId) {
 		JpaTransactionManager jtm = null;
 		// ローカル変数
-		String hostname = HinemosPropertyUtil.getHinemosPropertyStr(PROP_HOSTNAME, null);
+		String hostname = HinemosPropertyCommon.notify_log_escalate_manager_hostname.getStringValue();
 
 		if (hostname == null) {
 			// undef hostname of syglog header
@@ -409,11 +403,11 @@ public class SendSyslog implements Notifier {
 				jtm = new JpaTransactionManager();
 				jtm.begin();
 
-				FacilityEntity facility
+				FacilityInfo facility
 				= new RepositoryControllerBean().getFacilityEntityByPK(facilityId);
 				if (FacilityUtil.isNode(facility)) {
 					hostname = isBuildinScope ? HOSTNAME_SERVER :
-						(facility.getNodeEntity() == null ? null : facility.getNodeEntity().getNodeName());
+						(facility instanceof NodeInfo ? ((NodeInfo)facility).getNodeName() : null);
 				} else {
 					if (m_log.isDebugEnabled()) m_log.debug("facility '" + facilityId + "' is not node.");
 					hostname = HOSTNAME_SERVER;
@@ -423,9 +417,11 @@ public class SendSyslog implements Notifier {
 				hostname = HOSTNAME_SERVER;
 				m_log.warn("getSyslogHeaderHost() use '" + hostname + "' for hostname of syslog header. (facility not found : " + facilityId + ") : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-				jtm.rollback();
+				if (jtm != null)
+					jtm.rollback();
 			} finally {
-				jtm.close();
+				if (jtm != null)
+					jtm.close();
 			}
 			break;
 		default :
@@ -439,22 +435,21 @@ public class SendSyslog implements Notifier {
 	private void sendMsgWithRetry(InetAddress ipAddress, int port, int syslogPriority, String headerTimestamp,
 			String hostname, String message) throws IOException {
 
-		String protocol = HinemosPropertyUtil.getHinemosPropertyStr(PROP_PROTOCOL, "udp");
+		String protocol = HinemosPropertyCommon.notify_log_escalate_manager_protocol.getStringValue();
 		
-		byte[] buf = new byte[LIMIT_SIZE];   // 送受信バッファ
 		String sendMessage = "<"+ syslogPriority + ">" + headerTimestamp + " " + hostname + " " + message;
 
 		// 1024バイトを超える場合は、1024バイトまでを送信する（文字化けは考慮しない）
 		if(sendMessage.getBytes().length > LIMIT_SIZE){
-			buf = sendMessage.getBytes();
+			byte[] buf = sendMessage.getBytes();
 			sendMessage = new String(buf, 0, LIMIT_SIZE);
 		}
 
 		m_log.debug("sendMsgWithRetry. (ipAddresss=" + ipAddress + ", port=" + port +
 				", sendMessage=" + sendMessage + ")");
 
-		int retryCount = HinemosPropertyUtil.getHinemosPropertyNum(PROP_RETRY_COUNT, 1);
-		int retryInterval = HinemosPropertyUtil.getHinemosPropertyNum(PROP_RETRY_INTERVAL, 10000);
+		int retryCount = HinemosPropertyCommon.notify_log_escalate_manager_retry_count.getIntegerValue();
+		int retryInterval = HinemosPropertyCommon.notify_log_escalate_manager_retry_interval.getIntegerValue();
 		IOException lastException = null;
 		int retrytime;
 		for (retrytime = 0; retrytime < retryCount; retrytime++) {
@@ -495,7 +490,7 @@ public class SendSyslog implements Notifier {
 		try {
 			InetSocketAddress endpoint= new InetSocketAddress(ipAddress, port); 
 			socket = new Socket() ; 
-			socket.connect(endpoint, HinemosPropertyUtil.getHinemosPropertyNum(PROP_TCP_TIMEOUT, 3000));
+			socket.connect(endpoint, HinemosPropertyCommon.notify_log_escalate_manager_tcp_timeout.getIntegerValue());
 			
 			os = socket.getOutputStream();
 			writer = new PrintWriter(socket.getOutputStream(), true);
@@ -536,10 +531,9 @@ public class SendSyslog implements Notifier {
 	 * 通知失敗時の内部エラー通知を定義します
 	 */
 	@Override
-	public void internalErrorNotify(String notifyId, String msgID, String detailMsg) {
-		AplLogger apllog = new AplLogger("NOTIFY", "notify");
+	public void internalErrorNotify(int priority, String notifyId, MessageConstant msgCode, String detailMsg) {
 		String[] args = { notifyId };
 		// 通知失敗メッセージを出力
-		apllog.put("SYS", msgID, args, detailMsg);
+		AplLogger.put(priority, HinemosModuleConstant.PLATFORM_NOTIFY, msgCode, args, detailMsg);
 	}
 }

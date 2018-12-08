@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.factory;
@@ -23,6 +16,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.EventLogNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
@@ -30,10 +24,12 @@ import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.monitor.bean.ConfirmConstant;
 import com.clustercontrol.monitor.bean.EventBatchConfirmInfo;
 import com.clustercontrol.monitor.bean.EventDataInfo;
+import com.clustercontrol.monitor.run.util.EventCacheModifyCallback;
 import com.clustercontrol.notify.monitor.model.EventLogEntity;
 import com.clustercontrol.notify.monitor.util.QueryUtil;
 import com.clustercontrol.repository.bean.FacilityTargetConstant;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
+import com.clustercontrol.util.HinemosTime;
 
 
 /**
@@ -71,7 +67,7 @@ public class ModifyEventConfirm {
 			// 確認済み日時
 			Long confirmDate = null;
 			if(confirmType == ConfirmConstant.TYPE_CONFIRMED){
-				confirmDate = new Date().getTime();
+				confirmDate = HinemosTime.currentTimeMillis();
 			}
 
 			for(EventDataInfo event : list) {
@@ -130,26 +126,31 @@ public class ModifyEventConfirm {
 
 		// イベントログ情報を取得
 		EventLogEntity event = null;
-		try {
-			event = QueryUtil.getEventLogPK(monitorId, monitorDetailId, pluginId, new Timestamp(outputDate), facilityId, ObjectPrivilegeMode.MODIFY);
-		} catch (EventLogNotFound e) {
-			throw new MonitorNotFound(e.getMessage(), e);
-		} catch (InvalidRole e) {
-			throw e;
-		}
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
 
-		// 確認有無を変更
-		event.setConfirmFlg(new Integer(confirmType));
-
-		if(confirmType == ConfirmConstant.TYPE_CONFIRMED){
-			if(confirmDate == null){
-				confirmDate = new Date().getTime();
+			try {
+				event = QueryUtil.getEventLogPK(monitorId, monitorDetailId, pluginId, outputDate, facilityId, ObjectPrivilegeMode.MODIFY);
+			} catch (EventLogNotFound e) {
+				throw new MonitorNotFound(e.getMessage(), e);
+			} catch (InvalidRole e) {
+				throw e;
 			}
-			event.setConfirmDate(new Timestamp(confirmDate));
-		}
 
-		// 確認を実施したユーザを設定
-		event.setConfirmUser(confirmUser);
+			// 確認有無を変更
+			event.setConfirmFlg(confirmType);
+
+			if(confirmType == ConfirmConstant.TYPE_CONFIRMED){
+				if(confirmDate == null){
+					confirmDate = HinemosTime.currentTimeMillis();
+				}
+				event.setConfirmDate(confirmDate);
+			}
+
+			// 確認を実施したユーザを設定
+			event.setConfirmUser(confirmUser);
+			
+			jtm.addCallback(new EventCacheModifyCallback(false, event));
+		}
 	}
 
 	/**
@@ -175,46 +176,48 @@ public class ModifyEventConfirm {
 	 */
 	public void modifyBatchConfirm(int confirmType, String facilityId, EventBatchConfirmInfo info, String confirmUser) throws HinemosUnknown {
 
-		Integer[] priorityList = null;
-		Timestamp outputFromDate = null;
-		Timestamp outputToDate = null;
-		Timestamp generationFromDate = null;
-		Timestamp generationToDate = null;
+		Integer[] priorityIds = null;
+		Long outputFromDate = null;
+		Long outputToDate = null;
+		Long generationFromDate = null;
+		Long generationToDate = null;
 		String monitorId = null;
 		String monitorDetailId = null;
-		String facilityType = null;
+		int facilityType = 0;
 		String application = null;
 		String message = null;
 		String comment = null;
 		String commentUser = null;
+		Boolean collectGraphFlg = null;
 
 		//重要度取得
-		if(info.getPriorityList() != null && info.getPriorityList().length>0){
-			priorityList = info.getPriorityList();
+		if(info.getPriorityList() == null){
+			throw new HinemosUnknown("priority is null");
 		}
-
+		priorityIds = info.getPriorityList();
+		
 		//更新日時（自）取得
-		if(info.getOutputFromDate() instanceof Long){
-			outputFromDate = new Timestamp(info.getOutputFromDate());
-			outputFromDate.setNanos(0);
+		if(info.getOutputFromDate() != null){
+			outputFromDate = info.getOutputFromDate();
+			outputFromDate -= (outputFromDate % 1000);	//ミリ秒の桁を0にする
 		}
 
 		//更新日時（至）取得
-		if(info.getOutputToDate() instanceof Long){
-			outputToDate = new Timestamp(info.getOutputToDate());
-			outputToDate.setNanos(999999999);
+		if(info.getOutputToDate() != null){
+			outputToDate = info.getOutputToDate();
+			outputToDate += (999 - (outputToDate % 1000));	//ミリ秒の桁を999にする
 		}
 
 		//出力日時（自）取得
-		if(info.getGenerationFromDate() instanceof Long){
-			generationFromDate = new Timestamp(info.getGenerationFromDate());
-			generationFromDate.setNanos(0);
+		if(info.getGenerationFromDate() != null){
+			generationFromDate = info.getGenerationFromDate();
+			generationFromDate -= (generationFromDate % 1000);	//ミリ秒の桁を0にする
 		}
 
 		//出力日時（至）取得
-		if(info.getGenerationToDate() instanceof Long){
-			generationToDate = new Timestamp(info.getGenerationToDate());
-			generationToDate.setNanos(999999999);
+		if(info.getGenerationToDate() != null){
+			generationToDate = info.getGenerationToDate();
+			generationToDate += (999 - (generationToDate % 1000));	//ミリ秒の桁を999にする
 		}
 
 		//監視項目ID取得
@@ -228,7 +231,7 @@ public class ModifyEventConfirm {
 		}
 
 		//対象ファシリティ種別取得
-		if(!"".equals(info.getFacilityType())){
+		if(info.getFacilityType() != null){
 			facilityType = info.getFacilityType();
 		}
 
@@ -249,18 +252,23 @@ public class ModifyEventConfirm {
 		if(!"".equals(info.getCommentUser())){
 			commentUser = info.getCommentUser();
 		}
+		// 性能グラフ用フラグ
+		if (info.getCollectGraphFlg() != null) {
+			collectGraphFlg = info.getCollectGraphFlg();
+		}
 
 		// 対象ファシリティのファシリティIDを取得
 		// ファシリティが指定されない（最上位）場合は、ファシリティIDを指定せずに検索を行う
 		String[] facilityIds = null;
+		ArrayList<String> facilityIdList = null;
 		if(facilityId != null && !"".equals(facilityId)){
 
 			int level = RepositoryControllerBean.ALL;
-			if(FacilityTargetConstant.STRING_BENEATH.equals(facilityType)){
+			if(FacilityTargetConstant.TYPE_BENEATH == facilityType){
 				level = RepositoryControllerBean.ONE_LEVEL;
 			}
 
-			ArrayList<String> facilityIdList = new RepositoryControllerBean().getFacilityIdList(facilityId, level);
+			facilityIdList = new RepositoryControllerBean().getFacilityIdList(facilityId, level);
 
 			// スコープの場合
 			if(facilityIdList != null && facilityIdList.size() > 0){
@@ -274,26 +282,57 @@ public class ModifyEventConfirm {
 			}
 		}
 
-
 		// アップデートする設定フラグ
-		Integer confirmFlg = new Integer(confirmType);
-		int rtn = QueryUtil.updateEventLogFlgByFilter(facilityIds,
-				priorityList,
-				outputFromDate,
-				outputToDate,
-				generationFromDate,
-				generationToDate,
-				monitorId,
-				monitorDetailId,
-				application,
-				message,
-				comment,
-				commentUser,
-				confirmFlg,
-				confirmType,
-				confirmUser);
-		m_log.debug("The result of updateEventLogFlgByFilter is: " + rtn);
-	}
+		Long confirmDate = HinemosTime.currentTimeMillis();
+		Integer confirmFlg = Integer.valueOf(confirmType);
 
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			int rtn = QueryUtil.updateEventLogFlgByFilter(
+					facilityIds,
+					priorityIds,
+					outputFromDate,
+					outputToDate,
+					generationFromDate,
+					generationToDate,
+					monitorId,
+					monitorDetailId,
+					application,
+					message,
+					confirmFlg,
+					confirmUser,
+					comment,
+					commentUser,
+					confirmType,
+					confirmDate,
+					collectGraphFlg);
+			m_log.debug("The result of updateEventLogFlgByFilter is: " + rtn);
+			
+			// イベントキャッシュの更新
+			ArrayList<Integer> priorityList = new ArrayList<>();
+			for (Integer i : priorityIds) {
+				priorityList.add(i);
+			}
+			String ownerRoleId = null;
+			jtm.addCallback(new EventCacheModifyCallback(
+					facilityIdList,
+					priorityList,
+					outputFromDate,
+					outputToDate,
+					generationFromDate,
+					generationToDate,
+					monitorId,
+					monitorDetailId,
+					application,
+					message,
+					confirmFlg,
+					confirmUser,
+					comment,
+					commentUser,
+					confirmType,
+					confirmDate,
+					collectGraphFlg,
+					ownerRoleId));
+		}
+	}
 }
 

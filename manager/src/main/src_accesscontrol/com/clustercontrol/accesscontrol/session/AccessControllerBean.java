@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.accesscontrol.session;
@@ -24,20 +17,24 @@ import javax.persistence.EntityExistsException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.accesscontrol.bean.ManagerInfo;
 import com.clustercontrol.accesscontrol.bean.ObjectPrivilegeFilterInfo;
-import com.clustercontrol.accesscontrol.bean.ObjectPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeInfo;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
 import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
-import com.clustercontrol.accesscontrol.bean.RoleInfo;
 import com.clustercontrol.accesscontrol.bean.RoleTreeItem;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
-import com.clustercontrol.accesscontrol.bean.UserInfo;
+import com.clustercontrol.accesscontrol.bean.RoleTypeConstant;
 import com.clustercontrol.accesscontrol.factory.LoginUserModifier;
 import com.clustercontrol.accesscontrol.factory.LoginUserSelector;
 import com.clustercontrol.accesscontrol.factory.RoleModifier;
 import com.clustercontrol.accesscontrol.factory.RoleSelector;
+import com.clustercontrol.accesscontrol.model.RoleInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.UserInfo;
 import com.clustercontrol.accesscontrol.util.ObjectPrivilegeUtil;
 import com.clustercontrol.accesscontrol.util.ObjectPrivilegeValidator;
+import com.clustercontrol.accesscontrol.util.OptionManager;
+import com.clustercontrol.accesscontrol.util.QueryUtil;
 import com.clustercontrol.accesscontrol.util.RoleValidator;
 import com.clustercontrol.accesscontrol.util.UserRoleCache;
 import com.clustercontrol.accesscontrol.util.UserRoleCacheRefreshCallback;
@@ -70,13 +67,14 @@ import com.clustercontrol.jobmanagement.model.JobMstEntityPK;
 import com.clustercontrol.repository.bean.FacilityConstant;
 import com.clustercontrol.repository.bean.FacilitySortOrderConstant;
 import com.clustercontrol.repository.bean.FacilityTreeAttributeConstant;
-import com.clustercontrol.repository.bean.ScopeInfo;
+import com.clustercontrol.repository.model.ScopeInfo;
 import com.clustercontrol.repository.factory.FacilityModifier;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 import com.clustercontrol.repository.util.FacilityIdCacheInitCallback;
 import com.clustercontrol.repository.util.FacilityTreeCacheRefreshCallback;
 import com.clustercontrol.repository.util.RepositoryChangedNotificationCallback;
 import com.clustercontrol.repository.util.RepositoryValidator;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * アカウント機能を実現するSession Bean<BR>
@@ -91,8 +89,9 @@ public class AccessControllerBean {
 	 * ログインチェックの為、本メソッドを使用します。
 	 *
 	 */
-	public void checkLogin() {
-
+	public ManagerInfo checkLogin() {
+		// Hinemosプロパティで設定されたタイムゾーンオフセットを取得し、返却する
+		return new ManagerInfo(HinemosTime.getTimeZoneOffset(), OptionManager.getOptions());
 	}
 
 	/**
@@ -116,10 +115,12 @@ public class AccessControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getUserInfoList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return userInfoList;
 	}
@@ -142,16 +143,20 @@ public class AccessControllerBean {
 			jtm.begin();
 			userInfo = LoginUserSelector.getUserInfo(loginUser);
 			jtm.commit();
+		} catch (UserNotFound e) {
+			// 何もしない
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("getOwnUserInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return userInfo;
 	}
@@ -178,16 +183,20 @@ public class AccessControllerBean {
 			jtm.begin();
 			userInfo = LoginUserSelector.getUserInfo(userId);
 			jtm.commit();
+		} catch (UserNotFound e) {
+			// 何もしない
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
 			throw e;
 		} catch (Exception e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			m_log.warn("getUserInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return userInfo;
 	}
@@ -212,22 +221,20 @@ public class AccessControllerBean {
 			jtm.begin();
 			LoginUserSelector.getUserInfoByPassword(username, password, systemPrivilegeList);
 			jtm.commit();
-		} catch (InvalidUserPass e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (InvalidUserPass | InvalidRole | HinemosUnknown e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			m_log.warn("getUserInfoByPassword() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -253,26 +260,24 @@ public class AccessControllerBean {
 			UserValidator.validateUserInfo(info);
 
 			/** メイン処理 */
-			LoginUserModifier.addUserInfo(info, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID));
+			LoginUserModifier.modifyUserInfo(info, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID), true);
 			
 			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			jtm.commit();
-		} catch (UserDuplicate e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidSetting e) {
-			jtm.rollback();
+		} catch (UserDuplicate | HinemosUnknown | InvalidSetting e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("addUserInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -301,28 +306,23 @@ public class AccessControllerBean {
 			UserValidator.validateUserInfo(info);
 
 			/** メイン処理 */
-			LoginUserModifier.modifyUserInfo(info, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID));
+			LoginUserModifier.modifyUserInfo(info, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID), false);
 
 			jtm.commit();
-		} catch (UserNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (UnEditableUser e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (UserNotFound | UnEditableUser | InvalidSetting | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("modifyUserInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -353,25 +353,20 @@ public class AccessControllerBean {
 			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			
 			jtm.commit();
-		} catch (UserNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (UnEditableUser e) {
-			jtm.rollback();
-			throw e;
-		} catch (UsedUser e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (UserNotFound | UnEditableUser | UsedUser | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("deleteUserInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -399,19 +394,20 @@ public class AccessControllerBean {
 			LoginUserModifier.modifyUserPassword(loginUser, password);
 
 			jtm.commit();
-		} catch (UserNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (UserNotFound | HinemosUnknown e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("changeOwnPassword() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -437,19 +433,20 @@ public class AccessControllerBean {
 			LoginUserModifier.modifyUserPassword(userId, password);
 
 			jtm.commit();
-		} catch (UserNotFound e){
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e){
-			jtm.rollback();
+		} catch (UserNotFound | HinemosUnknown e){
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e){
 			m_log.warn("changePassword() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -486,10 +483,12 @@ public class AccessControllerBean {
 		} catch (Exception e){
 			m_log.warn("isAdministrator() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		m_log.debug("isAdministrator() : loginUserId = " + loginUserId + ", " + rtn);
 		return rtn;
@@ -521,10 +520,12 @@ public class AccessControllerBean {
 		} catch (Exception e){
 			m_log.warn("isPermission() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return rtn;
 	}
@@ -545,21 +546,27 @@ public class AccessControllerBean {
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
-			userName = LoginUserSelector.getUserName((String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID));
+			String loginUserId = (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID);
+			if (loginUserId == null || loginUserId.compareTo("") == 0) {
+				throw new HinemosUnknown("userID is null");
+			} else {
+				userName = LoginUserSelector.getUserInfo(loginUserId).getUserName();
+			}
 			jtm.commit();
-		} catch (UserNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (UserNotFound | HinemosUnknown e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("getUserName() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return userName;
 	}
@@ -596,12 +603,14 @@ public class AccessControllerBean {
 			roleIdList = RoleSelector.getOwnerRoleIdList(loginUser);
 			jtm.commit();
 		} catch (Exception e) {
-			m_log.warn("getUserInfoList() : "
+			m_log.warn("getOwnerRoleIdList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return roleIdList;
 	}
@@ -625,12 +634,14 @@ public class AccessControllerBean {
 			roleInfoList = RoleSelector.getRoleInfoList();
 			jtm.commit();
 		} catch (Exception e) {
-			m_log.warn("getUserInfoList() : "
+			m_log.warn("getRoleInfoList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return roleInfoList;
 	}
@@ -643,9 +654,10 @@ public class AccessControllerBean {
 	 * @param roleId ロールID
 	 * @return ユーザ情報
 	 * @throws HinemosUnknown
+	 * @throws RoleNotFound 
 	 *
 	 */
-	public RoleInfo getRoleInfo(String roleId) throws HinemosUnknown {
+	public RoleInfo getRoleInfo(String roleId) throws HinemosUnknown, RoleNotFound {
 		JpaTransactionManager jtm = null;
 		RoleInfo roleInfo = null;
 		try {
@@ -653,16 +665,21 @@ public class AccessControllerBean {
 			jtm.begin();
 			roleInfo = RoleSelector.getRoleInfo(roleId);
 			jtm.commit();
+		} catch (RoleNotFound e) {
+			jtm.rollback();
+			throw e;
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
 			throw e;
 		} catch (Exception e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			m_log.warn("getUserInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return roleInfo;
 	}
@@ -691,16 +708,16 @@ public class AccessControllerBean {
 			RoleValidator.validateRoleInfo(roleInfo);
 
 			// ロール新規作成
-			RoleModifier.addRoleInfo(roleInfo, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID));
+			RoleModifier.modifyRoleInfo(roleInfo, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID), true);
 
 			// ロールスコープの作成
 			ScopeInfo scopeInfo = new ScopeInfo();
-			scopeInfo.setFacilityId(roleInfo.getId());
-			scopeInfo.setFacilityName(roleInfo.getName());
+			scopeInfo.setFacilityId(roleInfo.getRoleId());
+			scopeInfo.setFacilityName(roleInfo.getRoleName());
 			scopeInfo.setFacilityType(FacilityConstant.TYPE_SCOPE);
-			scopeInfo.setDescription(roleInfo.getName());
+			scopeInfo.setDescription(roleInfo.getRoleName());
 			scopeInfo.setValid(Boolean.TRUE);
-			scopeInfo.setOwnerRoleId(roleInfo.getId());
+			scopeInfo.setOwnerRoleId(roleInfo.getRoleId());
 			String parentFacilityId = FacilityTreeAttributeConstant.OWNER_SCOPE;
 
 			// ロールスコープ入力チェック
@@ -715,39 +732,37 @@ public class AccessControllerBean {
 					false);
 			
 			jtm.addCallback(new FacilityIdCacheInitCallback());
+			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			jtm.addCallback(new FacilityTreeCacheRefreshCallback());
 			jtm.addCallback(new RepositoryChangedNotificationCallback());
-			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			
 			jtm.commit();
-		} catch (RoleDuplicate e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidSetting e) {
-			jtm.rollback();
+		} catch (RoleDuplicate | HinemosUnknown | InvalidSetting |InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (EntityExistsException e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new FacilityDuplicate(e.getMessage(), e);
 		} catch (FacilityNotFound e) {
 			jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("addScope() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(),e);
 		} finally {
-			jtm.close();
+			if (jtm != null) {
+				jtm.close();
+			}
 		}
 	}
 
@@ -774,16 +789,16 @@ public class AccessControllerBean {
 			RoleValidator.validateRoleInfo(roleInfo);
 
 			// ロール更新
-			RoleModifier.modifyRoleInfo(roleInfo, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID));
+			RoleModifier.modifyRoleInfo(roleInfo, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID), false);
 
 			// ロールスコープの作成
 			ScopeInfo scopeInfo = new ScopeInfo();
-			scopeInfo.setFacilityId(roleInfo.getId());
-			scopeInfo.setFacilityName(roleInfo.getName());
+			scopeInfo.setFacilityId(roleInfo.getRoleId());
+			scopeInfo.setFacilityName(roleInfo.getRoleName());
 			scopeInfo.setFacilityType(FacilityConstant.TYPE_SCOPE);
-			scopeInfo.setDescription(roleInfo.getName());
+			scopeInfo.setDescription(roleInfo.getRoleName());
 			scopeInfo.setValid(Boolean.TRUE);
-			scopeInfo.setOwnerRoleId(roleInfo.getId());
+			scopeInfo.setOwnerRoleId(roleInfo.getRoleId());
 
 			// ロールスコープ入力チェック
 			RepositoryValidator.validateScopeInfo(null, scopeInfo, false);
@@ -792,36 +807,29 @@ public class AccessControllerBean {
 			FacilityModifier.modifyOwnerRoleScope(scopeInfo, (String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID), false);
 			
 			jtm.addCallback(new FacilityIdCacheInitCallback());
+			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			jtm.addCallback(new FacilityTreeCacheRefreshCallback());
 			jtm.addCallback(new RepositoryChangedNotificationCallback());
-			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			
 			jtm.commit();
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (RoleNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (UnEditableRole e) {
-			jtm.rollback();
-			throw e;
-		} catch (FacilityNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (InvalidSetting | RoleNotFound | UnEditableRole | FacilityNotFound | InvalidRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("modifyScope() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(),e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -850,6 +858,9 @@ public class AccessControllerBean {
 			jtm.begin();
 
 			for(String roleId : roleIdList) {
+				// 組み込みスコープか確認
+				checkIsBuildInRole(roleId);
+
 				// ロールスコープが他機能で使用されているか確認
 				new RepositoryControllerBean().checkIsUseFacility(roleId);
 				// ロールスコープ削除
@@ -862,39 +873,25 @@ public class AccessControllerBean {
 			}
 			
 			jtm.addCallback(new FacilityIdCacheInitCallback());
+			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			jtm.addCallback(new FacilityTreeCacheRefreshCallback());
 			jtm.addCallback(new RepositoryChangedNotificationCallback());
-			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			
 			jtm.commit();
-		} catch (UsedFacility e) {
-			jtm.rollback();
-			throw e;
-		} catch (FacilityNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (RoleNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (UnEditableRole e) {
-			jtm.rollback();
-			throw e;
-		} catch (UsedRole e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
-		} catch (UsedOwnerRole e) {
-			jtm.rollback();
+		} catch (UsedFacility | FacilityNotFound | RoleNotFound | UnEditableRole | UsedRole | InvalidRole | UsedOwnerRole e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("deleteScope() : "
 					+ e.getClass().getSimpleName() +", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(),e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -923,15 +920,18 @@ public class AccessControllerBean {
 			jtm.rollback();
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getRoleTree() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return item;
 	}
@@ -954,10 +954,12 @@ public class AccessControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getSystemPrivilegeInfoList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return systemPrivilegeInfoList;
 	}
@@ -976,7 +978,13 @@ public class AccessControllerBean {
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
-			systemPrivilegeInfoList = new ArrayList<SystemPrivilegeInfo>(UserRoleCache.getSystemPrivilegeList(roleId));
+			List<SystemPrivilegeInfo> list = UserRoleCache.getSystemPrivilegeList(roleId);
+			if (list != null) {
+				systemPrivilegeInfoList = new ArrayList<SystemPrivilegeInfo>(list);
+			} else {
+				m_log.info("getSystemPrivilegeInfoListByRoleId : roleId=" + roleId + " have no SystemPrivileges.");
+				systemPrivilegeInfoList = new ArrayList<SystemPrivilegeInfo>();
+			}
 			jtm.commit();
 		} catch (HinemosUnknown e) {
 			jtm.rollback();
@@ -984,10 +992,12 @@ public class AccessControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getSystemPrivilegeInfoList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return systemPrivilegeInfoList;
 	}
@@ -1011,10 +1021,41 @@ public class AccessControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getSystemPrivilegeInfoList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
+		}
+		return systemPrivilegeInfoList;
+	}
+
+	/**
+	 * 指定された編集種別を条件としてシステム権限一覧情報を取得する。<BR>
+	 *
+	 * @param 編集種別
+	 * @return システム権限情報のリスト
+	 * @throws HinemosUnknown
+	 */
+	public ArrayList<SystemPrivilegeInfo> getSystemPrivilegeInfoListByEditType(String editType) throws HinemosUnknown {
+
+		JpaTransactionManager jtm = null;
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeInfoList = null;
+		try {
+			jtm = new JpaTransactionManager();
+			jtm.begin();
+			systemPrivilegeInfoList = RoleSelector.getSystemPrivilegeInfoListByEditType(editType);
+			jtm.commit();
+		} catch (Exception e) {
+			m_log.warn("getSystemPrivilegeInfoListByEditType() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			if (jtm != null)
+				jtm.rollback();
+			throw new HinemosUnknown(e.getMessage(), e);
+		} finally {
+			if (jtm != null)
+				jtm.close();
 		}
 		return systemPrivilegeInfoList;
 	}
@@ -1041,24 +1082,26 @@ public class AccessControllerBean {
 			
 			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			jtm.addCallback(new FacilityTreeCacheRefreshCallback());
+			jtm.addCallback(new RepositoryChangedNotificationCallback());
 			
 			jtm.commit();
-		} catch (UnEditableRole e) {
-			jtm.rollback();
+		} catch (UnEditableRole | HinemosUnknown e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (UserNotFound e) {
 			jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("assignUserRole() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(),e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -1085,22 +1128,23 @@ public class AccessControllerBean {
 			jtm.addCallback(new UserRoleCacheRefreshCallback());
 			
 			jtm.commit();
-		} catch (UnEditableRole e) {
-			jtm.rollback();
+		} catch (UnEditableRole | HinemosUnknown e) {
+			if (jtm != null) {
+				jtm.rollback();
+			}
 			throw e;
 		} catch (RoleNotFound e) {
 			jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("assignUserRole() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(),e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -1125,10 +1169,12 @@ public class AccessControllerBean {
 		} catch (Exception e) {
 			m_log.warn("getObjectPrivilegeInfoList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return objectPrivilegeInfoList;
 	}
@@ -1159,12 +1205,14 @@ public class AccessControllerBean {
 			jtm.rollback();
 			throw e;
 		} catch (Exception e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			m_log.warn("getObjectPrivilegeInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return objectPrivilegeInfo;
 	}
@@ -1214,33 +1262,44 @@ public class AccessControllerBean {
 			
 			jtm.commit();
 
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (UsedObjectPrivilege e) {
-			jtm.rollback();
-			throw e;
-		} catch (PrivilegeDuplicate e) {
-			jtm.rollback();
+		} catch (InvalidSetting | UsedObjectPrivilege | PrivilegeDuplicate | HinemosUnknown | JobMasterNotFound e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (JobMasterNotFound e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("replaceObjectPrivilegeInfo() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
+	/**
+	 * 引数で与えられたロールIDが組み込みスコープである場合には
+	 * HinemosUnknownを送出します。
+	 *
+	 * @version 6.0.0
+	 *
+	 * @param roleId チェックを行う対象のファシリティID
+	 * @throws RoleNotFound
+	 * @throws UnEditableRole
+	 */
+	private void checkIsBuildInRole(String roleId) throws RoleNotFound, UnEditableRole{
+		// 該当するロールを検索して取得
+		RoleInfo role = QueryUtil.getRolePK(roleId);
+		// システムロール、内部モジュールロールは削除不可
+		if (role != null && !role.getRoleType().equals(RoleTypeConstant.USER_ROLE)) {
+			throw new UnEditableRole();
+		}
+	}
 }
 

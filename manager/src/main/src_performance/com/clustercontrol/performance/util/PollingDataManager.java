@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.performance.util;
 
 import java.util.ArrayList;
@@ -9,11 +17,11 @@ import org.apache.commons.logging.LogFactory;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.performance.monitor.entity.CollectorItemCodeMstData;
 import com.clustercontrol.repository.bean.DeviceTypeConstant;
-import com.clustercontrol.repository.bean.NodeDeviceInfo;
-import com.clustercontrol.repository.bean.NodeDiskInfo;
-import com.clustercontrol.repository.bean.NodeInfo;
-import com.clustercontrol.repository.bean.NodeNetworkInterfaceInfo;
 import com.clustercontrol.repository.factory.NodeProperty;
+import com.clustercontrol.repository.model.NodeDeviceInfo;
+import com.clustercontrol.repository.model.NodeDiskInfo;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.NodeNetworkInterfaceInfo;
 
 /**
  * リソース監視用のポーリングのためのデータを扱うクラス

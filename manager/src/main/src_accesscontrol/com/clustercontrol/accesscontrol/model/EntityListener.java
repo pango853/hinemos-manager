@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.accesscontrol.model;
 
 import java.util.ArrayList;
@@ -24,18 +32,19 @@ public class EntityListener {
 	private static Log m_log = LogFactory.getLog(EntityListener.class);
 
 	@PreUpdate
-	public void preUpdate(ObjectPrivilegeTargetEntity entity) {
+	public void preUpdate(ObjectPrivilegeTargetInfo entity) {
 		m_log.debug("preUpdate() start : " + entity.getClass().getSimpleName() + "," + entity.getObjectId() + "," + entity.getOwnerRoleId());
 		addObjectPrivilegeTargetList(entity, false);
 	}
 
 	@PreRemove
-	public void preRemove(ObjectPrivilegeTargetEntity entity) {
+	public void preRemove(ObjectPrivilegeTargetInfo entity) {
 		m_log.debug("preRemove() start : " + entity.getClass().getSimpleName() + "," + entity.getObjectId() + "," + entity.getOwnerRoleId());
 		addObjectPrivilegeTargetList(entity, true);
 	}
 
-	private void addObjectPrivilegeTargetList(ObjectPrivilegeTargetEntity entity, boolean deleteFlg) {
+	private void addObjectPrivilegeTargetList(ObjectPrivilegeTargetInfo entity, boolean deleteFlg) {
+		@SuppressWarnings("unchecked")
 		List<ObjectPrivilegeTargetBean> targetList
 		= (List<ObjectPrivilegeTargetBean>)HinemosSessionContext.instance().getProperty(HinemosSessionContext.OBJECT_PRIVILEGE_TARGET_LIST);
 		if (targetList == null) {

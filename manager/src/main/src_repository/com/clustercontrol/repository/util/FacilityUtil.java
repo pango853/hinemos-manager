@@ -1,24 +1,15 @@
 /*
-
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.util;
 
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.repository.bean.FacilityConstant;
-import com.clustercontrol.repository.bean.FacilityInfo;
-import com.clustercontrol.repository.model.FacilityEntity;
+import com.clustercontrol.repository.model.FacilityInfo;
 
 /**
  * リポジトリに関するUtilityクラス<br/>
@@ -30,7 +21,7 @@ public class FacilityUtil {
 	/**
 	 * FacilityEntityのNode判定
 	 */
-	public static boolean isNode(FacilityEntity entity) {
+	public static boolean isNode(FacilityInfo entity) {
 		if (entity.getFacilityType() != null && entity.getFacilityType() == FacilityConstant.TYPE_NODE) {
 			return true;
 		} else {
@@ -52,7 +43,7 @@ public class FacilityUtil {
 	/**
 	 * FacilityEntityのScope判定
 	 */
-	public static boolean isScope(FacilityEntity entity) {
+	public static boolean isScope(FacilityInfo entity) {
 		if (entity.getFacilityType() != null && entity.getFacilityType() == FacilityConstant.TYPE_SCOPE) {
 			return true;
 		} else {
@@ -74,8 +65,8 @@ public class FacilityUtil {
 	/**
 	 * FacilityEntityのValid判定
 	 */
-	public static boolean isValid(FacilityEntity entity) {
-		if (entity.getValid() != null && entity.getValid() == ValidConstant.TYPE_VALID) {
+	public static boolean isValid(FacilityInfo entity) {
+		if (entity.getValid() != null && entity.getValid()) {
 			return true;
 		} else {
 			return false;
@@ -86,37 +77,10 @@ public class FacilityUtil {
 	 * FacilityInfoのValid判定
 	 */
 	public static boolean isValid_FacilityInfo(FacilityInfo info) {
-		if (info.isValid() != null && info.isValid() == ValidConstant.BOOLEAN_VALID) {
+		if (info.getValid() != null && info.getValid()) {
 			return true;
 		} else {
 			return false;
 		}
 	}
-
-	/**
-	 * FacilityEntityのValidのint値取得
-	 */
-	public static int getValid(Boolean boolValid) {
-		int rtn;
-		if (boolValid != null && boolValid) {
-			rtn = ValidConstant.TYPE_VALID;
-		} else {
-			rtn = ValidConstant.TYPE_INVALID;
-		}
-		return rtn;
-	}
-
-	/**
-	 * FacilityEntityのAutoDeviceSearchのint値取得
-	 */
-	public static int getAutoDeviceSearch(Boolean boolAutoDeviceSearch) {
-		int rtn;
-		if (boolAutoDeviceSearch != null && boolAutoDeviceSearch) {
-			rtn = ValidConstant.TYPE_VALID;
-		} else {
-			rtn = ValidConstant.TYPE_INVALID;
-		}
-		return rtn;
-	}
-
 }

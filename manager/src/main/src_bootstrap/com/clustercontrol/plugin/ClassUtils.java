@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.plugin;
@@ -38,8 +31,11 @@ public class ClassUtils {
 	 */
 	public static void addDirToClasspath(File directory) throws IOException {
 		if (directory.exists()) {
-			for (File file : directory.listFiles()) {
-				addURL(file.toURI().toURL());
+			File[] files = directory.listFiles();
+			if (files != null) {
+				for (File file : files) {
+					addURL(file.toURI().toURL());
+				}
 			}
 		}
 	}

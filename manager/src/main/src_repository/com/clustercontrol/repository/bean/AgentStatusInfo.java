@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) since 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.repository.bean;
 
 import java.io.Serializable;
@@ -25,8 +19,8 @@ public class AgentStatusInfo  implements Serializable{
 	private String facilityId = "";
 	private String facilityName = "";
 	private boolean newFlag = false;
-	private Long startupTime = new Long(0);
-	private Long lastLogin = new Long(0);
+	private Long startupTime = 0l;
+	private Long lastLogin = 0l;
 	private String multiplicity = "";
 
 	public String getFacilityId() {

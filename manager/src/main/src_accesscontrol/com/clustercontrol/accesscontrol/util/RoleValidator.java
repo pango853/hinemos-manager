@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) since 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.accesscontrol.util;
@@ -21,11 +14,11 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.RoleInfo;
+import com.clustercontrol.accesscontrol.model.RoleInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.bean.PluginConstant;
-import com.clustercontrol.calendar.model.CalInfoEntity;
-import com.clustercontrol.calendar.model.CalPatternInfoEntity;
+import com.clustercontrol.calendar.model.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarPatternInfo;
 import com.clustercontrol.commons.util.CommonValidator;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
@@ -38,16 +31,16 @@ import com.clustercontrol.fault.MailTemplateNotFound;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.fault.NotifyNotFound;
 import com.clustercontrol.fault.UsedOwnerRole;
-import com.clustercontrol.infra.model.InfraManagementInfoEntity;
-import com.clustercontrol.jobmanagement.model.JobFileCheckEntity;
+import com.clustercontrol.infra.model.InfraManagementInfo;
+import com.clustercontrol.jobmanagement.model.JobKickEntity;
 import com.clustercontrol.jobmanagement.model.JobMstEntity;
 import com.clustercontrol.jobmanagement.model.JobMstEntityPK;
-import com.clustercontrol.jobmanagement.model.JobScheduleEntity;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
-import com.clustercontrol.notify.mail.model.MailTemplateInfoEntity;
-import com.clustercontrol.notify.model.NotifyInfoEntity;
-import com.clustercontrol.repository.model.FacilityEntity;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.jobmanagement.model.JobmapIconImageEntity;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
+import com.clustercontrol.notify.mail.model.MailTemplateInfo;
+import com.clustercontrol.notify.model.NotifyInfo;
+import com.clustercontrol.repository.model.FacilityInfo;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * ロール管理の入力チェッククラス
@@ -67,13 +60,13 @@ public class RoleValidator {
 	public static void validateRoleInfo(RoleInfo roleInfo) throws InvalidSetting {
 
 		// roleId
-		CommonValidator.validateId(Messages.getString("role.id"), roleInfo.getId(), 64);
+		CommonValidator.validateId(MessageConstant.ROLE_ID.getMessage(), roleInfo.getRoleId(), 64);
 
 		// roleName
-		CommonValidator.validateString(Messages.getString("role.name"), roleInfo.getName(), true, 1, 128);
+		CommonValidator.validateString(MessageConstant.ROLE_NAME.getMessage(), roleInfo.getRoleName(), true, 1, 128);
 
 		// description
-		CommonValidator.validateString(Messages.getString("description"), roleInfo.getDescription(), false, 0, 256);
+		CommonValidator.validateString(MessageConstant.DESCRIPTION.getMessage(), roleInfo.getDescription(), false, 0, 256);
 
 	}
 
@@ -93,18 +86,18 @@ public class RoleValidator {
 			jtm.begin();
 
 			// リポジトリ（ノード、スコープ）
-			List<FacilityEntity> infoCollectionFacility
+			List<FacilityInfo> infoCollectionFacility
 			= com.clustercontrol.repository.util.QueryUtil.getFacilityByOwnerRoleId_NONE(roleId);
 			if (infoCollectionFacility != null && infoCollectionFacility.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_REPOSITORY);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_REPOSITORY);
 				throw new UsedOwnerRole(PluginConstant.TYPE_REPOSITORY);
 			}
 
 			// 監視設定
-			List<MonitorInfoEntity> infoCollectionMonitor
+			List<MonitorInfo> infoCollectionMonitor
 			=  com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoByOwnerRoleId_NONE(roleId);
 			if (infoCollectionMonitor != null && infoCollectionMonitor.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_MONITOR);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_MONITOR);
 				throw new UsedOwnerRole(PluginConstant.TYPE_MONITOR);
 			}
 
@@ -112,63 +105,55 @@ public class RoleValidator {
 			List<JobMstEntity> infoCollectionJob
 			= com.clustercontrol.jobmanagement.util.QueryUtil.getJobMstEntityFindByOwnerRoleId_NONE(roleId);
 			if (infoCollectionJob != null && infoCollectionJob.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_JOBMANAGEMENT);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_JOBMANAGEMENT);
 				throw new UsedOwnerRole(PluginConstant.TYPE_JOBMANAGEMENT);
 			}
 
-			// ジョブファイルチェック
-			List<JobFileCheckEntity> infoCollectionJobFile
-			= com.clustercontrol.jobmanagement.util.QueryUtil.getJobFileCheckEntityFindByOwnerRoleId_NONE(roleId);
-			if (infoCollectionJobFile != null && infoCollectionJobFile.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_JOBMANAGEMENT);
-				throw new UsedOwnerRole(PluginConstant.TYPE_JOBMANAGEMENT);
-			}
-
-			// ジョブスケジュール
-			List<JobScheduleEntity> infoCollectionJobSche
-			= com.clustercontrol.jobmanagement.util.QueryUtil.getJobScheduleEntityFindByOwnerRoleId_NONE(roleId);
-			if (infoCollectionJobSche != null && infoCollectionJobSche.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_JOBMANAGEMENT);
+			// ジョブ実行契機
+			List<JobKickEntity> infoCollectionJobKick
+			= com.clustercontrol.jobmanagement.util.QueryUtil.getJobKickEntityFindByOwnerRoleId_NONE(roleId);
+			if (infoCollectionJobKick != null && infoCollectionJobKick.size() > 0) {
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_JOBMANAGEMENT);
 				throw new UsedOwnerRole(PluginConstant.TYPE_JOBMANAGEMENT);
 			}
 
 			// カレンダ
-			List<CalInfoEntity> infoCollectionCalInfo
+			List<CalendarInfo> infoCollectionCalInfo
 			= com.clustercontrol.calendar.util.QueryUtil.getCalInfoFindByOwnerRoleId_NONE(roleId);
 			if (infoCollectionCalInfo != null && infoCollectionCalInfo.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_CALENDAR);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_CALENDAR);
 				throw new UsedOwnerRole(PluginConstant.TYPE_CALENDAR);
 			}
 
 			// カレンダパターン
-			List<CalPatternInfoEntity> infoCollectionCalPattern
+			List<CalendarPatternInfo> infoCollectionCalPattern
 			= com.clustercontrol.calendar.util.QueryUtil.getCalPatternInfoFindByOwnerRoleId_NONE(roleId);
 			if (infoCollectionCalPattern != null && infoCollectionCalPattern.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_CALENDAR);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_CALENDAR);
 				throw new UsedOwnerRole(PluginConstant.TYPE_CALENDAR);
 			}
 
 			// 通知
-			List<NotifyInfoEntity> infoCollectionNotifyInfo
+			List<NotifyInfo> infoCollectionNotifyInfo
 			= com.clustercontrol.notify.util.QueryUtil.getNotifyInfoFindByOwnerRoleId_NONE(roleId);
 			if (infoCollectionNotifyInfo != null && infoCollectionNotifyInfo.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_NOTIFY);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_NOTIFY);
 				throw new UsedOwnerRole(PluginConstant.TYPE_NOTIFY);
 			}
 
 			// メールテンプレート
-			List<MailTemplateInfoEntity> infoCollectionMailTemp
+			List<MailTemplateInfo> infoCollectionMailTemp
 			= com.clustercontrol.notify.mail.util.QueryUtil.getMailTemplateInfoFindByOwnerRoleId_NONE(roleId);
 			if (infoCollectionMailTemp != null && infoCollectionMailTemp.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_NOTIFY);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_NOTIFY);
 				throw new UsedOwnerRole(PluginConstant.TYPE_NOTIFY);
 			}
 
 			// 環境構築
-			List<InfraManagementInfoEntity> infoCollectionInfra
+			List<InfraManagementInfo> infoCollectionInfra
 			= com.clustercontrol.infra.util.QueryUtil.getInfraManagementInfoFindByOwnerRoleId_NONE(roleId);
 			if (infoCollectionInfra != null && infoCollectionInfra.size() > 0) {
-				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.STRING_INFRA);
+				m_log.info("validateDeleteRole,[" + roleId + "] : " + PluginConstant.TYPE_INFRA);
 				throw new UsedOwnerRole(PluginConstant.TYPE_INFRA);
 			}
 			
@@ -180,9 +165,11 @@ public class RoleValidator {
 		} catch (Exception e) {
 			m_log.warn("validateDeleteRole() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -197,7 +184,7 @@ public class RoleValidator {
 	public static void validateModifyOwnerRole(Object pk, String objectType, String ownerRoleId) throws InvalidSetting{
 
 		JpaTransactionManager jtm = null;
-		InvalidSetting ise = new InvalidSetting(Messages.getString("message.accesscontrol.55"));
+		InvalidSetting ise = new InvalidSetting(MessageConstant.MESSAGE_OWNERROLEID_CHANGE_NG.getMessage());
 
 		try {
 			jtm = new JpaTransactionManager();
@@ -207,7 +194,7 @@ public class RoleValidator {
 			if (objectType.equals(HinemosModuleConstant.PLATFORM_REPOSITORY)) {
 
 				m_log.debug("validateModifyOwnerRole() : FacilityEntity check.");
-				FacilityEntity info = null;
+				FacilityInfo info = null;
 
 				try {
 					info = com.clustercontrol.repository.util.QueryUtil.getFacilityPK((String)pk);
@@ -223,8 +210,8 @@ public class RoleValidator {
 			// 監視
 			else if (objectType.equals(HinemosModuleConstant.MONITOR)) {
 
-				m_log.debug("validateModifyOwnerRole() : MonitorInfoEntity check.");
-				MonitorInfoEntity info = null;
+				m_log.debug("validateModifyOwnerRole() : MonitorInfo check.");
+				MonitorInfo info = null;
 
 				try {
 					info = com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK((String)pk);
@@ -255,12 +242,12 @@ public class RoleValidator {
 				}
 			}
 
-			// ジョブファイルチェック
-			else if (objectType.equals(HinemosModuleConstant.JOB_FILE_CHECK)) {
+			// ジョブ実行契機
+			else if (objectType.equals(HinemosModuleConstant.JOB_KICK)) {
 
-				m_log.debug("validateModifyOwnerRole() : JobFileCheckEntity check.");
+				m_log.debug("validateModifyOwnerRole() : JobKickEntity check.");
 				HinemosEntityManager em = jtm.getEntityManager();
-				JobFileCheckEntity info = em.find(JobFileCheckEntity.class, pk, ObjectPrivilegeMode.READ);
+				JobKickEntity info = em.find(JobKickEntity.class, pk, ObjectPrivilegeMode.READ);
 				if (info == null) {
 					// 設定が見つからない場合は新規登録と判断し、何もしない
 				}
@@ -271,12 +258,12 @@ public class RoleValidator {
 				}
 			}
 
-			// ジョブスケジュール
-			else if (objectType.equals(HinemosModuleConstant.JOB_SCHEDULE)) {
+			// ジョブマップ用イメージファイル
+			else if (objectType.equals(HinemosModuleConstant.JOBMAP_IMAGE_FILE)) {
 
-				m_log.debug("validateModifyOwnerRole() : JobScheduleEntity check.");
+				m_log.debug("validateModifyOwnerRole() : JobmapIconImageEntity check.");
 				HinemosEntityManager em = jtm.getEntityManager();
-				JobScheduleEntity info = em.find(JobScheduleEntity.class, pk, ObjectPrivilegeMode.READ);
+				JobmapIconImageEntity info = em.find(JobmapIconImageEntity.class, pk, ObjectPrivilegeMode.READ);
 				if (info == null) {
 					// 設定が見つからない場合は新規登録と判断し、何もしない
 				}
@@ -291,7 +278,7 @@ public class RoleValidator {
 			else if (objectType.equals(HinemosModuleConstant.PLATFORM_CALENDAR)) {
 
 				m_log.debug("validateModifyOwnerRole() : CalInfoEntity check.");
-				CalInfoEntity info = null;
+				CalendarInfo info = null;
 
 				try {
 					info = com.clustercontrol.calendar.util.QueryUtil.getCalInfoPK((String)pk);
@@ -309,7 +296,7 @@ public class RoleValidator {
 			else if (objectType.equals(HinemosModuleConstant.PLATFORM_CALENDAR_PATTERN)) {
 
 				m_log.debug("validateModifyOwnerRole() : CalPatternInfoEntity check.");
-				CalPatternInfoEntity info = null;
+				CalendarPatternInfo info = null;
 
 				try {
 					info = com.clustercontrol.calendar.util.QueryUtil.getCalPatternInfoPK((String)pk);
@@ -327,7 +314,7 @@ public class RoleValidator {
 			else if (objectType.equals(HinemosModuleConstant.PLATFORM_NOTIFY)) {
 
 				m_log.debug("validateModifyOwnerRole() : NotifyInfoEntity check.");
-				NotifyInfoEntity info = null;
+				NotifyInfo info = null;
 
 				try {
 					info = com.clustercontrol.notify.util.QueryUtil.getNotifyInfoPK((String)pk);
@@ -345,7 +332,7 @@ public class RoleValidator {
 			else if (objectType.equals(HinemosModuleConstant.PLATFORM_MAIL_TEMPLATE)) {
 
 				m_log.debug("validateModifyOwnerRole() : MailTemplateInfoEntity check.");
-				MailTemplateInfoEntity info = null;
+				MailTemplateInfo info = null;
 
 				try {
 					info = com.clustercontrol.notify.mail.util.QueryUtil.getMailTemplateInfoPK((String)pk);
@@ -368,11 +355,28 @@ public class RoleValidator {
 		} catch (Exception e) {
 			m_log.warn("validateModifyOwnerRole() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
+	/**
+	 * ユーザがロールに所属しているかチェックする
+	 * (ADMINISTRATORS所属のユーザの場合はチェックしない)
+	 * 
+	 * @param role
+	 * @param user
+	 * @param isAdmin
+	 * @throw InvalidSetting
+	 */
+	public static void validateUserBelongRole(String role, String user, boolean isAdmin) throws InvalidSetting{
 
+		if(!isAdmin && !UserRoleCache.getRoleIdList(user).contains(role)) {
+			String args[] = {user, role};
+			throw new InvalidSetting(MessageConstant.MESSAGE_USER_DOES_NOT_BELONG_TO_ROLE.getMessage(args));
+		}
+	}
 }

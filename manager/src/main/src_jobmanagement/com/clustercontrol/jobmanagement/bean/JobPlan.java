@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) 2013 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.jobmanagement.bean;
 
 import java.io.Serializable;
@@ -25,7 +19,7 @@ import javax.xml.bind.annotation.XmlType;
  * @since 4.1.0
  */
 @XmlType(namespace = "http://jobmanagement.ws.clustercontrol.com")
-public class JobPlan implements Serializable,Comparable<JobPlan>{
+public class JobPlan implements Serializable {
 
 	/** シリアライズ可能クラスに定義するUID */
 	private static final long serialVersionUID = -1488596202337667156L;
@@ -110,10 +104,5 @@ public class JobPlan implements Serializable,Comparable<JobPlan>{
 				+ ", jobunitId=" + jobunitId
 				+ ", jobId=" + jobId
 				+ ", jobName=" + jobName + "]";
-	}
-
-	@Override
-	public int compareTo(JobPlan o) {
-		return this.getDate().compareTo(o.getDate());
 	}
 }

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.accesscontrol.bean;
@@ -21,6 +14,9 @@ import java.util.Collections;
 import java.util.Comparator;
 
 import javax.xml.bind.annotation.XmlType;
+
+import com.clustercontrol.accesscontrol.model.RoleInfo;
+import com.clustercontrol.accesscontrol.model.UserInfo;
 
 /**
  * ロールのツリー表示に関する情報を保持するクラス<BR>
@@ -134,7 +130,7 @@ public class RoleTreeItem implements Serializable {
 			Collections.sort(m_children, new Comparator<RoleTreeItem>() {
 				@Override
 				public int compare(RoleTreeItem o1, RoleTreeItem o2) {
-					return ((UserInfo)o1.getData()).getId().compareTo(((UserInfo)o2.getData()).getId());
+					return ((UserInfo)o1.getData()).getUserId().compareTo(((UserInfo)o2.getData()).getUserId());
 				}
 			});
 		}
@@ -206,22 +202,22 @@ public class RoleTreeItem implements Serializable {
 
 		// ルートの場合は、文字を出力しません。
 		if (this.m_data instanceof RoleInfo
-				&& ((RoleInfo)this.m_data).getId().equals("ROOT")) {
+				&& ((RoleInfo)this.m_data).getRoleId().equals(RoleSettingTreeConstant.ROOT_ID)) {
 			return "";
 		}
 
 		StringBuffer buffer = new StringBuffer();
 
 		if (this.m_data instanceof RoleInfo) {
-			buffer.append(((RoleInfo)this.m_data).getName());
+			buffer.append(((RoleInfo)this.m_data).getRoleName());
 		} else if  (this.m_data instanceof UserInfo) {
-			buffer.append(((UserInfo)this.m_data).getName());
+			buffer.append(((UserInfo)this.m_data).getUserName());
 		}
 
 		if (this.m_data instanceof UserInfo) {
 			RoleTreeItem parent = this.getParent();
 			buffer.insert(0, SEPARATOR);
-			buffer.insert(0, ((RoleInfo)parent.getData()).getName());
+			buffer.insert(0, ((RoleInfo)parent.getData()).getRoleName());
 		}
 
 		return buffer.toString();

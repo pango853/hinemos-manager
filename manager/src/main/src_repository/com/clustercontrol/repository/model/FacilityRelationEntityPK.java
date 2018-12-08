@@ -1,15 +1,21 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.repository.model;
 
 import java.io.Serializable;
 import java.util.Arrays;
 
-import javax.persistence.*;
-
 /**
  * The primary key class for the cc_cfg_facility_relation database table.
  * 
  */
-@Embeddable
+//@Embeddable
 public class FacilityRelationEntityPK implements Serializable {
 	//default serial version id, required for serializable classes.
 	private static final long serialVersionUID = 1L;
@@ -24,7 +30,7 @@ public class FacilityRelationEntityPK implements Serializable {
 		this.setChildFacilityId(childFacilityId);
 	}
 
-	@Column(name="parent_facility_id")
+//	@Column(name="parent_facility_id")
 	public String getParentFacilityId() {
 		return this.parentFacilityId;
 	}
@@ -32,7 +38,7 @@ public class FacilityRelationEntityPK implements Serializable {
 		this.parentFacilityId = parentFacilityId;
 	}
 
-	@Column(name="child_facility_id")
+//	@Column(name="child_facility_id")
 	public String getChildFacilityId() {
 		return this.childFacilityId;
 	}

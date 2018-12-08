@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2008 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.mail.factory;
@@ -23,11 +16,13 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MailTemplateNotFound;
-import com.clustercontrol.notify.mail.bean.MailTemplateInfo;
-import com.clustercontrol.notify.mail.model.MailTemplateInfoEntity;
+import com.clustercontrol.notify.mail.model.MailTemplateInfo;
 import com.clustercontrol.notify.mail.util.QueryUtil;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -52,27 +47,20 @@ public class SelectMailTemplate {
 	 * @see com.clustercontrol.notify.ejb.entity.MailTemplateInfoBean
 	 */
 	public MailTemplateInfo getMailTemplateInfo(String mailTemplateId) throws MailTemplateNotFound, InvalidRole {
-
-		MailTemplateInfo data = null;
-
 		// メールテンプレート情報を取得
-		MailTemplateInfoEntity entity = null;
+		MailTemplateInfo entity = null;
 		try {
 			entity = QueryUtil.getMailTemplateInfoPK(mailTemplateId);
 		} catch (MailTemplateNotFound e) {
-			AplLogger apllog = new AplLogger("MAILTEMP", "mailTemplate");
 			String[] args = { mailTemplateId };
-			apllog.put("SYS", "004", args);
+			AplLogger.put(PriorityConstant.TYPE_WARNING, HinemosModuleConstant.PLATFORM_MAIL_TEMPLATE, MessageConstant.MESSAGE_SYS_004_MAILTEMP, args);
 			throw e;
 		} catch (InvalidRole e) {
-			AplLogger apllog = new AplLogger("MAILTEMP", "mailTemplate");
 			String[] args = { mailTemplateId };
-			apllog.put("SYS", "004", args);
+			AplLogger.put(PriorityConstant.TYPE_WARNING, HinemosModuleConstant.PLATFORM_MAIL_TEMPLATE, MessageConstant.MESSAGE_SYS_004_MAILTEMP, args);
 			throw e;
 		}
-
-		data = getMailTemplateInfoBean(entity);
-		return data;
+		return entity;
 	}
 
 	/**
@@ -90,16 +78,16 @@ public class SelectMailTemplate {
 		ArrayList<String> list = null;
 
 		// メールテンプレートID一覧を取得
-		List<MailTemplateInfoEntity> ct = QueryUtil.getAllMailTemplateInfoOrderByMailTemplateId();
+		List<MailTemplateInfo> ct = QueryUtil.getAllMailTemplateInfoOrderByMailTemplateId();
 
-		Iterator<MailTemplateInfoEntity> itr = ct.iterator();
+		Iterator<MailTemplateInfo> itr = ct.iterator();
 		while(itr.hasNext())
 		{
 			if(list == null){
 				list = new ArrayList<String>();
 			}
 
-			MailTemplateInfoEntity mailTemplate = itr.next();
+			MailTemplateInfo mailTemplate = itr.next();
 			list.add(mailTemplate.getMailTemplateId());
 		}
 
@@ -131,10 +119,10 @@ public class SelectMailTemplate {
 		ArrayList<MailTemplateInfo> list = new ArrayList<MailTemplateInfo>();
 
 		// メールテンプレート情報一覧を取得
-		List<MailTemplateInfoEntity> ct = QueryUtil.getAllMailTemplateInfoOrderByMailTemplateId();
+		List<MailTemplateInfo> ct = QueryUtil.getAllMailTemplateInfoOrderByMailTemplateId();
 
-		for(MailTemplateInfoEntity entity : ct){
-			list.add(getMailTemplateInfoBean(entity));
+		for(MailTemplateInfo entity : ct){
+			list.add(entity);
 			// for debug
 			if(m_log.isDebugEnabled()){
 				m_log.debug("getMailTemplateList() : " +
@@ -164,10 +152,10 @@ public class SelectMailTemplate {
 		ArrayList<MailTemplateInfo> list = new ArrayList<MailTemplateInfo>();
 
 		// メールテンプレート情報一覧を取得
-		List<MailTemplateInfoEntity> ct = QueryUtil.getAllMailTemplateInfoOrderByMailTemplateId_OR(ownerRoleId);
+		List<MailTemplateInfo> ct = QueryUtil.getAllMailTemplateInfoOrderByMailTemplateId_OR(ownerRoleId);
 
-		for(MailTemplateInfoEntity entity : ct){
-			list.add(getMailTemplateInfoBean(entity));
+		for(MailTemplateInfo entity : ct){
+			list.add(entity);
 			// for debug
 			if(m_log.isDebugEnabled()){
 				m_log.debug("getMailTemplateList() : " +
@@ -183,33 +171,4 @@ public class SelectMailTemplate {
 		}
 		return list;
 	}
-
-	/**
-	 * MailTemplateInfoEntityからMailTemplateInfoへ変換
-	 */
-	private static MailTemplateInfo getMailTemplateInfoBean(MailTemplateInfoEntity entity) {
-		MailTemplateInfo info = new MailTemplateInfo();
-		info.setMailTemplateId(entity.getMailTemplateId());
-		info.setDescription(entity.getDescription());
-		info.setSubject(entity.getSubject());
-		info.setBody(entity.getBody());
-		info.setOwnerRoleId(entity.getOwnerRoleId());
-		if(entity.getRegDate() == null){
-			info.setRegDate(null);
-		}
-		else{
-			info.setRegDate(entity.getRegDate().getTime());
-		}
-		if(entity.getUpdateDate() == null){
-			info.setUpdateDate(null);
-		}
-		else{
-			info.setUpdateDate(entity.getUpdateDate().getTime());
-		}
-		info.setRegUser(entity.getRegUser());
-		info.setUpdateUser(entity.getUpdateUser());
-
-		return info;
-	}
-
 }

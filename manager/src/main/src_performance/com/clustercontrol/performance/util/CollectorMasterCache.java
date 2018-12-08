@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.performance.util;
 
 import java.io.Serializable;
@@ -228,28 +236,37 @@ public class CollectorMasterCache {
 			
 			ArrayList<String> pollingTargetList = new ArrayList<String>();
 			for(String itemCode : itemCodeList) {
-				m_log.debug(String.format("collectMethod = %s, platformId = %s, subPlatformId = %s, itemCode = %s", collectMethod, platformId, subPlatformId, itemCode));
+				if (m_log.isDebugEnabled()) {
+					m_log.debug(String.format("collectMethod = %s, platformId = %s, subPlatformId = %s, itemCode = %s", collectMethod, platformId, subPlatformId, itemCode));
+				}
 				CollectorItemCalcMethodMstPK pk = new CollectorItemCalcMethodMstPK(collectMethod, platformId, subPlatformId, itemCode);
 				ArrayList<String> list = pollingTargetCache.get(pk);
-				if (list != null) {
-					pollingTargetList.addAll(list); // listがnull（cc_collector_polling_mstに該当行がない）だとNPEが出る。
+				if (list == null)
+					continue;
+				
+				pollingTargetList.addAll(list);
+			}
+			
+			if (!subPlatformId.isEmpty()) {
+				// VM管理やクラウド管理などではsubPlatformIdに「VMWARE」や「AWS」などが存在している収集項目に加え、
+				// subPlatformIdが空の場合の（つまり物理と同じ）収集項目が収集できる必要があるため、
+				// subPlatformIdが空でない場合にはsubPlatformIdを空にした収集項目も検索する
+				subPlatformId = "";
+				for(String itemCode : itemCodeList) {
+					CollectorItemCalcMethodMstPK pk = new CollectorItemCalcMethodMstPK(collectMethod, platformId, subPlatformId, itemCode);
+					ArrayList<String> list = pollingTargetCache.get(pk);
+					if (list != null) {
+						pollingTargetList.addAll(list);
+					}
 				}
 			}
 			
-			if (subPlatformId.isEmpty()) {
-				return pollingTargetList;
-			}
-
-			// VM管理やクラウド管理などではsubPlatformIdに「VMWARE」や「AWS」などが存在している収集項目に加え、
-			// subPlatformIdが空の場合の（つまり物理と同じ）収集項目が収集できる必要があるため、
-			// subPlatformIdが空でない場合にはsubPlatformIdを空にした収集項目も検索する
-			subPlatformId = "";
-			for(String itemCode : itemCodeList) {
-				CollectorItemCalcMethodMstPK pk = new CollectorItemCalcMethodMstPK(collectMethod, platformId, subPlatformId, itemCode);
-				ArrayList<String> list = pollingTargetCache.get(pk);
-				if (list != null) {
-					pollingTargetList.addAll(list);
-				}
+			if (pollingTargetList.isEmpty()) {
+				String errorMessag = String.format("getPollingTarget() : polling target not found in cc_collector_polling_mst.  collectMethod = %s, platformId = %s, subPlatformId = %s",
+						collectMethod, platformId, subPlatformId
+						);
+				m_log.error(errorMessag);
+				throw new IllegalStateException(errorMessag);
 			}
 			
 			return pollingTargetList;

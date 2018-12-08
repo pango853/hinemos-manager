@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.factory;
@@ -34,7 +27,7 @@ public class NotifyCommandTaskFactory implements AsyncTaskFactory {
 		return new NotifyCommandTask(param);
 	}
 
-	public class NotifyCommandTask implements Runnable {
+	public static class NotifyCommandTask implements Runnable {
 
 		private final NotifyRequestMessage msg;
 
@@ -65,10 +58,12 @@ public class NotifyCommandTaskFactory implements AsyncTaskFactory {
 
 				jtm.commit();
 			} catch (Exception e) {
-				jtm.rollback();
+				if (jtm != null)
+					jtm.rollback();
 				log.warn("asynchronous task failure.", e);
 			} finally {
-				jtm.close();
+				if (jtm != null)
+					jtm.close();
 			}
 
 		}

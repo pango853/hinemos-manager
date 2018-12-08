@@ -1,52 +1,47 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.factory;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
-import java.text.ParseException;
-import java.util.Date;
+import java.util.ArrayList;
 
 import javax.persistence.EntityExistsException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.quartz.SchedulerException;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.commons.scheduler.QuartzUtil;
-import com.clustercontrol.commons.util.EmptyJpaTransactionCallback;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.fault.InvalidSetting;
 import com.clustercontrol.fault.JobInfoNotFound;
 import com.clustercontrol.fault.JobKickDuplicate;
 import com.clustercontrol.fault.ObjectPrivilege_InvalidRole;
 import com.clustercontrol.jobmanagement.bean.JobFileCheck;
+import com.clustercontrol.jobmanagement.bean.JobKick;
+import com.clustercontrol.jobmanagement.bean.JobKickConstant;
+import com.clustercontrol.jobmanagement.bean.JobRuntimeParam;
+import com.clustercontrol.jobmanagement.bean.JobRuntimeParamDetail;
 import com.clustercontrol.jobmanagement.bean.JobSchedule;
 import com.clustercontrol.jobmanagement.bean.JobTriggerInfo;
 import com.clustercontrol.jobmanagement.bean.JobTriggerTypeConstant;
 import com.clustercontrol.jobmanagement.bean.QuartzConstant;
-import com.clustercontrol.jobmanagement.model.JobFileCheckEntity;
-import com.clustercontrol.jobmanagement.model.JobScheduleEntity;
+import com.clustercontrol.jobmanagement.model.JobKickEntity;
+import com.clustercontrol.jobmanagement.model.JobRuntimeParamDetailEntity;
+import com.clustercontrol.jobmanagement.model.JobRuntimeParamDetailEntityPK;
+import com.clustercontrol.jobmanagement.model.JobRuntimeParamEntity;
+import com.clustercontrol.jobmanagement.model.JobRuntimeParamEntityPK;
 import com.clustercontrol.jobmanagement.session.JobControllerBean;
 import com.clustercontrol.plugin.impl.SchedulerPlugin;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.SchedulerType;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * スケジュール情報を操作するクラスです。
@@ -59,230 +54,339 @@ public class ModifyJobKick {
 	private static Log m_log = LogFactory.getLog( ModifyJobKick.class );
 
 	/**
-	 * スケジュール情報をDBに反映し、スケジューラにジョブを登録します。<BR>
+	 * ジョブ実行契機情報をDBに反映します。
+	 * スケジュール情報の場合はスケジューラにジョブを登録します。<BR>
 	 *
-	 * @param info スケジュール情報
+	 * @param info ジョブ実行契機情報
 	 * @param user ユーザID
+	 * @param jobkickType ジョブ実行契機種別
+	 * @throws HinemosUnknown
 	 * @throws JobKickDuplicate
-	 * @throws InvalidSetting
-	 * @throws ParseException
-	 * @throws SchedulerException
 	 *
 	 * @see com.clustercontrol.jobmanagement.bean.QuartzConstant
 	 * @see com.clustercontrol.jobmanagement.bean.JobTriggerInfo
 	 * @see com.clustercontrol.jobmanagement.util.QuartzUtil#getQuartzManager()
 	 */
-	public void addSchedule(final JobSchedule info, String loginUser) throws HinemosUnknown, JobKickDuplicate {
-		m_log.debug("addSchedule() : id=" + info.getId() + ", jobId=" + info.getJobId());
-		JpaTransactionManager jtm = new JpaTransactionManager();
+	public void addJobKick(final JobKick info, String loginUser, Integer jobkickType) throws HinemosUnknown, JobKickDuplicate {
+		m_log.debug("addJobKick() : id=" + info.getId() + ", jobId=" + info.getJobId() + ", jobkickType=" + jobkickType);
 		//最終更新日時を設定
-		Timestamp now = new Timestamp(new Date().getTime());
+		long now = HinemosTime.currentTimeMillis();
 		// DBにスケジュール情報を保存
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			// IDの重複チェック
 			String id = info.getId();
-			jtm.checkEntityExists(JobScheduleEntity.class, id);
-			jtm.checkEntityExists(JobFileCheckEntity.class, id);
-			JobScheduleEntity jobScheduleEntity = new JobScheduleEntity(info.getId());
-			jobScheduleEntity.setScheduleName(info.getName());
-			jobScheduleEntity.setJobunitId(info.getJobunitId());
-			jobScheduleEntity.setJobId(info.getJobId());
-			if (!"".equals(info.getCalendarId())) {
-				jobScheduleEntity.setCalendarId(info.getCalendarId());
+			jtm.checkEntityExists(JobKickEntity.class, id);
+
+			// 値設定
+			JobKickEntity jobKickEntity = new JobKickEntity(info.getId());
+			jobKickEntity.setJobkickName(info.getName());
+			jobKickEntity.setJobkickType(jobkickType);
+			jobKickEntity.setJobunitId(info.getJobunitId());
+			jobKickEntity.setJobId(info.getJobId());
+			// 登録
+			em.persist(jobKickEntity);
+			// ランタイムジョブ変数情報
+			if (info.getJobRuntimeParamList() != null
+					&& info.getJobRuntimeParamList().size() > 0) {
+				for (JobRuntimeParam jobRuntimeParam : info.getJobRuntimeParamList()) {
+					JobRuntimeParamEntity jobRuntimeParamEntity 
+						= new JobRuntimeParamEntity(jobKickEntity, jobRuntimeParam.getParamId());
+					jobRuntimeParamEntity.setParamType(jobRuntimeParam.getParamType());
+					jobRuntimeParamEntity.setDefaultValue(jobRuntimeParam.getValue());
+					jobRuntimeParamEntity.setDescription(jobRuntimeParam.getDescription());
+					jobRuntimeParamEntity.setRequiredFlg(jobRuntimeParam.getRequiredFlg());
+					em.persist(jobRuntimeParamEntity);
+					jobRuntimeParamEntity.relateToJobKickEntity(jobKickEntity);
+
+					// ランタイムジョブ変数詳細情報
+					if (jobRuntimeParam.getJobRuntimeParamDetailList() != null
+							&& jobRuntimeParam.getJobRuntimeParamDetailList().size() > 0) {
+						int detailIdx = 0;
+						for (JobRuntimeParamDetail jobRuntimeParamDetail 
+								: jobRuntimeParam.getJobRuntimeParamDetailList()) {
+							JobRuntimeParamDetailEntity jobRuntimeParamDetailEntity
+								= new JobRuntimeParamDetailEntity(jobRuntimeParamEntity, 
+										detailIdx);
+							// 登録
+							em.persist(jobRuntimeParamDetailEntity);
+							jobRuntimeParamDetailEntity.relateToJobRuntimeParamEntity(jobRuntimeParamEntity);
+							jobRuntimeParamDetailEntity.setParamValue(
+									jobRuntimeParamDetail.getParamValue());
+							jobRuntimeParamDetailEntity.setDescription(
+									jobRuntimeParamDetail.getDescription());
+							detailIdx++;
+						}
+					}
+				}
 			}
-			jobScheduleEntity.setScheduleType(info.getScheduleType());
-			jobScheduleEntity.setWeek(info.getWeek());
-			jobScheduleEntity.setHour(info.getHour());
-			jobScheduleEntity.setMinute(info.getMinute());
-			jobScheduleEntity.setFromXMinutes(info.getFromXminutes());
-			jobScheduleEntity.setEveryXMinutes(info.getEveryXminutes());
-			jobScheduleEntity.setValidFlg(info.getValid());
-			jobScheduleEntity.setOwnerRoleId(info.getOwnerRoleId());
-			jobScheduleEntity.setRegDate(now);
-			jobScheduleEntity.setUpdateDate(now);
-			jobScheduleEntity.setRegUser(loginUser);
-			jobScheduleEntity.setUpdateUser(loginUser);
+
+			if (jobkickType == JobKickConstant.TYPE_SCHEDULE) {
+				// ジョブスケジュール
+				if (!(info instanceof JobSchedule)) {
+					throw new HinemosUnknown("type error : " + info.getClass() + "!=JobSchedule");
+				}
+				JobSchedule jobSchedule = (JobSchedule)info;
+				if (!"".equals(jobSchedule.getCalendarId())) {
+					jobKickEntity.setCalendarId(jobSchedule.getCalendarId());
+				}
+				jobKickEntity.setValidFlg(info.isValid());
+				jobKickEntity.setScheduleType(jobSchedule.getScheduleType());
+				jobKickEntity.setWeek(jobSchedule.getWeek());
+				jobKickEntity.setHour(jobSchedule.getHour());
+				jobKickEntity.setMinute(jobSchedule.getMinute());
+				jobKickEntity.setFromXMinutes(jobSchedule.getFromXminutes());
+				jobKickEntity.setEveryXMinutes(jobSchedule.getEveryXminutes());
+			} else if (jobkickType == JobKickConstant.TYPE_FILECHECK) {
+				// ファイルチェック
+				if (!(info instanceof JobFileCheck)) {
+					throw new HinemosUnknown("type error : " + info.getClass() + "!=JobFileCheck");
+				}
+				JobFileCheck jobFileCheck = (JobFileCheck)info;
+				if (!"".equals(jobFileCheck.getCalendarId())) {
+					jobKickEntity.setCalendarId(jobFileCheck.getCalendarId());
+				}
+				jobKickEntity.setValidFlg(info.isValid());
+				jobKickEntity.setFacilityId(jobFileCheck.getFacilityId());
+				jobKickEntity.setFileName(jobFileCheck.getFileName());
+				jobKickEntity.setDirectory(jobFileCheck.getDirectory());
+				jobKickEntity.setEventType(jobFileCheck.getEventType());
+				jobKickEntity.setModifyType(jobFileCheck.getModifyType());
+			} else if (jobkickType == JobKickConstant.TYPE_MANUAL) {
+				jobKickEntity.setCalendarId(null);
+				jobKickEntity.setValidFlg(true);
+			}
+			jobKickEntity.setOwnerRoleId(info.getOwnerRoleId());
+			jobKickEntity.setRegDate(now);
+			jobKickEntity.setUpdateDate(now);
+			jobKickEntity.setRegUser(loginUser);
+			jobKickEntity.setUpdateUser(loginUser);
 		} catch (EntityExistsException e) {
-			m_log.info("addSchedule() JobScheduleEntity.create() : "
+			m_log.info("addJobKick() JobKickEntity.create() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			throw new JobKickDuplicate(e.getMessage(), e);
 		} catch (Exception e) {
-			m_log.warn("addSchedule() JobScheduleEntity.create() : "
+			m_log.warn("addJobKick() JobKickEntity.create() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		}
 		
-		jtm.addCallback(new EmptyJpaTransactionCallback() {
-			@Override
-			public void postCommit() {
-				//実行契機情報の作成
-				JobTriggerInfo triggerInfo = new JobTriggerInfo();
-				triggerInfo.setTrigger_type(JobTriggerTypeConstant.TYPE_SCHEDULE);
-				triggerInfo.setTrigger_info(info.getName()+"("+info.getId()+")");
-				
-				//JobDetailに呼び出すメソッドの引数を設定
-				Serializable[] jdArgs = new Serializable[QuartzConstant.ARGS_NUM];
-				Class<? extends Serializable>[] jdArgsType = new Class[QuartzConstant.ARGS_NUM];
-				//ジョブユニットIDを設定
-				jdArgs[QuartzConstant.INDEX_JOBUNIT_ID] = info.getJobunitId();
-				jdArgsType[QuartzConstant.INDEX_JOBUNIT_ID] = String.class;
-				
-				//ジョブIDを設定
-				jdArgs[QuartzConstant.INDEX_JOB_ID] = info.getJobId();
-				jdArgsType[QuartzConstant.INDEX_JOB_ID] = String.class;
-				
-				//カレンダIDを設定
-				jdArgs[QuartzConstant.INDEX_CALENDAR_ID] = info.getCalendarId();
-				jdArgsType[QuartzConstant.INDEX_CALENDAR_ID] = String.class;
-				
-				//実行契機情報を設定
-				jdArgs[QuartzConstant.INDEX_TRIGGER_INFO] = triggerInfo;
-				jdArgsType[QuartzConstant.INDEX_TRIGGER_INFO] = JobTriggerInfo.class;
-				
-				//Cron表記へ変換
-				String cronString = QuartzUtil.getCronString(info.getScheduleType(),
-						info.getWeek(),info.getHour(),info.getMinute(),
-						info.getFromXminutes(),info.getEveryXminutes());
-				
-				m_log.trace("CronString =" + cronString);
-				
-				// スケジュール定義を登録
-				try {
-					SchedulerPlugin.scheduleCronJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME, new Date(System.currentTimeMillis() + 15 * 1000), cronString,
+		if (jobkickType == JobKickConstant.TYPE_SCHEDULE) {
+			// ジョブスケジュールの場合、実行契機情報の作成
+			JobTriggerInfo triggerInfo = new JobTriggerInfo();
+			triggerInfo.setTrigger_type(JobTriggerTypeConstant.TYPE_SCHEDULE);
+			triggerInfo.setTrigger_info(info.getName()+"("+info.getId()+")");
+			
+			//JobDetailに呼び出すメソッドの引数を設定
+			Serializable[] jdArgs = new Serializable[QuartzConstant.ARGS_NUM];
+			@SuppressWarnings("unchecked")
+			Class<? extends Serializable>[] jdArgsType = new Class[QuartzConstant.ARGS_NUM];
+			//ジョブユニットIDを設定
+			jdArgs[QuartzConstant.INDEX_JOBUNIT_ID] = info.getJobunitId();
+			jdArgsType[QuartzConstant.INDEX_JOBUNIT_ID] = String.class;
+			
+			//ジョブIDを設定
+			jdArgs[QuartzConstant.INDEX_JOB_ID] = info.getJobId();
+			jdArgsType[QuartzConstant.INDEX_JOB_ID] = String.class;
+			
+			//カレンダIDを設定
+			jdArgs[QuartzConstant.INDEX_CALENDAR_ID] = info.getCalendarId();
+			jdArgsType[QuartzConstant.INDEX_CALENDAR_ID] = String.class;
+			
+			//実行契機種別を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_TYPE] = triggerInfo.getTrigger_type();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_TYPE] = Integer.class;
+			
+			//実行契機情報を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_INFO] = triggerInfo.getTrigger_info();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_INFO] = String.class;
+			
+			//ファイル名を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_FILENAME] = triggerInfo.getFilename();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_FILENAME] = String.class;
+			
+			//ディレクトリ名を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_DIRECTORY] = triggerInfo.getDirectory();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_DIRECTORY] = String.class;
+			
+			//ジョブの待ち条件（時刻）の有効・無効を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_TIME] = triggerInfo.getJobWaitTime();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_TIME] = Boolean.class;
+			
+			//ジョブの待ち条件（ジョブセッション開始後の時間の有効・無効を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_MINUTE] = triggerInfo.getJobWaitTime();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_MINUTE] = Boolean.class;
+			
+			//ジョブの起動コマンドの置換の有無を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND] = triggerInfo.getJobCommand();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND] = Boolean.class;
+			
+			//ジョブの起動コマンドの置換の有無を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND_TEXT] = triggerInfo.getJobCommandText();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND_TEXT] = String.class;
+			
+			//ジョブ実行契機IDを設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOBKICK_ID] = info.getId();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOBKICK_ID] = String.class;
+			
+			//Cron表記へ変換
+			String cronString = QuartzUtil.getCronString(
+					((JobSchedule)info).getScheduleType(),
+					((JobSchedule)info).getWeek(),
+					((JobSchedule)info).getHour(),
+					((JobSchedule)info).getMinute(),
+					((JobSchedule)info).getFromXminutes(),
+					((JobSchedule)info).getEveryXminutes());
+			
+			m_log.trace("CronString =" + cronString);
+			
+			// スケジュール定義を登録
+			try {
+				if (info.isValid().booleanValue()) {
+					SchedulerPlugin.scheduleCronJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME, HinemosTime.currentTimeMillis() + 15 * 1000, cronString,
 							true, JobControllerBean.class.getName(), QuartzConstant.METHOD_NAME, jdArgsType, jdArgs);
-					if (! ValidConstant.typeToBoolean(info.getValid())) {
-						SchedulerPlugin.pauseJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME);
-					}
-				} catch (HinemosUnknown e) {
-					m_log.error(e);
+				} else {
+					SchedulerPlugin.deleteJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME);
 				}
+			} catch (HinemosUnknown e) {
+				m_log.error(e);
 			}
-		});
-	}
-	/**
-	 * ファイルチェック情報をDBに反映します。<BR>
-	 *
-	 * @param info ファイルチェック情報
-	 * @param user ユーザID
-	 * @throws JobKickDuplicate
-	 * @throws InvalidSetting
-	 * @throws ParseException
-	 * @throws SchedulerException
-	 *
-	 * @see com.clustercontrol.jobmanagement.bean.QuartzConstant
-	 * @see com.clustercontrol.jobmanagement.bean.JobTriggerInfo
-	 * @see com.clustercontrol.jobmanagement.util.QuartzUtil#getQuartzManager()
-	 */
-	public void addFileCheck(JobFileCheck info, String loginUser) throws HinemosUnknown, JobKickDuplicate {
-		m_log.debug("addFileCheck() : id=" + info.getId() + ", jobId=" + info.getJobId());
-		JpaTransactionManager jtm = new JpaTransactionManager();
-		//最終更新日時を設定
-		Timestamp now = new Timestamp(new Date().getTime());
-		// DBにファイルチェック情報を保存
-		try {
-			// IDの重複チェック
-			String id = info.getId();
-			jtm.checkEntityExists(JobScheduleEntity.class, id);
-			jtm.checkEntityExists(JobFileCheckEntity.class, id);
-
-			JobFileCheckEntity jobFileCheckEntity = new JobFileCheckEntity(info.getId());
-			jobFileCheckEntity.setScheduleName(info.getName());
-			jobFileCheckEntity.setJobunitId(info.getJobunitId());
-			jobFileCheckEntity.setJobId(info.getJobId());
-			if (!"".equals(info.getCalendarId())) {
-				jobFileCheckEntity.setCalendarId(info.getCalendarId());
-			}
-			jobFileCheckEntity.setFacilityId(info.getFacilityId());
-			jobFileCheckEntity.setFileName(info.getFileName());
-			jobFileCheckEntity.setDirectory(info.getDirectory());
-			jobFileCheckEntity.setEventType(info.getEventType());
-			jobFileCheckEntity.setModifyType(info.getModifyType());
-
-			jobFileCheckEntity.setValidFlg(info.getValid());
-			jobFileCheckEntity.setOwnerRoleId(info.getOwnerRoleId());
-			jobFileCheckEntity.setRegDate(now);
-			jobFileCheckEntity.setUpdateDate(now);
-			jobFileCheckEntity.setRegUser(loginUser);
-			jobFileCheckEntity.setUpdateUser(loginUser);
-		} catch (EntityExistsException e) {
-			m_log.info("addFileCheck() JobFileCheckEntity.create() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw new JobKickDuplicate(e.getMessage(), e);
-		} catch (Exception e) {
-			m_log.warn("addFileCheck() JobFileCheckEntity.create() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			throw new HinemosUnknown(e.getMessage(), e);
 		}
-		//実行契機情報の作成
-		JobTriggerInfo triggerInfo = new JobTriggerInfo();
-		triggerInfo.setTrigger_type(JobTriggerTypeConstant.TYPE_FILECHECK);
-		triggerInfo.setTrigger_info(info.getName()+"("+info.getId()+")");
-
-		//JobDetailに呼び出すメソッドの引数を設定
-		Object[] jdArgs = new Object[QuartzConstant.ARGS_NUM];
-		Class<?>[] jdArgsType = new Class[QuartzConstant.ARGS_NUM];
-		//ジョブユニットIDを設定
-		jdArgs[QuartzConstant.INDEX_JOBUNIT_ID] = info.getJobunitId();
-		jdArgsType[QuartzConstant.INDEX_JOBUNIT_ID] = String.class;
-
-		//ジョブIDを設定
-		jdArgs[QuartzConstant.INDEX_JOB_ID] = info.getJobId();
-		jdArgsType[QuartzConstant.INDEX_JOB_ID] = String.class;
-
-		//カレンダIDを設定
-		jdArgs[QuartzConstant.INDEX_CALENDAR_ID] = info.getCalendarId();
-		jdArgsType[QuartzConstant.INDEX_CALENDAR_ID] = String.class;
-
-		//実行契機情報を設定
-		jdArgs[QuartzConstant.INDEX_TRIGGER_INFO] = triggerInfo;
-		jdArgsType[QuartzConstant.INDEX_TRIGGER_INFO] = JobTriggerInfo.class;
 
 	}
+
 	/**
-	 * DBのスケジュール情報を変更します。<BR>
-	 * @param info スケジュール情報
+	 * DBのジョブ契機情報を変更します。<BR>
+	 * @param info ジョブ実行契機情報
 	 * @param loginUser ユーザID
+	 * @param jobkickType ジョブ実行契機種別
 	 * @throws HinemosUnknown
 	 * @throws JobInfoNotFound
+	 * @throws ObjectPrivilege_InvalidRole
 	 */
-	public void modifySchedule(final JobSchedule info, String loginUser) throws HinemosUnknown, JobInfoNotFound, ObjectPrivilege_InvalidRole{
-		m_log.debug("modifySchedule() : id=" + info.getId() + ", jobId=" + info.getJobId());
-		JpaTransactionManager jtm = new JpaTransactionManager();
-		HinemosEntityManager em = jtm.getEntityManager();
+	public void modifyJobKick(final JobKick info, String loginUser, Integer jobkickType) throws HinemosUnknown, JobInfoNotFound, ObjectPrivilege_InvalidRole{
+		m_log.debug("modifyJobKick() : id=" + info.getId() + ", jobId=" + info.getJobId() + ", jobkickType=" + jobkickType);
 		//最終更新日時を設定
-		Timestamp now = new Timestamp(new Date().getTime());
+		long now = HinemosTime.currentTimeMillis();
 		// DBにスケジュール情報を保存
-		try {
-			JobScheduleEntity bean  = em.find(JobScheduleEntity.class, info.getId(),
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			JobKickEntity bean  = em.find(JobKickEntity.class, info.getId(),
 					ObjectPrivilegeMode.MODIFY);
 			if (bean == null) {
-				JobInfoNotFound e = new JobInfoNotFound("JobScheduleEntity.findByPrimaryKey");
+				JobInfoNotFound e = new JobInfoNotFound("JobKickEntity.findByPrimaryKey");
 				m_log.info(e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
 			}
-			bean.setScheduleId(info.getId());
-			bean.setScheduleName(info.getName());
+			bean.setJobkickId(info.getId());
+			bean.setJobkickName(info.getName());
 			bean.setJobunitId(info.getJobunitId());
 			bean.setJobId(info.getJobId());
-			if ("".equals(info.getCalendarId())) {
-				bean.setCalendarId(null);
-			} else {
-				bean.setCalendarId(info.getCalendarId());
+
+			// ランタイムジョブ変数情報
+			ArrayList<JobRuntimeParamEntityPK> jobRuntimeParamEntityPKList = new ArrayList<>();
+				
+			if (info.getJobRuntimeParamList() != null
+					&& info.getJobRuntimeParamList().size() > 0) {
+				for (JobRuntimeParam jobRuntimeParam : info.getJobRuntimeParamList()) {
+					JobRuntimeParamEntityPK jobRuntimeParamEntityPK 
+						= new JobRuntimeParamEntityPK(info.getId(), jobRuntimeParam.getParamId());
+					JobRuntimeParamEntity jobRuntimeParamEntity 
+						= em.find(JobRuntimeParamEntity.class, jobRuntimeParamEntityPK, 
+								ObjectPrivilegeMode.MODIFY);
+					if (jobRuntimeParamEntity == null) {
+						// 新規登録
+						jobRuntimeParamEntity 
+							= new JobRuntimeParamEntity(jobRuntimeParamEntityPK);
+						em.persist(jobRuntimeParamEntity);
+						jobRuntimeParamEntity.relateToJobKickEntity(bean);
+					}
+					jobRuntimeParamEntity.setParamType(jobRuntimeParam.getParamType());
+					jobRuntimeParamEntity.setDefaultValue(jobRuntimeParam.getValue());
+					jobRuntimeParamEntity.setDescription(jobRuntimeParam.getDescription());
+					jobRuntimeParamEntity.setRequiredFlg(jobRuntimeParam.getRequiredFlg());
+					jobRuntimeParamEntityPKList.add(jobRuntimeParamEntityPK);
+					
+					// ランタイムジョブ変数詳細情報
+					if (jobRuntimeParam.getJobRuntimeParamDetailList() != null
+							&& jobRuntimeParam.getJobRuntimeParamDetailList().size() > 0) {
+						ArrayList<JobRuntimeParamDetailEntityPK> jobRuntimeParamDetailEntityPKList 
+							= new ArrayList<>();
+						int detailIdx = 0;
+						for (JobRuntimeParamDetail jobRuntimeParamDetail 
+								: jobRuntimeParam.getJobRuntimeParamDetailList()) {
+							JobRuntimeParamDetailEntityPK jobRuntimeParamDetailEntityPK
+								= new JobRuntimeParamDetailEntityPK(
+										info.getId(), 
+										jobRuntimeParam.getParamId(),
+										detailIdx);
+							JobRuntimeParamDetailEntity jobRuntimeParamDetailEntity
+								= em.find(JobRuntimeParamDetailEntity.class, 
+										jobRuntimeParamDetailEntityPK,
+										ObjectPrivilegeMode.MODIFY);
+							if (jobRuntimeParamDetailEntity == null) {
+								// 新規登録
+								jobRuntimeParamDetailEntity = new JobRuntimeParamDetailEntity(
+										jobRuntimeParamDetailEntityPK);
+								// 登録
+								em.persist(jobRuntimeParamDetailEntity);
+								jobRuntimeParamDetailEntity.relateToJobRuntimeParamEntity(jobRuntimeParamEntity);
+							}
+							jobRuntimeParamDetailEntity.setParamValue(
+									jobRuntimeParamDetail.getParamValue());
+							jobRuntimeParamDetailEntity.setDescription(
+									jobRuntimeParamDetail.getDescription());
+							jobRuntimeParamDetailEntityPKList.add(jobRuntimeParamDetailEntityPK);
+							detailIdx++;
+						}
+						// 不要なJobRuntimeParamDetailEntityを削除
+						jobRuntimeParamEntity.deleteJobRuntimeParamDetailEntities(jobRuntimeParamDetailEntityPKList);
+					}
+				}
 			}
-			bean.setScheduleType(info.getScheduleType());
-			bean.setWeek(info.getWeek());
-			bean.setHour(info.getHour());
-			bean.setMinute(info.getMinute());
-			bean.setFromXMinutes(info.getFromXminutes());
-			bean.setEveryXMinutes(info.getEveryXminutes());
-			bean.setValidFlg(info.getValid());
+			// 不要なJobRuntimeParamEntityを削除
+			bean.deleteJobRuntimeParamEntities(jobRuntimeParamEntityPKList);
+
+			if (jobkickType == JobKickConstant.TYPE_SCHEDULE) {
+				// ジョブスケジュール
+				if (!(info instanceof JobSchedule)) {
+					throw new HinemosUnknown("type error : " + info.getClass() + "!=JobSchedule");
+				}
+				JobSchedule jobSchedule = (JobSchedule)info;
+				if ("".equals(jobSchedule.getCalendarId())) {
+					bean.setCalendarId(null);
+				} else {
+					bean.setCalendarId(jobSchedule.getCalendarId());
+				}
+				bean.setValidFlg(info.isValid());
+				bean.setScheduleType(jobSchedule.getScheduleType());
+				bean.setWeek(jobSchedule.getWeek());
+				bean.setHour(jobSchedule.getHour());
+				bean.setMinute(jobSchedule.getMinute());
+				bean.setFromXMinutes(jobSchedule.getFromXminutes());
+				bean.setEveryXMinutes(jobSchedule.getEveryXminutes());
+			} else if (jobkickType == JobKickConstant.TYPE_FILECHECK) {
+				// ファイルチェック
+				if (!(info instanceof JobFileCheck)) {
+					throw new HinemosUnknown("type error : " + info.getClass() + "!=JobFileCheck");
+				}
+				JobFileCheck jobFileCheck = (JobFileCheck)info;
+				if ("".equals(jobFileCheck.getCalendarId())) {
+					bean.setCalendarId(null);
+				} else {
+					bean.setCalendarId(jobFileCheck.getCalendarId());
+				}
+				bean.setValidFlg(info.isValid());
+				bean.setFacilityId(jobFileCheck.getFacilityId());
+				bean.setDirectory(jobFileCheck.getDirectory());
+				bean.setFileName(jobFileCheck.getFileName());
+				bean.setEventType(jobFileCheck.getEventType());
+				bean.setModifyType(jobFileCheck.getModifyType());
+			} else if (jobkickType == JobKickConstant.TYPE_MANUAL) {
+				bean.setCalendarId(null);
+				bean.setValidFlg(true);
+			} 
 			bean.setOwnerRoleId(info.getOwnerRoleId());
-			/*
-			 * 作成時刻は変更時に更新されるはずがないので、再度登録しない
-			 * bean.setRegDate(new Timestamp(info.getCreateTime()));
-			 * 作成ユーザは変更時に更新されるはずがないので、再度登録しない
-			 * bean.setRegUser(info.getCreateUser());
-			 */
 			bean.setUpdateDate(now);
 			bean.setUpdateUser(loginUser);
 		} catch (JobInfoNotFound e) {
@@ -290,168 +394,126 @@ public class ModifyJobKick {
 		} catch (ObjectPrivilege_InvalidRole e) {
 			throw e;
 		} catch (Exception e) {
-			m_log.warn("modifySchedule() : "
+			m_log.warn("modifyJobKick() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		}
-		
-		jtm.addCallback(new EmptyJpaTransactionCallback() {
-			@Override
-			public void postCommit() {
-				//実行契機情報の作成
-				JobTriggerInfo triggerInfo = new JobTriggerInfo();
-				triggerInfo.setTrigger_type(JobTriggerTypeConstant.TYPE_SCHEDULE);
-				triggerInfo.setTrigger_info(info.getName()+"("+info.getId()+")");
-				
-				//JobDetailに呼び出すメソッドの引数を設定
-				Serializable[] jdArgs = new Serializable[QuartzConstant.ARGS_NUM];
-				Class<? extends Serializable>[] jdArgsType = new Class[QuartzConstant.ARGS_NUM];
-				//ジョブユニットIDを設定
-				jdArgs[QuartzConstant.INDEX_JOBUNIT_ID] = info.getJobunitId();
-				jdArgsType[QuartzConstant.INDEX_JOBUNIT_ID] = String.class;
-				
-				//ジョブIDを設定
-				jdArgs[QuartzConstant.INDEX_JOB_ID] = info.getJobId();
-				jdArgsType[QuartzConstant.INDEX_JOB_ID] = String.class;
-				
-				//カレンダIDを設定
-				jdArgs[QuartzConstant.INDEX_CALENDAR_ID] = info.getCalendarId();
-				jdArgsType[QuartzConstant.INDEX_CALENDAR_ID] = String.class;
-				
-				//実行契機情報を設定
-				jdArgs[QuartzConstant.INDEX_TRIGGER_INFO] = triggerInfo;
-				jdArgsType[QuartzConstant.INDEX_TRIGGER_INFO] = JobTriggerInfo.class;
-				
-				//Cron表記へ変換
-				String cronString = QuartzUtil.getCronString(info.getScheduleType(),
-						info.getWeek(),info.getHour(),info.getMinute(),
-						info.getFromXminutes(),info.getEveryXminutes());
-				
-				m_log.trace("CronString =" + cronString);
-				
-				// スケジュール定義を登録
-				try {
-					SchedulerPlugin.scheduleCronJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME, new Date(System.currentTimeMillis() + 15 * 1000), cronString,
+
+		if (jobkickType == JobKickConstant.TYPE_SCHEDULE) {
+			// ジョブスケジュールの場合、実行契機情報の作成
+			JobTriggerInfo triggerInfo = new JobTriggerInfo();
+			triggerInfo.setTrigger_type(JobTriggerTypeConstant.TYPE_SCHEDULE);
+			triggerInfo.setTrigger_info(info.getName()+"("+info.getId()+")");
+			
+			//JobDetailに呼び出すメソッドの引数を設定
+			Serializable[] jdArgs = new Serializable[QuartzConstant.ARGS_NUM];
+			@SuppressWarnings("unchecked")
+			Class<? extends Serializable>[] jdArgsType = new Class[QuartzConstant.ARGS_NUM];
+			//ジョブユニットIDを設定
+			jdArgs[QuartzConstant.INDEX_JOBUNIT_ID] = info.getJobunitId();
+			jdArgsType[QuartzConstant.INDEX_JOBUNIT_ID] = String.class;
+			
+			//ジョブIDを設定
+			jdArgs[QuartzConstant.INDEX_JOB_ID] = info.getJobId();
+			jdArgsType[QuartzConstant.INDEX_JOB_ID] = String.class;
+			
+			//カレンダIDを設定
+			jdArgs[QuartzConstant.INDEX_CALENDAR_ID] = info.getCalendarId();
+			jdArgsType[QuartzConstant.INDEX_CALENDAR_ID] = String.class;
+			
+			//実行契機種別を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_TYPE] = triggerInfo.getTrigger_type();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_TYPE] = Integer.class;
+			
+			//実行契機情報を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_INFO] = triggerInfo.getTrigger_info();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_INFO] = String.class;
+			
+			//ファイル名を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_FILENAME] = triggerInfo.getFilename();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_FILENAME] = String.class;
+			
+			//ディレクトリ名を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_DIRECTORY] = triggerInfo.getDirectory();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_DIRECTORY] = String.class;
+			
+			//ジョブの待ち条件（時刻）の有効・無効を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_TIME] = triggerInfo.getJobWaitTime();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_TIME] = Boolean.class;
+			
+			//ジョブの待ち条件（ジョブセッション開始後の時間の有効・無効を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_MINUTE] = triggerInfo.getJobWaitMinute();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_WAIT_MINUTE] = Boolean.class;
+			
+			//ジョブの起動コマンドの置換の有無を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND] = triggerInfo.getJobCommand();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND] = Boolean.class;
+			
+			//ジョブの起動コマンドの置換の有無を設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND_TEXT] = triggerInfo.getJobCommandText();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOB_COMMAND_TEXT] = String.class;
+			
+			//ジョブ実行契機IDを設定
+			jdArgs[QuartzConstant.INDEX_TRIGGER_JOBKICK_ID] = info.getId();
+			jdArgsType[QuartzConstant.INDEX_TRIGGER_JOBKICK_ID] = String.class;
+			
+			//Cron表記へ変換
+			String cronString = QuartzUtil.getCronString(
+					((JobSchedule)info).getScheduleType(),
+					((JobSchedule)info).getWeek(),
+					((JobSchedule)info).getHour(),
+					((JobSchedule)info).getMinute(),
+					((JobSchedule)info).getFromXminutes(),
+					((JobSchedule)info).getEveryXminutes());
+	
+			
+			m_log.trace("CronString =" + cronString);
+			
+			// スケジュール定義を登録
+			try {
+				if (info.isValid().booleanValue()) {
+					SchedulerPlugin.scheduleCronJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME, HinemosTime.currentTimeMillis() + 15 * 1000, cronString,
 							true, JobControllerBean.class.getName(), QuartzConstant.METHOD_NAME, jdArgsType, jdArgs);
-					if (! ValidConstant.typeToBoolean(info.getValid())) {
-						SchedulerPlugin.pauseJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME);
-					}
-				} catch (HinemosUnknown e) {
-					m_log.error(e);
+				} else {
+					SchedulerPlugin.deleteJob(SchedulerType.DBMS, info.getId(), QuartzConstant.GROUP_NAME);
 				}
+			} catch (HinemosUnknown e) {
+				m_log.error(e);
 			}
-		});
-
-
+		}
 	}
+
 	/**
-	 * DBのファイルチェック情報を変更します。<BR>
-	 * @param info ファイルチェック情報
-	 * @param loginUser ユーザID
+	 * ジョブ実行契機を削除します。
+	 * スケジュールの場合は、スケジュール情報を基にQuartzに登録したジョブを削除します。
+	 *
+	 * @param jobkickId ジョブ実行契機ID
+	 * @param jobkickType ジョブ実行契機種別
 	 * @throws HinemosUnknown
 	 * @throws JobInfoNotFound
-	 */
-	public void modifyFileCheck(JobFileCheck info, String loginUser) throws HinemosUnknown, JobInfoNotFound, ObjectPrivilege_InvalidRole{
-		m_log.debug("modifyFileCheck() : scheduleId=" + info.getId());
-		JpaTransactionManager jtm = new JpaTransactionManager();
-		HinemosEntityManager em = jtm.getEntityManager();
-		//最終更新日時を設定
-		Timestamp now = new Timestamp(new Date().getTime());
-		// DBにファイルチェック情報を保存
-		try {
-			JobFileCheckEntity bean  = em.find(JobFileCheckEntity.class, info.getId(),
-					ObjectPrivilegeMode.MODIFY);
-			if (bean == null) {
-				JobInfoNotFound e = new JobInfoNotFound("JobFileCheckEntity.findByPrimaryKey");
-				m_log.info(e.getClass().getSimpleName() + ", " + e.getMessage());
-				throw e;
-			}
-			bean.setScheduleId(info.getId());
-			bean.setScheduleName(info.getName());
-			bean.setJobunitId(info.getJobunitId());
-			bean.setJobId(info.getJobId());
-			if ("".equals(info.getCalendarId())) {
-				bean.setCalendarId(null);
-			} else {
-				bean.setCalendarId(info.getCalendarId());
-			}
-			bean.setFacilityId(info.getFacilityId());
-			bean.setDirectory(info.getDirectory());
-			bean.setFileName(info.getFileName());
-			bean.setEventType(info.getEventType());
-			bean.setModifyType(info.getModifyType());
-			bean.setValidFlg(info.getValid());
-			bean.setOwnerRoleId(info.getOwnerRoleId());
-			/*
-			 * 作成時刻は変更時に更新されるはずがないので、再度登録しない
-			 * bean.setRegDate(new Timestamp(info.getCreateTime()));
-			 * 作成ユーザは変更時に更新されるはずがないので、再度登録しない
-			 * bean.setRegUser(info.getCreateUser());
-			 */
-			bean.setUpdateDate(now);
-			bean.setUpdateUser(loginUser);
-		} catch (JobInfoNotFound e) {
-			throw e;
-		} catch (ObjectPrivilege_InvalidRole e) {
-			throw e;
-		} catch (Exception e) {
-			m_log.warn("modifyFileCheck() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			throw new HinemosUnknown(e.getMessage(), e);
-		}
-		//実行契機情報の作成
-		JobTriggerInfo triggerInfo = new JobTriggerInfo();
-		triggerInfo.setTrigger_type(JobTriggerTypeConstant.TYPE_FILECHECK);
-		triggerInfo.setTrigger_info(info.getName()+"("+info.getId()+")");
-
-		//JobDetailに呼び出すメソッドの引数を設定
-		Object[] jdArgs = new Object[QuartzConstant.ARGS_NUM];
-		Class<?>[] jdArgsType = new Class[QuartzConstant.ARGS_NUM];
-		//ジョブユニットIDを設定
-		jdArgs[QuartzConstant.INDEX_JOBUNIT_ID] = info.getJobunitId();
-		jdArgsType[QuartzConstant.INDEX_JOBUNIT_ID] = String.class;
-
-		//ジョブIDを設定
-		jdArgs[QuartzConstant.INDEX_JOB_ID] = info.getJobId();
-		jdArgsType[QuartzConstant.INDEX_JOB_ID] = String.class;
-
-		//カレンダIDを設定
-		jdArgs[QuartzConstant.INDEX_CALENDAR_ID] = info.getCalendarId();
-		jdArgsType[QuartzConstant.INDEX_CALENDAR_ID] = String.class;
-
-		//実行契機情報を設定
-		jdArgs[QuartzConstant.INDEX_TRIGGER_INFO] = triggerInfo;
-		jdArgsType[QuartzConstant.INDEX_TRIGGER_INFO] = JobTriggerInfo.class;
-	}
-	/**
-	 * スケジュール情報を基にQuartzに登録したジョブを削除します。
-	 *
-	 * @param scheduleId スケジュールID
-	 * @throws JobInfoNotFound
-	 * @throws SchedulerException
+	 * @throws ObjectPrivilege_InvalidRole
 	 *
 	 * @see com.clustercontrol.jobmanagement.bean.QuartzConstant
 	 * @see com.clustercontrol.jobmanagement.util.QuartzUtil#getQuartzManager()
 	 * @see com.clustercontrol.quartzmanager.ejb.session.QuartzManager#deleteSchedule(java.lang.String, java.lang.String)
 	 */
-	public void deleteSchedule(final String scheduleId) throws HinemosUnknown, JobInfoNotFound, ObjectPrivilege_InvalidRole {
+	public void deleteJobKick(final String jobkickId, Integer jobkickType) throws HinemosUnknown, JobInfoNotFound, ObjectPrivilege_InvalidRole {
 		// スケジュール定義を削除
-		m_log.debug("deleteSchedule() : id=" + scheduleId);
+		m_log.debug("deleteJobKick() : id=" + jobkickId);
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
-		HinemosEntityManager em = jtm.getEntityManager();
 		// DBのスケジュール情報を削除
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			//削除対象を検索
-			JobScheduleEntity jobScheduleEntity = em.find(JobScheduleEntity.class, scheduleId,
+			JobKickEntity jobKickEntity = em.find(JobKickEntity.class, jobkickId,
 					ObjectPrivilegeMode.MODIFY);
-			if (jobScheduleEntity == null) {
-				JobInfoNotFound e = new JobInfoNotFound("JobScheduleEntity.findByPrimaryKey");
+			if (jobKickEntity == null) {
+				JobInfoNotFound e = new JobInfoNotFound("JobKickEntity.findByPrimaryKey");
 				m_log.info(e.getClass().getSimpleName() + ", " + e.getMessage());
 				throw e;
 			}
 			//削除
-			em.remove(jobScheduleEntity);
+			em.remove(jobKickEntity);
 		} catch (JobInfoNotFound e) {
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
@@ -461,47 +523,15 @@ public class ModifyJobKick {
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			throw new HinemosUnknown(e.getMessage(), e);
 		}
-		//CronTriggerを削除
-		jtm.addCallback(new EmptyJpaTransactionCallback() {
-			@Override
-			public void postCommit() {
-				try {
-					SchedulerPlugin.deleteJob(SchedulerType.DBMS, scheduleId, QuartzConstant.GROUP_NAME);
-				} catch (HinemosUnknown e) {
-					m_log.error(e);
-				}
+		
+		if (jobkickType == JobKickConstant.TYPE_SCHEDULE) {
+			// スケジュールの場合、CronTriggerを削除
+			try {
+				m_log.debug("deleteJob() : id=" + jobkickId);
+				SchedulerPlugin.deleteJob(SchedulerType.DBMS, jobkickId, QuartzConstant.GROUP_NAME);
+			} catch (HinemosUnknown e) {
+				m_log.error(e);
 			}
-		});
-
-	}
-	public void deleteFileCheck(String scheduleId) throws HinemosUnknown, JobInfoNotFound, ObjectPrivilege_InvalidRole {
-		// ファイルチェック定義を削除
-		m_log.debug("deleteFileCheck() : id=" + scheduleId);
-		JpaTransactionManager jtm = null;
-
-		jtm = new JpaTransactionManager();
-		HinemosEntityManager em = jtm.getEntityManager();
-
-		// DBのファイルチェック情報を削除
-		try {
-			//削除対象を検索
-			JobFileCheckEntity jobFileCheckEntity = em.find(JobFileCheckEntity.class, scheduleId,
-					ObjectPrivilegeMode.MODIFY);
-			if (jobFileCheckEntity == null) {
-				JobInfoNotFound e = new JobInfoNotFound("JobFileCheckEntity.findByPrimaryKey");
-				m_log.info(e.getClass().getSimpleName() + ", " + e.getMessage());
-				throw e;
-			}
-			//削除
-			em.remove(jobFileCheckEntity);
-		} catch (JobInfoNotFound e) {
-			throw e;
-		} catch (ObjectPrivilege_InvalidRole e) {
-			throw e;
-		} catch (Exception e) {
-			m_log.warn("deleteFileCheck() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			throw new HinemosUnknown(e.getMessage(), e);
 		}
 	}
 }

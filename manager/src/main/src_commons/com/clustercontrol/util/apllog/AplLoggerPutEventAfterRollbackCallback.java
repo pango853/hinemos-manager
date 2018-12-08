@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.util.apllog;
@@ -29,7 +22,6 @@ import com.clustercontrol.notify.session.NotifyControllerBean;
  * Rollback時もINTERNALイベントは出力する必要があるため、Rollback時に動作するよう設定
  * イベント出力以外は、Rollbackされても動作するため、対応するのはイベント出力のみ
  * 
- * @author uchiyamayus
  */
 public class AplLoggerPutEventAfterRollbackCallback implements JpaTransactionCallback {
 
@@ -43,10 +35,9 @@ public class AplLoggerPutEventAfterRollbackCallback implements JpaTransactionCal
 	}
 
 	@Override
-	public void preBegin() {}
-
-	@Override
-	public void postBegin() {}
+	public boolean isTransaction() {
+		return false;
+	}
 
 	@Override
 	public void preFlush() {}

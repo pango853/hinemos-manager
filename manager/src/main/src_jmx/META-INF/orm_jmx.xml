@@ -7,7 +7,7 @@
 	<named-query name="MonitorJmxMstEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM MonitorJmxMstEntity a ORDER BY a.id
+				SELECT a FROM JmxMasterInfo a ORDER BY a.id
 			]]>
 		</query>
 	</named-query>
@@ -15,7 +15,7 @@
 	<named-query name="MonitorJmxMstEntity.findList">
 		<query>
 			<![CDATA[
-				SELECT a FROM MonitorJmxMstEntity a WHERE a.id in :ids
+				SELECT a FROM JmxMasterInfo a WHERE a.id in :ids
 			]]>
 		</query>
 	</named-query>

@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.http.factory;
@@ -41,32 +34,31 @@ import org.apache.http.Header;
 import org.apache.log4j.Logger;
 
 import com.clustercontrol.bean.PriorityConstant;
-import com.clustercontrol.bean.ProcessConstant;
-import com.clustercontrol.bean.ValidConstant;
+import com.clustercontrol.collect.bean.Sample;
+import com.clustercontrol.collect.util.CollectDataUtil;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.http.model.MonitorHttpScenarioInfoEntity;
-import com.clustercontrol.http.model.MonitorHttpScenarioPageInfoEntity;
-import com.clustercontrol.http.model.MonitorHttpScenarioPatternInfoEntity;
-import com.clustercontrol.http.model.MonitorHttpScenarioVariableInfoEntity;
+import com.clustercontrol.http.model.HttpScenarioCheckInfo;
+import com.clustercontrol.http.model.Page;
+import com.clustercontrol.http.model.Variable;
 import com.clustercontrol.http.util.CallableTaskHttpScenario;
 import com.clustercontrol.http.util.GetHttpResponse;
 import com.clustercontrol.http.util.GetHttpResponse.AuthType;
-import com.clustercontrol.http.util.Response;
 import com.clustercontrol.http.util.QueryUtil;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.http.util.Response;
 import com.clustercontrol.monitor.run.bean.MonitorRunResultInfo;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.util.ParallelExecution;
+import com.clustercontrol.notify.bean.OutputBasicInfo;
 import com.clustercontrol.performance.bean.CollectedDataErrorTypeConstant;
-import com.clustercontrol.performance.bean.Sample;
-import com.clustercontrol.performance.util.PerformanceDataUtil;
-import com.clustercontrol.repository.bean.NodeInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 import com.clustercontrol.repository.util.RepositoryUtil;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.StringBinder;
 
 /**
@@ -77,24 +69,18 @@ import com.clustercontrol.util.StringBinder;
  */
 public class RunMonitorHttpScenario extends RunMonitor {
 	private static class PageResponse {
-		public PageResponse(MonitorHttpScenarioPageInfoEntity page, Response response) {
+		public PageResponse(Page page, Response response) {
 			this.page = page;
 			this.response = response;
 		}
-		public final MonitorHttpScenarioPageInfoEntity page;
+		public final Page page;
 		public final Response response;
 	}
 
 	private static Logger m_log = Logger.getLogger(RunMonitorHttpScenario.class);
 
-	private static final String MESSAGE_ID_NONE = "000";
-	private static final String MESSAGE_ID_INFO = "001";
-	private static final String MESSAGE_ID_WARNING = "002";
-	private static final String MESSAGE_ID_CRITICAL = "003";
-	private static final String MESSAGE_ID_UNKNOWN = "004";
-
 	/** HTTP監視情報 */
-	private MonitorHttpScenarioInfoEntity m_httpScenarioInfoEntity = null;
+	private HttpScenarioCheckInfo m_httpScenarioCheckInfo = null;
 
 	/**
 	 * コンストラクタ
@@ -108,7 +94,7 @@ public class RunMonitorHttpScenario extends RunMonitor {
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -123,10 +109,11 @@ public class RunMonitorHttpScenario extends RunMonitor {
 	 *
 	 */
 	@Override
-	protected boolean runMonitorInfo() throws FacilityNotFound, MonitorNotFound, EntityExistsException, InvalidRole, HinemosUnknown {
+	protected List<OutputBasicInfo> runMonitorInfo() throws FacilityNotFound, MonitorNotFound, EntityExistsException, InvalidRole, HinemosUnknown {
 		m_log.debug("runMonitorInfo()");
 
-		m_now = new Date(System.currentTimeMillis());
+		List<OutputBasicInfo> ret = new ArrayList<>();
+		m_now = new Date(HinemosTime.currentTimeMillis());
 
 		m_priorityMap = new HashMap<Integer, ArrayList<String>>();
 		m_priorityMap.put(Integer.valueOf(PriorityConstant.TYPE_INFO),		new ArrayList<String>());
@@ -140,7 +127,7 @@ public class RunMonitorHttpScenario extends RunMonitor {
 			boolean run = this.setMonitorInfo(m_monitorTypeId, m_monitorId);
 			if(!run){
 				// 処理終了
-				return true;
+				return ret;
 			}
 
 			// 判定情報を設定
@@ -149,64 +136,113 @@ public class RunMonitorHttpScenario extends RunMonitor {
 			// チェック条件情報を設定
 			setCheckInfo();
 
-			// ファシリティIDの配下全ての一覧を取得
-			// 有効/無効フラグがtrueとなっているファシリティIDを取得する
-			ArrayList<String> facilityList = new RepositoryControllerBean().getExecTargetFacilityIdList(m_facilityId, m_monitor.getOwnerRoleId());
-			if (facilityList.size() == 0) {
-				return true;
-			}
-
-			m_isNode = new RepositoryControllerBean().isNode(m_facilityId);
-
-			// 監視対象となっているノードの変数を取得
-			nodeInfo = new HashMap<String, NodeInfo>();
-			for (String facilityId : facilityList) {
-				try {
-					synchronized (this) {
-						nodeInfo.put(facilityId, new RepositoryControllerBean().getNode(facilityId));
-					}
-				} catch (FacilityNotFound e) {
-					// 何もしない
-				}
-			}
-
-			m_log.debug("monitor start : monitorTypeId : " + m_monitorTypeId + ", monitorId : " + m_monitorId);
-
-			String facilityId = null;
-
-			/**
-			 * 監視の実行
-			 */
-			// ファシリティIDの数だけ、各監視処理を実行する
-			Iterator<String> itr = facilityList.iterator();
-			
+			ArrayList<String> facilityList = null;
 			ExecutorCompletionService<ArrayList<MonitorRunResultInfo>> ecs = new ExecutorCompletionService<ArrayList<MonitorRunResultInfo>>(ParallelExecution.instance().getExecutorService());
 			int taskCount = 0;
-			
-			while(itr.hasNext()){
-				facilityId = itr.next();
-				if(facilityId != null && !"".equals(facilityId)){
 
-					// マルチスレッド実行用に、RunMonitorのインスタンスを新規作成する
-					// インスタンスを新規作成するのは、共通クラス部分に監視結果を保持するため
-					RunMonitorHttpScenario runMonitor = new RunMonitorHttpScenario();
+			if (!m_isMonitorJob) {
+				// 監視ジョブ以外の場合
+				// ファシリティIDの配下全ての一覧を取得
+				// 有効/無効フラグがtrueとなっているファシリティIDを取得する
+				facilityList = new RepositoryControllerBean().getExecTargetFacilityIdList(m_facilityId, m_monitor.getOwnerRoleId());
+				if (facilityList.size() == 0) {
+					return ret;
+				}
 
-					// 監視実行に必要な情報を再度セットする
-					runMonitor.m_monitorTypeId = this.m_monitorTypeId;
-					runMonitor.m_monitorId = this.m_monitorId;
-					runMonitor.m_now = this.m_now;
-					runMonitor.setMonitorInfo(m_monitorTypeId, m_monitorId);
-					runMonitor.m_priorityMap = this.m_priorityMap;
-					runMonitor.setJudgementInfo();
-					runMonitor.nodeInfo = this.nodeInfo;
-					runMonitor.setCheckInfo();
-					
-					ecs.submit(new CallableTaskHttpScenario(runMonitor, facilityId));
-					taskCount++;
+				m_isNode = new RepositoryControllerBean().isNode(m_facilityId);
+
+				// 監視対象となっているノードの変数を取得
+				nodeInfo = new HashMap<String, NodeInfo>();
+				for (String facilityId : facilityList) {
+					try {
+						synchronized (this) {
+							nodeInfo.put(facilityId, new RepositoryControllerBean().getNode(facilityId));
+						}
+					} catch (FacilityNotFound e) {
+						// 何もしない
+					}
 				}
-				else {
-					itr.remove();
+
+				m_log.debug("monitor start : monitorTypeId : " + m_monitorTypeId + ", monitorId : " + m_monitorId);
+
+				String facilityId = null;
+
+				/**
+				 * 監視の実行
+				 */
+				// ファシリティIDの数だけ、各監視処理を実行する
+				Iterator<String> itr = facilityList.iterator();
+				while(itr.hasNext()){
+					facilityId = itr.next();
+					if(facilityId != null && !"".equals(facilityId)){
+
+						// マルチスレッド実行用に、RunMonitorのインスタンスを新規作成する
+						// インスタンスを新規作成するのは、共通クラス部分に監視結果を保持するため
+						RunMonitorHttpScenario runMonitor = new RunMonitorHttpScenario();
+
+						// 監視実行に必要な情報を再度セットする
+						runMonitor.m_monitorTypeId = this.m_monitorTypeId;
+						runMonitor.m_monitorId = this.m_monitorId;
+						runMonitor.m_now = this.m_now;
+						runMonitor.m_priorityMap = this.m_priorityMap;
+						runMonitor.setMonitorInfo(runMonitor.m_monitorTypeId, runMonitor.m_monitorId);
+						runMonitor.setJudgementInfo();
+						runMonitor.setCheckInfo();
+						runMonitor.nodeInfo = this.nodeInfo;
+						
+						ecs.submit(new CallableTaskHttpScenario(runMonitor, facilityId));
+						taskCount++;
+					}
+					else {
+						itr.remove();
+					}
 				}
+			} else {
+				// 監視ジョブの場合
+				// 監視ジョブ以外の場合
+				// ファシリティIDの配下全ての一覧を取得
+				// 有効/無効フラグがtrueとなっているファシリティIDを取得する
+				facilityList = new RepositoryControllerBean().getExecTargetFacilityIdList(m_facilityId, m_monitor.getOwnerRoleId());
+				if (facilityList.size() != 1
+						|| !facilityList.get(0).equals(m_facilityId) ) {
+					return ret;
+				}
+
+				m_isNode = new RepositoryControllerBean().isNode(m_facilityId);
+
+				// 監視対象となっているノードの変数を取得
+				nodeInfo = new HashMap<String, NodeInfo>();
+				for (String facilityId : facilityList) {
+					try {
+						synchronized (this) {
+							nodeInfo.put(facilityId, new RepositoryControllerBean().getNode(m_facilityId));
+						}
+					} catch (FacilityNotFound e) {
+						// 何もしない
+					}
+				}
+				m_log.debug("monitor start : monitorTypeId : " + m_monitorTypeId + ", monitorId : " + m_monitorId);
+
+				/**
+				 * 監視の実行
+				 */
+				// マルチスレッド実行用に、RunMonitorのインスタンスを新規作成する
+				// インスタンスを新規作成するのは、共通クラス部分に監視結果を保持するため
+				RunMonitorHttpScenario runMonitor = new RunMonitorHttpScenario();
+
+				// 監視実行に必要な情報を再度セットする
+				runMonitor.m_isMonitorJob = this.m_isMonitorJob;
+				runMonitor.m_monitorTypeId = this.m_monitorTypeId;
+				runMonitor.m_monitorId = this.m_monitorId;
+				runMonitor.m_now = this.m_now;
+				runMonitor.m_priorityMap = this.m_priorityMap;
+				runMonitor.setMonitorInfo(runMonitor.m_monitorTypeId, runMonitor.m_monitorId);
+				runMonitor.setJudgementInfo();
+				runMonitor.setCheckInfo();
+				runMonitor.nodeInfo = this.nodeInfo;
+
+				ecs.submit(new CallableTaskHttpScenario(runMonitor, m_facilityId));
+				taskCount++;
 			}
 			/**
 			 * 監視結果の集計
@@ -216,9 +252,10 @@ public class RunMonitorHttpScenario extends RunMonitor {
 			m_log.debug("total start : monitorTypeId : " + m_monitorTypeId + ", monitorId : " + m_monitorId);
 
 			// 収集値の入れ物を作成
+			List<Sample> sampleList= new ArrayList<Sample>();
 			Sample sample = null;
-			if(m_monitor.getCollectorFlg() == ValidConstant.TYPE_VALID){
-				sample = new Sample(m_monitorId, new Date());
+			if(m_monitor.getCollectorFlg()){
+				sample = new Sample(HinemosTime.getDateInstance(), m_monitor.getMonitorId());
 			}
 			
 			for (int i = 0; i < taskCount; i++) {
@@ -228,32 +265,45 @@ public class RunMonitorHttpScenario extends RunMonitor {
 				for(MonitorRunResultInfo result : resultList){
 					m_nodeDate = result.getNodeDate();
 					
-					facilityId = result.getFacilityId();
+					String facilityId = result.getFacilityId();
 					
 					// 監視結果を通知
-					if(result.getMonitorFlg()){
-						notify(true, facilityId, result.getCheckResult(), new Date(m_nodeDate), result);
+					if (!m_isMonitorJob) {
+						if(result.getMonitorFlg()){
+							ret.add(createOutputBasicInfo(true, facilityId, result.getCheckResult(), new Date(m_nodeDate), result,
+									m_monitor));
+						}
+					} else {
+						m_monitorRunResultInfo = new MonitorRunResultInfo();
+						m_monitorRunResultInfo.setPriority(result.getPriority());
+						m_monitorRunResultInfo.setCheckResult(result.getCheckResult());
+						m_monitorRunResultInfo.setNodeDate(m_nodeDate);
+						m_monitorRunResultInfo.setMessageOrg(makeJobOrgMessage(result.getMessageOrg(), result.getMessage()));
 					}
 
 					// 個々の収集値の登録
 					if(sample != null && result.getCollectorFlg()){
+						int errorCode = -1;
 						if(result.isCollectorResult()){
-							sample.set(facilityId,result.getItemCode(), result.getDisplayName(), result.getValue(), CollectedDataErrorTypeConstant.NOT_ERROR);
+							errorCode = CollectedDataErrorTypeConstant.NOT_ERROR;
 						}else{
-							sample.set(facilityId,result.getItemCode(), result.getDisplayName(), result.getValue(), CollectedDataErrorTypeConstant.UNKNOWN);
+							errorCode = CollectedDataErrorTypeConstant.UNKNOWN;
 						}
+						sample.set(facilityId, m_monitor.getItemName(), result.getValue(), errorCode, result.getDisplayName());
 					}
 				}
 			}
 			
 			// 収集値をまとめて登録
 			if(sample != null){
-				PerformanceDataUtil.put(sample);
+				sampleList.add(sample);
 			}
-
+			if(!sampleList.isEmpty()){
+				CollectDataUtil.put(sampleList);
+			}
 			m_log.debug("monitor end : monitorTypeId : " + m_monitorTypeId + ", monitorId : " + m_monitorId);
 
-			return true;
+			return ret;
 
 		}
 		catch (EntityExistsException e) {
@@ -262,18 +312,15 @@ public class RunMonitorHttpScenario extends RunMonitor {
 		catch (FacilityNotFound e) {
 			throw e;
 		}
-		catch (InvalidRole e) {
-			throw e;
-		}
 		catch (InterruptedException e) {
 			m_log.info("runMonitorInfo() monitorTypeId = " + m_monitorTypeId + ", monitorId = " + m_monitorId + " : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			return false;
+			throw new HinemosUnknown(e);
 		}
 		catch (ExecutionException e) {
 			m_log.info("runMonitorInfo() monitorTypeId = " + m_monitorTypeId + ", monitorId = " + m_monitorId + " : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			return false;
+			throw new HinemosUnknown(e);
 		}
 	}
 
@@ -297,12 +344,11 @@ public class RunMonitorHttpScenario extends RunMonitor {
 	 */
 	public List<MonitorRunResultInfo> collectList(String facilityId) {
 		// 無効となっている設定はスキップする
-		if (
-			m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg() == ValidConstant.TYPE_INVALID &&
-			m_httpScenarioInfoEntity.getMonitorInfoEntity().getCollectorFlg() == ValidConstant.TYPE_INVALID
-			) {
+		if (!m_isMonitorJob && 
+			(!m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg() &&
+			!m_httpScenarioCheckInfo.getMonitorInfo().getCollectorFlg())) {
 			if (m_log.isDebugEnabled()) {
-				m_log.debug("http scenario monitor " + m_httpScenarioInfoEntity.getMonitorId()
+				m_log.debug("http scenario monitor " + m_httpScenarioCheckInfo.getMonitorId()
 						+ " is not enabled, skip filtering.");
 			}
 			return Collections.emptyList();
@@ -311,26 +357,25 @@ public class RunMonitorHttpScenario extends RunMonitor {
 		if (m_now != null){
 			m_nodeDate = m_now.getTime();
 		}
-		m_value = 0;
 
 		GetHttpResponse.GetHttpResponseBuilder builder = null;
 		try {
 			builder = GetHttpResponse.custom()
-				.setAuthType(m_httpScenarioInfoEntity.getAuthType() == null ? GetHttpResponse.AuthType.NONE: AuthType.valueOf(m_httpScenarioInfoEntity.getAuthType()))
-				.setAuthUser(m_httpScenarioInfoEntity.getAuthUser())
-				.setAuthPassword(m_httpScenarioInfoEntity.getAuthPassword())
-				.setUserAgent(m_httpScenarioInfoEntity.getUserAgent())
-				.setConnectTimeout(m_httpScenarioInfoEntity.getConnectTimeout() == null ? 0: m_httpScenarioInfoEntity.getConnectTimeout())
-				.setRequestTimeout(m_httpScenarioInfoEntity.getRequestTimeout() == null ? 0: m_httpScenarioInfoEntity.getRequestTimeout())
-				.setCancelProxyCache(HinemosPropertyUtil.getHinemosPropertyBool("monitor.http.scenario.disable.proxy.cache", true))
+				.setAuthType(m_httpScenarioCheckInfo.getAuthType() == null ? GetHttpResponse.AuthType.NONE: AuthType.valueOf(m_httpScenarioCheckInfo.getAuthType()))
+				.setAuthUser(m_httpScenarioCheckInfo.getAuthUser())
+				.setAuthPassword(m_httpScenarioCheckInfo.getAuthPassword())
+				.setUserAgent(m_httpScenarioCheckInfo.getUserAgent())
+				.setConnectTimeout(m_httpScenarioCheckInfo.getConnectTimeout() == null ? 0: m_httpScenarioCheckInfo.getConnectTimeout())
+				.setRequestTimeout(m_httpScenarioCheckInfo.getRequestTimeout() == null ? 0: m_httpScenarioCheckInfo.getRequestTimeout())
+				.setCancelProxyCache(HinemosPropertyCommon.monitor_http_scenario_disable_proxy_cache.getBooleanValue())
 				.setKeepAlive(true)
-				.setNeedAuthSSLCert(! HinemosPropertyUtil.getHinemosPropertyBool("monitor.http.ssl.trustall", true));
-			if (ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getProxyFlg())) {
+				.setNeedAuthSSLCert(! HinemosPropertyCommon.monitor_http_ssl_trustall.getBooleanValue());
+			if (m_httpScenarioCheckInfo.getProxyFlg()) {
 				builder
-				.setProxyURL(m_httpScenarioInfoEntity.getProxyUrl())
-				.setProxyPort(m_httpScenarioInfoEntity.getProxyPort() == null ? 0: m_httpScenarioInfoEntity.getProxyPort())
-				.setProxyUser(m_httpScenarioInfoEntity.getProxyUser())
-				.setProxyPassword(m_httpScenarioInfoEntity.getProxyPassword());
+				.setProxyURL(m_httpScenarioCheckInfo.getProxyUrl())
+				.setProxyPort(m_httpScenarioCheckInfo.getProxyPort() == null ? 0: m_httpScenarioCheckInfo.getProxyPort())
+				.setProxyUser(m_httpScenarioCheckInfo.getProxyUser())
+				.setProxyPassword(m_httpScenarioCheckInfo.getProxyPassword());
 			}
 		}
 		catch (URISyntaxException e) {
@@ -338,23 +383,22 @@ public class RunMonitorHttpScenario extends RunMonitor {
 
 			MonitorRunResultInfo info = new MonitorRunResultInfo();
 			info.setFacilityId(facilityId);
-			info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()));
+			info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg());
 			info.setCollectorFlg(false);
 			info.setCollectorResult(false);
 			info.setCheckResult(-1);
 			info.setPriority(PriorityConstant.TYPE_UNKNOWN);
-			info.setMessageId(MESSAGE_ID_UNKNOWN);
-			info.setMessage(Messages.getString("message.http.scenario.fail.analysis.proxyurl"));
+			info.setMessage(MessageConstant.MESSAGE_FAIL_TO_ANALYZE_PROXY_URL.getMessage());
 			StringBuffer messageOrg = new StringBuffer();
 			messageOrg.append(e.getMessage());
 			messageOrg.append("\n");
-			messageOrg.append(Messages.getString("monitor.http.scenario.proxyurl"));
+			messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PROXYURL.getMessage());
 			messageOrg.append(" : ");
-			messageOrg.append(m_httpScenarioInfoEntity.getProxyUrl());
+			messageOrg.append(m_httpScenarioCheckInfo.getProxyUrl());
 			info.setMessageOrg(messageOrg.toString());
 			info.setNodeDate(m_nodeDate);
-			info.setProcessType(ProcessConstant.TYPE_YES);
-			info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+			info.setProcessType(true);
+			info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
 
 			return Arrays.asList(info);
 		}
@@ -366,16 +410,16 @@ public class RunMonitorHttpScenario extends RunMonitor {
 		try (GetHttpResponse m_request = builder.build()) {
 			Map<String, String> variables = RepositoryUtil.createNodeParameter(nodeInfo.get(facilityId));
 
-			List<MonitorHttpScenarioPageInfoEntity> pages = new ArrayList<>(m_httpScenarioInfoEntity.getMonitorHttpScenarioPageInfoEntities());
-			Collections.sort(pages, new Comparator<MonitorHttpScenarioPageInfoEntity>() {
+			List<Page> pages = new ArrayList<>(m_httpScenarioCheckInfo.getPages());
+			Collections.sort(pages, new Comparator<Page>() {
 				@Override
-				public int compare(MonitorHttpScenarioPageInfoEntity o1, MonitorHttpScenarioPageInfoEntity o2) {
+				public int compare(Page o1, Page o2) {
 					return o1.getId().getPageOrderNo().compareTo(o2.getId().getPageOrderNo());
 				}
 			});
 
 			loopEnd:
-			for (MonitorHttpScenarioPageInfoEntity page: pages) {
+			for (Page page: pages) {
 				ResultType resultType = ResultType.SUCCESS;
 				MonitorRunResultInfo resultInfo = null;
 				StringBinder strbinder = new StringBinder(variables);
@@ -454,27 +498,27 @@ public class RunMonitorHttpScenario extends RunMonitor {
 					resultInfo.setFacilityId(facilityId);
 				}
 
-				if (ResultType.SUCCESS.equals(resultType) && !page.getMonitorHttpScenarioPatternInfoEntities().isEmpty()) {
-					List<MonitorHttpScenarioPatternInfoEntity> patterns = new ArrayList<>(page.getMonitorHttpScenarioPatternInfoEntities());
-					Collections.sort(patterns, new Comparator<MonitorHttpScenarioPatternInfoEntity>() {
+				if (ResultType.SUCCESS.equals(resultType) && !page.getPatterns().isEmpty()) {
+					List<com.clustercontrol.http.model.Pattern> patterns = new ArrayList<>(page.getPatterns());
+					Collections.sort(patterns, new Comparator<com.clustercontrol.http.model.Pattern>() {
 						@Override
-						public int compare(MonitorHttpScenarioPatternInfoEntity o1, MonitorHttpScenarioPatternInfoEntity o2) {
+						public int compare(com.clustercontrol.http.model.Pattern o1, com.clustercontrol.http.model.Pattern o2) {
 							return o1.getId().getPatternOrderNo().compareTo(o2.getId().getPatternOrderNo());
 						}
 					});
 
-					MonitorHttpScenarioPatternInfoEntity matchedPattern = null;
-					Integer exceptionProcessType = null;
+					com.clustercontrol.http.model.Pattern matchedPattern = null;
+					Boolean exceptionProcessType = null;
 					for (int i = 0; i < patterns.size(); ++i) {
-						MonitorHttpScenarioPatternInfoEntity pe = patterns.get(i);
+						com.clustercontrol.http.model.Pattern pe = patterns.get(i);
 
-						if (pe.getValidFlg() != ValidConstant.TYPE_VALID || pe.getPattern() == null)
+						if (!pe.getValidFlg() || pe.getPattern() == null)
 							continue;
 
 						try {
 							// 大文字・小文字を区別しない場合
 							Pattern pattern = null;
-							if(pe.getCaseSensitivityFlg() == ValidConstant.TYPE_VALID) {
+							if(pe.getCaseSensitivityFlg()) {
 								pattern = Pattern.compile(pe.getPattern(), Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
 							}
 							// 大文字・小文字を区別する場合
@@ -530,7 +574,7 @@ public class RunMonitorHttpScenario extends RunMonitor {
 					endResultType = resultType;
 					break loopEnd;
 				case MATCH_PATTERN:
-					if (resultInfo.getProcessType() == ProcessConstant.TYPE_YES) {
+					if (resultInfo.getProcessType().booleanValue()) {
 						endResultType = resultType;
 						errorResultInfo = resultInfo;
 						break loopEnd;
@@ -542,9 +586,9 @@ public class RunMonitorHttpScenario extends RunMonitor {
 				}
 
 				// 変数の生成。
-				for (MonitorHttpScenarioVariableInfoEntity variable: page.getMonitorHttpScenarioVariableInfoEntities()) {
+				for (Variable variable: page.getVariables()) {
 					String value = null;
-					if (variable.getMatchingWithResponseFlg() == ValidConstant.TYPE_VALID) {
+					if (variable.getMatchingWithResponseFlg()) {
 						if (response.response.responseBody != null) {
 							Matcher m = Pattern.compile(variable.getValue(), Pattern.DOTALL).matcher(response.response.responseBody);
 							if (m.matches()) {
@@ -555,7 +599,7 @@ public class RunMonitorHttpScenario extends RunMonitor {
 									m_log.warn(String.format(
 											"not contain group paragraph in pattern for variable. facilityId=%s, monitorId=%s, pageNo=%d, variableName=%s, value=%s",
 											facilityId,
-											m_httpScenarioInfoEntity.getMonitorId(),
+											m_httpScenarioCheckInfo.getMonitorId(),
 											page.getId().getPageOrderNo(),
 											variable.getId().getName(),
 											variable.getValue()));
@@ -566,7 +610,7 @@ public class RunMonitorHttpScenario extends RunMonitor {
 								m_log.debug(String.format(
 										"variable not match. facilityId=%s, monitorId=%s, pageNo=%d, variableName=%s, value=%s",
 										facilityId,
-										m_httpScenarioInfoEntity.getMonitorId(),
+										m_httpScenarioCheckInfo.getMonitorId(),
 										page.getId().getPageOrderNo(),
 										variable.getId().getName(),
 										variable.getValue()));
@@ -577,7 +621,7 @@ public class RunMonitorHttpScenario extends RunMonitor {
 							m_log.warn(String.format(
 									"Not foudnd previous post. facilityId=%s, monitorId=%s, pageNo=%d, variableName=%s, value=%s",
 									facilityId,
-									m_httpScenarioInfoEntity.getMonitorId(),
+									m_httpScenarioCheckInfo.getMonitorId(),
 									page.getId().getPageOrderNo(),
 									variable.getId().getName(),
 									variable.getValue()));
@@ -603,35 +647,35 @@ public class RunMonitorHttpScenario extends RunMonitor {
 		if (ResultType.SUCCESS.equals(endResultType)) {
 			MonitorRunResultInfo info = new MonitorRunResultInfo();
 			info.setFacilityId(facilityId);
-			info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()));
-			info.setCollectorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getCollectorFlg()));
+			info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg());
+			info.setCollectorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getCollectorFlg());
 			info.setCollectorResult(true);
 			info.setCheckResult(0);
 			info.setItemCode("0");
+			info.setItemName(m_httpScenarioCheckInfo.getMonitorInfo().getItemName());
 			info.setDisplayName("");
 			info.setPriority(PriorityConstant.TYPE_INFO);
-			info.setMessageId(MESSAGE_ID_INFO);
-			info.setMessage(String.format("%s : %s", Messages.getString("monitor.http.scenario.total.responsetime.ms"), NumberFormat.getNumberInstance().format(responseTime)));
+			info.setMessage(String.format("%s : %s", MessageConstant.MONITOR_HTTP_SCENARIO_TOTAL_RESPONSETIME_MS.getMessage(), NumberFormat.getNumberInstance().format(responseTime)));
 			int pageOrderNo = 1;
 			StringBuffer messageOrg = new StringBuffer();
-			messageOrg.append(Messages.getString("monitor.http.scenario.total.responsetime"));
+			messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_TOTAL_RESPONSETIME.getMessage());
 			messageOrg.append(" : ");
 			messageOrg.append(responseTime);
 			messageOrg.append("\n");
 			for (PageResponse pr: responses) {
-				messageOrg.append(Messages.getString("monitor.http.scenario.page.orderno"));
+				messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_ORDERNO.getMessage());
 				messageOrg.append(" : ");
 				messageOrg.append(pageOrderNo++);
 				messageOrg.append("\n");
-				messageOrg.append(Messages.getString("monitor.http.scenario.page.url"));
+				messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_URL.getMessage());
 				messageOrg.append(" : ");
 				messageOrg.append(pr.response.url);
 				messageOrg.append("\n");
-				messageOrg.append(Messages.getString("monitor.http.scenario.page.statuscode"));
+				messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_STATUSCODE.getMessage());
 				messageOrg.append(" : ");
 				messageOrg.append(pr.response.statusCode);
 				messageOrg.append("\n");
-				messageOrg.append(Messages.getString("response.time.milli.sec"));
+				messageOrg.append(MessageConstant.RESPONSE_TIME_MILLI_SEC.getMessage());
 				messageOrg.append(" : ");
 				messageOrg.append(pr.response.responseTime);
 				messageOrg.append("\n");
@@ -639,14 +683,14 @@ public class RunMonitorHttpScenario extends RunMonitor {
 			info.setMessageOrg(messageOrg.toString());
 			info.setNodeDate(m_nodeDate);
 			info.setValue((double)responseTime);
-			info.setProcessType(ProcessConstant.TYPE_YES);
-			info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+			info.setProcessType(true);
+			info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
 			resultInfos.add(info);
 
 			// ページ毎の収集情報作成。
-			if (
-				ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitoringPerPageFlg()) &&
-				ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getCollectorFlg())
+			if (!m_isMonitorJob &&
+				m_httpScenarioCheckInfo.getMonitoringPerPageFlg() &&
+				m_httpScenarioCheckInfo.getMonitorInfo().getCollectorFlg()
 				) {
 				Map<String, Integer> map = new HashMap<String, Integer>();
 				for (PageResponse pr: responses) {
@@ -669,7 +713,7 @@ public class RunMonitorHttpScenario extends RunMonitor {
 					pagetResultInfo.setPriority(pr.page.getPriority());
 					pagetResultInfo.setNodeDate(m_nodeDate);
 					pagetResultInfo.setValue((double)pr.response.responseTime);
-					pagetResultInfo.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+					pagetResultInfo.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
 					resultInfos.add(pagetResultInfo);
 				}
 			}
@@ -680,266 +724,254 @@ public class RunMonitorHttpScenario extends RunMonitor {
 		return resultInfos;
 	}
 
-	private MonitorRunResultInfo createTimeoutMonitorRunResultInfo(MonitorHttpScenarioPageInfoEntity page,
+	private MonitorRunResultInfo createTimeoutMonitorRunResultInfo(Page page,
 			Response response, String url, List<String> rurls) {
 		MonitorRunResultInfo info = new MonitorRunResultInfo();
-		info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()));
+		info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg());
 		info.setCollectorFlg(false);
 		info.setCollectorResult(false);
 		info.setCheckResult(-1);
 		info.setPriority(page.getPriority());
-		info.setMessageId(getMessageId(page.getPriority()));
 		info.setMessage(page.getMessage());
 		StringBuffer messageOrg = new StringBuffer();
-		messageOrg.append(Messages.getString("message.http.scenario.fail.timeout"));
+		messageOrg.append(MessageConstant.MESSAGE_REQUEST_TIMEOUT.getMessage());
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.orderno"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_ORDERNO.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(page.getId().getPageOrderNo() + 1);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.url"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_URL.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(url);
 		messageOrg.append("\n");
 		for (int i = 0; i < rurls.size(); ++i) {
-			messageOrg.append(Messages.getString("monitor.http.scenario.redirect.url") + (i + 1));
+			messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_REDIRECT_URL.getMessage() + (i + 1));
 			messageOrg.append(" : ");
 			messageOrg.append(rurls.get(i));
 			messageOrg.append("\n");
 		}
-		messageOrg.append(Messages.getString("monitor.http.scenario.connecttimeout"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_CONNECTTIMEOUT.getMessage());
 		messageOrg.append(" : ");
-		messageOrg.append(m_httpScenarioInfoEntity.getConnectTimeout());
+		messageOrg.append(m_httpScenarioCheckInfo.getConnectTimeout());
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.requesttimeout"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_REQUESTTIMEOUT.getMessage());
 		messageOrg.append(" : ");
-		messageOrg.append(m_httpScenarioInfoEntity.getRequestTimeout());
+		messageOrg.append(m_httpScenarioCheckInfo.getRequestTimeout());
 		info.setMessageOrg(messageOrg.toString());
 		info.setNodeDate(m_nodeDate);
-		info.setProcessType(ProcessConstant.TYPE_YES);
-		info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+		info.setProcessType(true);
+		info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
+		info.setItemName(m_httpScenarioCheckInfo.getMonitorInfo().getItemName());
 		info.setDisplayName(getDisplayName(page, url));
 		return info;
 	}
 
-	private MonitorRunResultInfo createUnexpectedMonitorRunResultInfo(MonitorHttpScenarioPageInfoEntity page,
+	private MonitorRunResultInfo createUnexpectedMonitorRunResultInfo(Page page,
 			Response response, String url, List<String> rurls) {
 		MonitorRunResultInfo info = new MonitorRunResultInfo();
-		info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()));
+		info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg());
 		info.setCollectorFlg(false);
 		info.setCollectorResult(false);
 		info.setCheckResult(-1);
 		info.setPriority(page.getPriority());
-		info.setMessageId(getMessageId(page.getPriority()));
 		info.setMessage(page.getMessage());
 		StringBuffer messageOrg = new StringBuffer();
-		messageOrg.append(Messages.getString("message.http.scenario.fail.unexpected.exception"));
+		messageOrg.append(MessageConstant.MESSAGE_UNEXPECTED_EXCEPTION_OCCURRED.getMessage());
 		messageOrg.append("\n");
 		messageOrg.append(response.errorMessage);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.orderno"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_ORDERNO.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(page.getId().getPageOrderNo() + 1);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.url"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_URL.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(url);
 		for (int i = 0; i < rurls.size(); ++i) {
-			messageOrg.append(Messages.getString("monitor.http.scenario.redirect.url") + (i + 1));
+			messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_REDIRECT_URL.getMessage() + (i + 1));
 			messageOrg.append(" : ");
 			messageOrg.append(rurls.get(i));
 			messageOrg.append("\n");
 		}
 		info.setMessageOrg(messageOrg.toString());
 		info.setNodeDate(m_nodeDate);
-		info.setProcessType(ProcessConstant.TYPE_YES);
-		info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+		info.setProcessType(true);
+		info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
+		info.setItemName(m_httpScenarioCheckInfo.getMonitorInfo().getItemName());
 		info.setDisplayName(getDisplayName(page, url));
 		return info;
 	}
 
-	private MonitorRunResultInfo createUnmatchedStatusCodeMonitorRunResultInfo(MonitorHttpScenarioPageInfoEntity page,
+	private MonitorRunResultInfo createUnmatchedStatusCodeMonitorRunResultInfo(Page page,
 			Response response, String url) {
 		MonitorRunResultInfo info = new MonitorRunResultInfo();
-		info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()));
+		info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg());
 		info.setCollectorFlg(false);
 		info.setCollectorResult(false);
 		info.setCheckResult(-1);
 		info.setPriority(page.getPriority());
-		info.setMessageId(getMessageId(page.getPriority()));
 		info.setMessage(page.getMessage());
 		StringBuffer messageOrg = new StringBuffer();
-		messageOrg.append(Messages.getString("message.http.scenario.fail.unexpected.statuscode"));
+		messageOrg.append(MessageConstant.MESSAGE_UNEXPECTED_STATUS_CODE_RETURNED.getMessage());
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.orderno"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_ORDERNO.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(page.getId().getPageOrderNo() + 1);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.url"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_URL.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(url);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.expected.statuscode"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_EXPECTED_STATUSCODE.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(page.getStatusCode());
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.statuscode"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_STATUSCODE.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(response.statusCode);
 		info.setMessageOrg(messageOrg.toString());
 		info.setNodeDate(m_nodeDate);
-		info.setProcessType(ProcessConstant.TYPE_YES);
-		info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+		info.setProcessType(true);
+		info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
+		info.setItemName(m_httpScenarioCheckInfo.getMonitorInfo().getItemName());
 		info.setDisplayName(getDisplayName(page, url));
 		return info;
 	}
 
-	private MonitorRunResultInfo createMatchedPatternMonitorRunResultInfo(MonitorHttpScenarioPageInfoEntity page, MonitorHttpScenarioPatternInfoEntity pattern,
+	private MonitorRunResultInfo createMatchedPatternMonitorRunResultInfo(Page page, com.clustercontrol.http.model.Pattern pattern,
 			Response response, String url) {
 		MonitorRunResultInfo info = new MonitorRunResultInfo();
-		info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()) && (page.getPriority() != PriorityConstant.TYPE_NONE));
+		info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg() && (page.getPriority() != PriorityConstant.TYPE_NONE));
 		info.setCollectorFlg(false);
 		info.setCollectorResult(false);
 		info.setCheckResult(pattern.getId().getPatternOrderNo());
 		info.setPriority(page.getPriority());
-		info.setMessageId(getMessageId(page.getPriority()));
 		info.setMessage(page.getMessage());
 		StringBuffer messageOrg = new StringBuffer();
-		messageOrg.append(Messages.getString("message.http.scenario.fail.matched.pattern", new Object[]{page.getId().getPageOrderNo() + 1, pattern.getId().getPatternOrderNo() + 1}));
+		messageOrg.append(MessageConstant.MESSAGE_MATCH_RESPONSE_OF_PAGE_WITH_STRING_PATTERN.getMessage(new String[]{String.valueOf(page.getId().getPageOrderNo() + 1), String.valueOf(pattern.getId().getPatternOrderNo() + 1)}));
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.orderno"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_ORDERNO.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(page.getId().getPageOrderNo() + 1);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.url"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_URL.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(url);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.statuscode"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_STATUSCODE.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(response.statusCode);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("response.time.milli.sec"));
+		messageOrg.append(MessageConstant.RESPONSE_TIME_MILLI_SEC.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(response.responseTime);
 		messageOrg.append("\n");
-		messageOrg.append(String.format("%s %d", Messages.getString("monitor.http.scenario.pattern.pattern"), pattern.getId().getPatternOrderNo() + 1));
+		messageOrg.append(String.format("%s %d", MessageConstant.MONITOR_HTTP_SCENARIO_PATTERN_PATTERN.getMessage(), pattern.getId().getPatternOrderNo() + 1));
 		messageOrg.append(" : ");
 		messageOrg.append(pattern.getPattern());
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.response"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_RESPONSE.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(response.responseBody);
 		info.setMessageOrg(messageOrg.toString());
 		info.setNodeDate(m_nodeDate);
-		info.setProcessType(page.getPriority() != PriorityConstant.TYPE_NONE ? pattern.getProcessType(): ProcessConstant.TYPE_NO);
-		info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+		info.setProcessType(page.getPriority() != PriorityConstant.TYPE_NONE ? pattern.getProcessType(): false);
+		info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
+		info.setItemName(m_httpScenarioCheckInfo.getMonitorInfo().getItemName());
 		info.setDisplayName(getDisplayName(page, url));
 		info.setPatternText(pattern.getPattern());
 		return info;
 	}
 
-	private MonitorRunResultInfo createNotmatchedPatternsMonitorRunResultInfo(MonitorHttpScenarioPageInfoEntity page,
-			Response response, String url, Integer exceptionProcessType) {
+	private MonitorRunResultInfo createNotmatchedPatternsMonitorRunResultInfo(Page page,
+			Response response, String url, Boolean exceptionProcessType) {
 		MonitorRunResultInfo info = new MonitorRunResultInfo();
-		info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()) && (page.getPriority() != PriorityConstant.TYPE_NONE));
+		info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg() && (page.getPriority() != PriorityConstant.TYPE_NONE));
 		info.setCollectorFlg(false);
 		info.setCollectorResult(false);
 		info.setCheckResult(exceptionProcessType != null ? -1: -2);
 		info.setPriority(page.getPriority());
-		info.setMessageId(getMessageId(page.getPriority()));
 		info.setMessage(page.getMessage());
 		StringBuffer messageOrg = new StringBuffer();
-		messageOrg.append(Messages.getString("message.http.scenario.fail.notmatched.patterns", new Object[]{page.getId().getPageOrderNo() + 1}));
+		messageOrg.append(MessageConstant.MESSAGE_NOT_MATCH_RESPONSE_OF_PAGE_WITH_ALL_STRING_PATTERNS.getMessage(new String[]{String.valueOf(page.getId().getPageOrderNo() + 1)}));
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.orderno"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_ORDERNO.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(page.getId().getPageOrderNo() + 1);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.url"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_URL.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(url);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.statuscode"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_STATUSCODE.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(response.statusCode);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("response.time.milli.sec"));
+		messageOrg.append(MessageConstant.RESPONSE_TIME_MILLI_SEC.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(response.responseTime);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.response"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_RESPONSE.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(response.responseBody);
 		info.setMessageOrg(messageOrg.toString());
 		info.setNodeDate(m_nodeDate);
-		info.setProcessType(page.getPriority() != PriorityConstant.TYPE_NONE ? (exceptionProcessType != null ? exceptionProcessType: ProcessConstant.TYPE_YES): ProcessConstant.TYPE_NO);
-		info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+		info.setProcessType(page.getPriority() != PriorityConstant.TYPE_NONE ? (exceptionProcessType != null ? exceptionProcessType: true): false);
+		info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
+		info.setItemName(m_httpScenarioCheckInfo.getMonitorInfo().getItemName());
 		info.setDisplayName(getDisplayName(page, url));
 		return info;
 	}
 
-	private MonitorRunResultInfo createNotFoundUrlForRedirectMonitorRunResultInfo(MonitorHttpScenarioPageInfoEntity page,
+	private MonitorRunResultInfo createNotFoundUrlForRedirectMonitorRunResultInfo(Page page,
 			Response response, String url, List<String> rurls) {
 		MonitorRunResultInfo info = new MonitorRunResultInfo();
-		info.setMonitorFlg(ValidConstant.typeToBoolean(m_httpScenarioInfoEntity.getMonitorInfoEntity().getMonitorFlg()) && (page.getPriority() != PriorityConstant.TYPE_NONE));
+		info.setMonitorFlg(m_httpScenarioCheckInfo.getMonitorInfo().getMonitorFlg() && (page.getPriority() != PriorityConstant.TYPE_NONE));
 		info.setCollectorFlg(false);
 		info.setCollectorResult(false);
 		info.setCheckResult(-1);
 		info.setPriority(page.getPriority());
-		info.setMessageId(getMessageId(page.getPriority()));
 		info.setMessage(page.getMessage());
 		StringBuffer messageOrg = new StringBuffer();
-		messageOrg.append(Messages.getString("mmessage.http.scenario.not.found.url.for.redirect"));
+		messageOrg.append(MessageConstant.MESSAGE_NOT_FOUND_A_REDIRECT_URL_ON_PAGE.getMessage());
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.orderno"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_ORDERNO.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(page.getId().getPageOrderNo() + 1);
 		messageOrg.append("\n");
-		messageOrg.append(Messages.getString("monitor.http.scenario.page.url"));
+		messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_PAGE_URL.getMessage());
 		messageOrg.append(" : ");
 		messageOrg.append(url);
 		messageOrg.append("\n");
 		for (int i = 0; i < rurls.size(); ++i) {
-			messageOrg.append(Messages.getString("monitor.http.scenario.redirect.url") + " " + (i + 1));
+			messageOrg.append(MessageConstant.MONITOR_HTTP_SCENARIO_REDIRECT_URL.getMessage() + " " + (i + 1));
 			messageOrg.append(" : ");
 			messageOrg.append(rurls.get(i));
 			messageOrg.append("\n");
 		}
 		info.setMessageOrg(messageOrg.toString());
 		info.setNodeDate(m_nodeDate);
-		info.setProcessType(ProcessConstant.TYPE_YES);
-		info.setNotifyGroupId(m_httpScenarioInfoEntity.getMonitorInfoEntity().getNotifyGroupId());
+		info.setProcessType(true);
+		info.setNotifyGroupId(m_httpScenarioCheckInfo.getMonitorInfo().getNotifyGroupId());
+		info.setItemName(m_httpScenarioCheckInfo.getMonitorInfo().getItemName());
 		info.setDisplayName(getDisplayName(page, url));
 		return info;
 	}
 
-	private String getDisplayName(MonitorHttpScenarioPageInfoEntity page, String url) {
+	private String getDisplayName(Page page, String url) {
 		int order = page.getId().getPageOrderNo() + 1;
 		return url + " (" + order + ")";
 	}
 	
 	@Override
 	protected void setCheckInfo() throws MonitorNotFound {
-		if(m_httpScenarioInfoEntity == null)
+		if(m_httpScenarioCheckInfo == null)
 			// HTTP監視情報を取得
-			m_httpScenarioInfoEntity = QueryUtil.getMonitorHttpScenarioInfoPK(m_monitorId);
-	}
-
-	@Override
-	public String getMessageId(int id) {
-		switch (id) {
-		case PriorityConstant.TYPE_INFO:
-			return MESSAGE_ID_INFO;
-		case PriorityConstant.TYPE_WARNING:
-			return MESSAGE_ID_WARNING;
-		case PriorityConstant.TYPE_CRITICAL:
-			return MESSAGE_ID_CRITICAL;
-		case PriorityConstant.TYPE_UNKNOWN:
-			return MESSAGE_ID_UNKNOWN;
-		default:
-			return MESSAGE_ID_NONE;
-		}
+			if (!m_isMonitorJob) {
+				m_httpScenarioCheckInfo = QueryUtil.getMonitorHttpScenarioInfoPK(m_monitorId);
+			} else {
+				m_httpScenarioCheckInfo = QueryUtil.getMonitorHttpScenarioInfoPK(m_monitor.getMonitorId());
+			}
 	}
 
 	@Override
@@ -958,11 +990,43 @@ public class RunMonitorHttpScenario extends RunMonitor {
 	}
 
 	@Override
+	public int getCheckResult(boolean ret, Object value) {
+		throw new UnsupportedOperationException("forbidden to call getCheckResult() method");
+	}
+
+	@Override
 	protected void setJudgementInfo() {
 	}
 
 	@Override
 	public boolean collect(String facilityId) throws FacilityNotFound, HinemosUnknown {
 		throw new UnsupportedOperationException("forbidden to call collect() method");
+	}
+
+	@Override
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		if (m_monitor == null || m_monitor.getHttpScenarioCheckInfo() == null) {
+			return "";
+		}
+		if (m_monitor.getHttpScenarioCheckInfo().getProxyFlg()) {
+			String[] args = {String.valueOf(m_monitor.getHttpScenarioCheckInfo().getConnectTimeout()),
+					String.valueOf(m_monitor.getHttpScenarioCheckInfo().getRequestTimeout()),
+					m_monitor.getHttpScenarioCheckInfo().getUserAgent(),
+					m_monitor.getHttpScenarioCheckInfo().getAuthType(),
+					m_monitor.getHttpScenarioCheckInfo().getAuthUser(),
+					m_monitor.getHttpScenarioCheckInfo().getProxyUrl(),
+					String.valueOf(m_monitor.getHttpScenarioCheckInfo().getProxyPort()),
+					String.valueOf(m_monitor.getHttpScenarioCheckInfo().getProxyUrl())};
+			return MessageConstant.MESSAGE_JOB_MONITOR_ORGMSG_HTTP_SCENARIO_PROXY.getMessage(args)
+					+ "\n" + orgMsg;
+		} else {
+			String[] args = {String.valueOf(m_monitor.getHttpScenarioCheckInfo().getConnectTimeout()),
+					String.valueOf(m_monitor.getHttpScenarioCheckInfo().getRequestTimeout()),
+					m_monitor.getHttpScenarioCheckInfo().getUserAgent(),
+					m_monitor.getHttpScenarioCheckInfo().getAuthType(),
+					m_monitor.getHttpScenarioCheckInfo().getAuthUser(),};
+			return MessageConstant.MESSAGE_JOB_MONITOR_ORGMSG_HTTP_SCENARIO_NOPROXY.getMessage(args)
+					+ "\n" + orgMsg;
+		}
 	}
 }

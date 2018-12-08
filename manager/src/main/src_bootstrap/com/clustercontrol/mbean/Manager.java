@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.mbean;
@@ -23,26 +16,37 @@ import javax.persistence.Cache;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.eclipse.persistence.internal.jpa.CacheImpl;
+import org.eclipse.persistence.sessions.SessionEventListener;
+import org.eclipse.persistence.sessions.server.ConnectionPool;
+import org.eclipse.persistence.sessions.server.ServerSession;
 
+import com.clustercontrol.commons.util.DBConnectionPoolStats;
 import com.clustercontrol.commons.util.HinemosEntityManager;
+import com.clustercontrol.commons.util.JpaSessionEventListener;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.hinemosagent.util.AgentConnectUtil;
+import com.clustercontrol.jobmanagement.factory.FullJob;
 import com.clustercontrol.jobmanagement.util.JobMultiplicityCache;
 import com.clustercontrol.notify.model.MonitorStatusEntity;
 import com.clustercontrol.notify.model.NotifyHistoryEntity;
 import com.clustercontrol.plugin.impl.AsyncWorkerPlugin;
 import com.clustercontrol.plugin.impl.SchedulerInfo;
 import com.clustercontrol.plugin.impl.SchedulerPlugin;
-import com.clustercontrol.plugin.impl.WebServiceCorePlugin;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.SchedulerType;
-import com.clustercontrol.plugin.impl.SharedTablePlugin;
 import com.clustercontrol.plugin.impl.SnmpTrapPlugin;
 import com.clustercontrol.plugin.impl.SystemLogPlugin;
-import com.clustercontrol.poller.PollerManager;
+import com.clustercontrol.plugin.impl.WebServiceAgentPlugin;
+import com.clustercontrol.plugin.impl.WebServiceCorePlugin;
+import com.clustercontrol.repository.factory.NodeProperty;
 import com.clustercontrol.repository.util.FacilityTreeCache;
 import com.clustercontrol.selfcheck.SelfCheckTaskSubmitter;
+import com.clustercontrol.selfcheck.monitor.AsyncTaskQueueMonitor;
+import com.clustercontrol.selfcheck.monitor.DBConnectionCountMonitor;
+import com.clustercontrol.selfcheck.monitor.DBLongTranMonitor;
+import com.clustercontrol.selfcheck.monitor.JVMHeapMonitor;
 import com.clustercontrol.selfcheck.monitor.JobRunSessionMonitor;
+import com.clustercontrol.selfcheck.monitor.SchedulerMonitor;
 import com.clustercontrol.selfcheck.monitor.TableSizeMonitor;
 
 public class Manager implements ManagerMXBean {
@@ -51,7 +55,7 @@ public class Manager implements ManagerMXBean {
 
 	@Override
 	public String getValidAgentStr() {
-		String str = "";
+		StringBuilder str = new StringBuilder();
 		String lineSeparator = System.getProperty("line.separator");
 
 		List<String> validAgent = AgentConnectUtil.getValidAgent();
@@ -62,63 +66,36 @@ public class Manager implements ManagerMXBean {
 			if (agentString == null) {
 				continue;
 			}
-			str += facilityId + ", " + agentString + lineSeparator;
+			str.append(facilityId + ", " + agentString + lineSeparator);
 		}
-		return str;
-	}
-
-	@Override
-	public String getPollerInfoStr() {
-		return PollerManager.getInstnace().getPollerDebugInfo();
-	}
-
-	@Override
-	public String getSharedTableInfoStr() {
-		return SharedTablePlugin.getSharedTable().getTableListDebugInfo();
+		return str.toString();
 	}
 
 	@Override
 	public String getSchedulerInfoStr() throws HinemosUnknown {
-		String str = "";
+		StringBuilder str = new StringBuilder();
 		String lineSeparator = System.getProperty("line.separator");
-
-		str += "----- " + SchedulerType.DBMS + " -----" + lineSeparator;
-		List<SchedulerInfo> dbms = SchedulerPlugin.getSchedulerList(SchedulerType.DBMS);
-		for (SchedulerInfo trigger : dbms) {
-			str += lineSeparator;
-
-			String start = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.startTime);
-			String prev = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.previousFireTime);
-			String next = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.nextFireTime);
-
-			str += String.format("%s (in %s) :", trigger.name, trigger.group) + lineSeparator;
-			str += String.format("   start fire time - %s", start) + lineSeparator;
-			str += String.format("   last fire time  - %s", prev) + lineSeparator;
-			str += String.format("   next fire time  - %s", next) + lineSeparator;
-			str += String.format("   is paused       - %s", trigger.isPaused) + lineSeparator;
+		String lineFormat = "%-30s| %-30s| %-20s| %-20s";
+		
+		for (SchedulerType schedulerType : SchedulerType.values()) {
+			// header
+			str.append("----- ").append(schedulerType).append(" ").append(SchedulerPlugin.schedulerSummary(schedulerType)).append(" -----").append(lineSeparator);
+			str.append(String.format(lineFormat, "name", "group", "last fire time", "next fire time")).append(lineSeparator);
+			str.append("------------------------------+-------------------------------+---------------------+---------------------").append(lineSeparator);
+			
+			// each schedule
+			List<SchedulerInfo> schedule = SchedulerPlugin.getSchedulerList(schedulerType);
+			for (SchedulerInfo trigger : schedule) {
+				String prev = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.previousFireTime);
+				String next = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.nextFireTime);
+				str.append(String.format(lineFormat, trigger.name, trigger.group, prev, next)).append(lineSeparator);
+			}
+			
+			str.append(lineSeparator);
 		}
-
-		str += lineSeparator;
-
-		str += "----- " + SchedulerType.RAM + " -----" + lineSeparator;
-		List<SchedulerInfo> ram = SchedulerPlugin.getSchedulerList(SchedulerType.RAM);
-		for (SchedulerInfo trigger : ram) {
-			str += lineSeparator;
-
-			String start = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.startTime);
-			String prev = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.previousFireTime);
-			String next = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.nextFireTime);
-
-			str += String.format("%s (in %s) :", trigger.name, trigger.group) + lineSeparator;
-			str += String.format("   start fire time - %s", start) + lineSeparator;
-			str += String.format("   last fire time  - %s", prev) + lineSeparator;
-			str += String.format("   next fire time  - %s", next) + lineSeparator;
-			str += String.format("   is paused       - %s", trigger.isPaused) + lineSeparator;
-		}
-
-		return str;
+		return str.toString();
 	}
-
+	
 	@Override
 	public String getSelfCheckLastFireTimeStr() {
 		return String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", SelfCheckTaskSubmitter.lastMonitorDate);
@@ -148,12 +125,12 @@ public class Manager implements ManagerMXBean {
 
 	@Override
 	public String getAsyncWorkerStatistics() throws HinemosUnknown {
-		String str = "";
-		str += "[AsyncWorker Statistics]" + System.getProperty("line.separator");
+		StringBuilder str = new StringBuilder();
+		str.append("[AsyncWorker Statistics]").append(System.getProperty("line.separator"));
 		for (String worker : AsyncWorkerPlugin.getWorkerList()) {
-			str += "queued tasks [" + worker + "] : " + AsyncWorkerPlugin.getTaskCount(worker) + System.getProperty("line.separator");
+			str.append(String.format("queued tasks [%s] : %s%s", worker,  AsyncWorkerPlugin.getTaskCount(worker), System.getProperty("line.separator")));
 		}
-		return str;
+		return str.toString();
 	}
 
 	@Override
@@ -175,7 +152,8 @@ public class Manager implements ManagerMXBean {
 			tm.commit();
 		} catch (Exception e) {
 			log.warn("notify counter reset failure...", e);
-			tm.rollback();
+			if (tm != null)
+				tm.rollback();
 			throw new HinemosUnknown("notify counter reset failure...", e);
 		} finally {
 			if (tm != null) {
@@ -185,6 +163,45 @@ public class Manager implements ManagerMXBean {
 
 		log.info("notify counter resetted successfully.");
 		return null;
+	}
+
+	@Override
+	public String getDBConnectionPoolInfoStr() {
+		log.debug("get DB ConnectionPool Info start.");
+		int used = 0;
+		StringBuilder str = new StringBuilder();
+		String lineSeparator = System.getProperty("line.separator");
+		
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			ServerSession ss = em.unwrap(ServerSession.class);
+			
+			// 登録するイベントリスナーはJpaSessionEventListenerのみ
+			List<SessionEventListener> list = ss.getEventManager().getListeners();
+			JpaSessionEventListener listener = (JpaSessionEventListener)list.get(0);
+			
+			str.append("[DB ConnectionPool Info]" + lineSeparator);
+			// Hinemos 5.1時点ではデフォルトのコネクションプールしか使用しないが、読込専用プール等、
+			// 別のプールを追加する場合は、プール毎に出力するため、プール名も併せて取得すべき。
+			for (ConnectionPool pool : ss.getConnectionPools().values()) {
+				used = (pool.getTotalNumberOfConnections() - pool.getConnectionsAvailable().size());
+				StringBuilder message = new StringBuilder();
+				message.append("Pool-name=" + pool.getName());
+				message.append(" ,Initial=" + pool.getInitialNumberOfConnections());
+				message.append(" ,Max=" + pool.getMaxNumberOfConnections());
+				message.append(" ,Min=" + pool.getMinNumberOfConnections());
+				message.append(" ,Use=" + used);
+				
+				str.append(message + lineSeparator);
+				log.debug(message);
+			}
+			// プール使用数の統計データ(1時間毎の最大使用数)を取得(統計データはデフォルトプールのみ取得)
+			for (DBConnectionPoolStats queue : listener.getPoolStats()){
+				str.append("Max use count:" + String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", queue.getUpdateTime()) + "=" + queue.getMaxUseCount() + lineSeparator);
+			}
+			log.debug("get DB ConnectionPool Info end.");
+			return str.toString();
+		}
 	}
 
 	@Override
@@ -259,27 +276,170 @@ public class Manager implements ManagerMXBean {
 	}
 
 	@Override
-	public int getSnmpTrapQueueSize() {
+	public int getSnmpTrapQueueCount() {
 		return SnmpTrapPlugin.getQueuedCount();
 	}
 
 	@Override
-	public int getSyslogQueueSize() {
+	public int getSyslogQueueCount() {
 		return SystemLogPlugin.getQueuedCount();
 	}
 
 	@Override
-	public int getWebServiceQueueSize() {
+	public int getWebServiceQueueCount() {
 		return WebServiceCorePlugin.getQueueSize();
+	}
+	
+	@Override
+	public int getWebServiceForAgentQueueCount() {
+		return WebServiceAgentPlugin.getAgentQueueSize();
+	}
+	
+	@Override
+	public int getWebServiceForAgentHubQueueCount() {
+		return WebServiceAgentPlugin.getAgentHubQueueSize();
 	}
 
 	@Override
-	public long getTablePhysicalSize(String tableName) {
-		return TableSizeMonitor.getTableSize(tableName);
+	public int getWebServiceForAgentBinaryQueueCount() {
+		return WebServiceAgentPlugin.getAgentBinaryQueueSize();
+	}
+
+	@Override
+	public TablePhysicalSizes getTablePhysicalSize() {
+		// 各テーブルの物理テーブルサイズを取得する
+		long log_cc_collect_data_raw = TableSizeMonitor.getTableSize("log.cc_collect_data_raw");
+		long log_cc_collect_data_string = TableSizeMonitor.getTableSize("log.cc_collect_data_string");
+		long log_cc_collect_data_tag = TableSizeMonitor.getTableSize("log.cc_collect_data_tag");
+		long log_cc_collect_summary_day = TableSizeMonitor.getTableSize("log.cc_collect_summary_day");
+		long log_cc_collect_summary_hour = TableSizeMonitor.getTableSize("log.cc_collect_summary_hour");
+		long log_cc_collect_summary_month = TableSizeMonitor.getTableSize("log.cc_collect_summary_month");
+		long log_cc_event_log = TableSizeMonitor.getTableSize("log.cc_event_log");
+		long log_cc_job_info = TableSizeMonitor.getTableSize("log.cc_job_info");
+		long log_cc_job_param_info = TableSizeMonitor.getTableSize("log.cc_job_param_info");
+		long log_cc_job_session = TableSizeMonitor.getTableSize("log.cc_job_session");
+		long log_cc_job_session_job = TableSizeMonitor.getTableSize("log.cc_job_session_job");
+		long log_cc_job_session_node = TableSizeMonitor.getTableSize("log.cc_job_session_node");
+		long log_cc_job_start_job_info = TableSizeMonitor.getTableSize("log.cc_job_start_job_info");
+		long log_cc_status_info = TableSizeMonitor.getTableSize("log.cc_status_info");
+
+		TablePhysicalSizes tablePhysicalSizes = new TablePhysicalSizes(
+				log_cc_collect_data_raw,
+				log_cc_collect_data_string,
+				log_cc_collect_data_tag,
+				log_cc_collect_summary_day,
+				log_cc_collect_summary_hour,
+				log_cc_collect_summary_month,
+				log_cc_event_log,
+				log_cc_job_info,
+				log_cc_job_param_info,
+				log_cc_job_session,
+				log_cc_job_session_job,
+				log_cc_job_session_node,
+				log_cc_job_start_job_info,
+				log_cc_status_info);
+		return tablePhysicalSizes;
 	}
 
 	@Override
 	public long getTableRecordCount(String tableName) {
 		return TableSizeMonitor.getTableCount(tableName);
+	}
+
+	@Override
+	public int getDBConnectionCount() {
+		return DBConnectionCountMonitor.getDBConnectionCount();
+	}
+
+	@Override
+	public AsyncTaskQueueCounts getAsyncTaskQueueCount() throws HinemosUnknown {
+		// 各非同期タスクのキュー数を取得する
+		int notifyStatusTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.NOTIFY_STATUS_TASK_FACTORY);
+		int notifyEventTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.NOTIFY_EVENT_TASK_FACTORY);
+		int notifyMailTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.NOTIFY_MAIL_TASK_FACTORY);
+		int notifyCommandTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.NOTIFY_COMMAND_TASK_FACTORY);
+		int notifyLogEscalationTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.NOTIFY_LOG_ESCALATION_TASK_FACTORY);
+		int notifyJobTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.NOTIFY_JOB_TASK_FACTORY);
+		int createJobSessionTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.CREATE_JOB_SESSION_TASK_FACTORY);
+		int notifyInfraTaskFactory = AsyncTaskQueueMonitor.getTaskCount(AsyncWorkerPlugin.NOTIFY_INFRA_TASK_FACTORY);
+		
+		AsyncTaskQueueCounts asyncTaskQueueCounts = new AsyncTaskQueueCounts(
+				notifyStatusTaskFactory,
+				notifyEventTaskFactory, 
+				notifyMailTaskFactory,
+				notifyCommandTaskFactory,
+				notifyLogEscalationTaskFactory,
+				notifyJobTaskFactory,
+				createJobSessionTaskFactory,
+				notifyInfraTaskFactory);
+		return asyncTaskQueueCounts;
+	}
+
+	@Override
+	public int getJVMHeapSize() {
+		return JVMHeapMonitor.getJVMHeapSize();
+	}
+
+	@Override
+	public double getDBLongTransactionTime() {
+		return DBLongTranMonitor.getDBLongTransactionTime();
+	}
+
+	@Override
+	public SchedulerDelayTimes getSchedulerDelayTime() throws HinemosUnknown {
+		long delayMillisecDbms = 0L;
+		long delayMillisecRam = 0L;
+		
+		// 指定したスケジューラの中で、最も遅延しているものを取得
+		delayMillisecDbms = SchedulerMonitor.getSchedulerDelayTime(SchedulerPlugin.SchedulerType.DBMS);
+		delayMillisecRam = SchedulerMonitor.getSchedulerDelayTime(SchedulerPlugin.SchedulerType.RAM);
+		
+		SchedulerDelayTimes schedulerDelayTimes = new SchedulerDelayTimes(delayMillisecDbms, delayMillisecRam);
+		return schedulerDelayTimes;
+	}
+
+	/*
+	@Override
+	public void startHinemosSchedulerTest() {
+		log.info("startHinemosSchedulerTest start.");
+		HinemosSchedulerTest obj = new HinemosSchedulerTest();
+		obj.activate();
+		log.info("startHinemosSchedulerTest end.");
+	}
+	
+	@Override
+	public void startHinemosSchedulerStressTest() {
+		log.info("startHinemosSchedulerStressTest start.");
+		HinemosSchedulerTest obj = new HinemosSchedulerTest();
+		obj.activateStressTest();
+		log.info("startHinemosSchedulerStressTest end.");
+	}
+	
+	@Override
+	public void stopHinemosSchedulerTest() {
+		log.info("stopHinemosSchedulerTest start.");
+		HinemosSchedulerTest obj = new HinemosSchedulerTest();
+		obj.deactivate();
+		log.info("stopHinemosSchedulerTest end.");
+	}
+	*/
+	
+	@Override
+	public void initNodeCache() {
+		try {
+			NodeProperty.init();
+		} catch (Throwable t) {
+			log.error("NodeProperty initialisation error. " + t.getMessage(), t);
+		}
+	}
+	
+	@Override
+	public void initJobCache() {
+		try {
+			FullJob.initJobMstCache();
+			FullJob.initJobInfoCache();
+		} catch (Throwable t) {
+			log.error("FullJob initialisation error. " + t.getMessage(), t);
+		}
 	}
 }

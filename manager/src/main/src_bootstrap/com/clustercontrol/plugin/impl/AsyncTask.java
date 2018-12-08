@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.plugin.impl;
@@ -24,7 +17,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -36,9 +28,10 @@ import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMo
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.plugin.model.AsyncTaskEntity;
 import com.clustercontrol.plugin.model.AsyncTaskEntityPK;
+import com.clustercontrol.util.HinemosTime;
 
 /**
- * AscyncTaskFactoryで生成されたRunnableを内包し、
+ * AsyncTaskFactoryで生成されたRunnableを内包し、
  * AsyncWorkerPlugin内で非同期処理の実態となる実行クラス<br/>
  */
 public class AsyncTask implements Runnable {
@@ -258,9 +251,11 @@ public class AsyncTask implements Runnable {
 			tm.commit();
 		} catch (Exception e) {
 			log.warn("failure of loading remained tasks. (worker = " + worker + ")", e);
-			tm.rollback();
+			if (tm != null)
+				tm.rollback();
 		} finally {
-			tm.close();
+			if (tm != null)
+				tm.close();
 		}
 
 		return params;
@@ -292,7 +287,8 @@ public class AsyncTask implements Runnable {
 
 			AsyncTaskEntity asyncTask = new AsyncTaskEntity(_worker, _taskId);
 			asyncTask.setParam(bytes);
-			asyncTask.setCreateDatetime(new Timestamp(System.currentTimeMillis()));
+			asyncTask.setCreateDatetime(HinemosTime.currentTimeMillis());
+			tm.getEntityManager().persist(asyncTask);
 
 			// コミット処理
 			tm.commit();
@@ -302,9 +298,11 @@ public class AsyncTask implements Runnable {
 			}
 		} catch (Exception e) {
 			log.warn("skipped persistence of task. (worker = " + _worker + ", taskId = " + _taskId + ", param = " + _param + ")", e);
-			tm.rollback();
+			if (tm != null)
+				tm.rollback();
 		} finally {
-			tm.close();
+			if (tm != null)
+				tm.close();
 		}
 	}
 
@@ -336,9 +334,11 @@ public class AsyncTask implements Runnable {
 			tm.commit();
 		} catch (Exception e) {
 			log.warn("skipped removing persistence of task. (worker = " + _worker + ", taskId = " + _taskId + ", param = " + _param + ")", e);
-			tm.rollback();
+			if (tm != null)
+				tm.rollback();
 		} finally {
-			tm.close();
+			if (tm != null)
+				tm.close();
 		}
 	}
 

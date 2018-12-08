@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.factory;
@@ -43,14 +36,13 @@ public class JobOperationProperty {
 	private static Log m_log = LogFactory.getLog( JobOperationProperty.class );
 
 	//FIXME javadoc修正、操作用プロパティにjobunitIDが必要か確認。
-	public ArrayList<String> getAvailableStartOperation (String sessionId, String jobunitId, String jobId, String facilityId, Locale locale) {
-
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+	public ArrayList<Integer> getAvailableStartOperation (String sessionId, String jobunitId, String jobId, String facilityId, Locale locale) {
 
 		int status = 0;
 		int jobType = 0;
 
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			if(facilityId != null && facilityId.length() > 0){
 				//セッションIDとジョブIDから、セッションジョブを取得
 				JobSessionJobEntity sessionJob = QueryUtil.getJobSessionJobPK(sessionId, jobunitId, jobId);
@@ -98,7 +90,9 @@ public class JobOperationProperty {
 				status = sessionJob.getStatus();
 
 				//ジョブタイプを取得
-				if(sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_JOB){
+				if(sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_JOB
+						|| sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_APPROVALJOB
+						|| sessionJob.getJobInfoEntity().getJobType() == JobConstant.TYPE_MONITORJOB){
 					jobType = JobOperationJudgment.TYPE_JOB;
 				}
 				else{
@@ -113,30 +107,30 @@ public class JobOperationProperty {
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 		}
 
-		ArrayList<String> values = new ArrayList<String>();
+		ArrayList<Integer> values = new ArrayList<Integer>();
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_START_AT_ONCE, jobType, status)){
-			values.add(OperationConstant.STRING_START_AT_ONCE);
+			values.add(OperationConstant.TYPE_START_AT_ONCE);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_START_SUSPEND, jobType, status)){
-			values.add(OperationConstant.STRING_START_SUSPEND);
+			values.add(OperationConstant.TYPE_START_SUSPEND);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_START_WAIT, jobType, status)){
-			values.add(OperationConstant.STRING_START_WAIT);
+			values.add(OperationConstant.TYPE_START_WAIT);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_START_SKIP, jobType, status)){
-			values.add(OperationConstant.STRING_START_SKIP);
+			values.add(OperationConstant.TYPE_START_SKIP);
 		}
 
 		return values;
 	}
 
-	public ArrayList<String> getAvailableStopOperation(String sessionId, String jobunitId, String jobId, String facilityId, Locale locale) {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+	public ArrayList<Integer> getAvailableStopOperation(String sessionId, String jobunitId, String jobId, String facilityId, Locale locale) {
 
 		int status = 0;
 		int jobType = 0;
 
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			if(facilityId != null && facilityId.length() > 0){
 				//セッションIDとジョブIDから、セッションジョブを取得
 				JobSessionJobEntity sessionJob = QueryUtil.getJobSessionJobPK(sessionId, jobunitId, jobId);
@@ -200,24 +194,24 @@ public class JobOperationProperty {
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 		}
 
-		ArrayList<String> values = new ArrayList<String>();
+		ArrayList<Integer> values = new ArrayList<Integer>();
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_STOP_AT_ONCE, jobType, status)){
-			values.add(OperationConstant.STRING_STOP_AT_ONCE);
+			values.add(OperationConstant.TYPE_STOP_AT_ONCE);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_STOP_SUSPEND, jobType, status)){
-			values.add(OperationConstant.STRING_STOP_SUSPEND);
+			values.add(OperationConstant.TYPE_STOP_SUSPEND);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_STOP_WAIT, jobType, status)){
-			values.add(OperationConstant.STRING_STOP_WAIT);
+			values.add(OperationConstant.TYPE_STOP_WAIT);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_STOP_SKIP, jobType, status)){
-			values.add(OperationConstant.STRING_STOP_SKIP);
+			values.add(OperationConstant.TYPE_STOP_SKIP);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_STOP_MAINTENANCE, jobType, status)){
-			values.add(OperationConstant.STRING_STOP_MAINTENANCE);
+			values.add(OperationConstant.TYPE_STOP_MAINTENANCE);
 		}
 		if(JobOperationJudgment.judgment(OperationConstant.TYPE_STOP_FORCE, jobType, status)){
-			values.add(OperationConstant.STRING_STOP_FORCE);
+			values.add(OperationConstant.TYPE_STOP_FORCE);
 		}
 
 		return values;

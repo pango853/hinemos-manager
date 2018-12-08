@@ -1,13 +1,20 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.commons.util;
 
 import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.infra.bean.InfraManagementInfo;
-import com.clustercontrol.infra.model.InfraManagementInfoEntity;
+import com.clustercontrol.infra.model.InfraManagementInfo;
 import com.clustercontrol.infra.util.InfraConstants;
 import com.clustercontrol.jobmanagement.bean.JobInfo;
 import com.clustercontrol.jobmanagement.model.JobInfoEntity;
 import com.clustercontrol.jobmanagement.model.JobInfoEntityPK;
-import com.clustercontrol.monitor.run.bean.MonitorInfo;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 
 
 public class NotifyGroupIdGenerator {
@@ -77,9 +84,5 @@ public class NotifyGroupIdGenerator {
 	
 	public static String generate(InfraManagementInfo info) {
 		return generateForInfra(info.getManagementId());
-	}
-	
-	public static String generate(InfraManagementInfoEntity entity) {
-		return generateForInfra(entity.getManagementId());
 	}
 }

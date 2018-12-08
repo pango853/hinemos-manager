@@ -1,15 +1,11 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.jobmanagement;
 
 import java.text.SimpleDateFormat;
@@ -26,10 +22,13 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
+import com.clustercontrol.fault.IconFileNotFound;
+import com.clustercontrol.fault.InvalidApprovalStatus;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidSetting;
 import com.clustercontrol.fault.InvalidUserPass;
@@ -42,12 +41,15 @@ import com.clustercontrol.fault.NotifyNotFound;
 import com.clustercontrol.fault.OtherUserGetLock;
 import com.clustercontrol.fault.UpdateTimeNotLatest;
 import com.clustercontrol.fault.UserNotFound;
+import com.clustercontrol.jobmanagement.bean.JobApprovalFilter;
+import com.clustercontrol.jobmanagement.bean.JobApprovalInfo;
 import com.clustercontrol.jobmanagement.bean.JobFileCheck;
 import com.clustercontrol.jobmanagement.bean.JobForwardFile;
 import com.clustercontrol.jobmanagement.bean.JobHistoryFilter;
 import com.clustercontrol.jobmanagement.bean.JobHistoryList;
 import com.clustercontrol.jobmanagement.bean.JobInfo;
 import com.clustercontrol.jobmanagement.bean.JobKick;
+import com.clustercontrol.jobmanagement.bean.JobKickFilterInfo;
 import com.clustercontrol.jobmanagement.bean.JobNodeDetail;
 import com.clustercontrol.jobmanagement.bean.JobOperationInfo;
 import com.clustercontrol.jobmanagement.bean.JobPlan;
@@ -56,9 +58,12 @@ import com.clustercontrol.jobmanagement.bean.JobSchedule;
 import com.clustercontrol.jobmanagement.bean.JobTreeItem;
 import com.clustercontrol.jobmanagement.bean.JobTriggerInfo;
 import com.clustercontrol.jobmanagement.bean.JobTriggerTypeConstant;
+import com.clustercontrol.jobmanagement.bean.JobmapIconImage;
 import com.clustercontrol.jobmanagement.bean.OperationConstant;
 import com.clustercontrol.jobmanagement.session.JobControllerBean;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
+import com.clustercontrol.util.HinemosTime;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 
 /**
@@ -136,20 +141,22 @@ public class JobEndpoint {
 	 * @throws InvalidRole
 	 */
 	public JobInfo getJobFull(JobInfo jobInfo) throws JobMasterNotFound, UserNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
-		m_log.debug("getJobFull : jobInfo=" + jobInfo);
+		if (jobInfo == null) {
+			throw new HinemosUnknown("jobInfo is null");
+		}
+		m_log.debug("getJobFull : jobunitId =" + jobInfo.getJobunitId() + ", id = " + jobInfo.getId());
+
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
-		if(jobInfo != null){
-			StringBuffer msg = new StringBuffer();
-			msg.append(", JobID=");
-			msg.append(jobInfo.getId());
-			m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getJobFull, User="
-					+ HttpAuthenticator.getUserAccountString(wsctx)
-					+ msg.toString());
-		}
+		StringBuffer msg = new StringBuffer();
+		msg.append(", JobID=");
+		msg.append(jobInfo.getId());
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getJobFull, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
 
 		return new JobControllerBean().getJobFull(jobInfo);
 	}
@@ -168,12 +175,12 @@ public class JobEndpoint {
 	 */
 	public List<JobInfo> getJobFullList(List<JobInfo> jobList) throws UserNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
 		
-		String idStr = "";
+		StringBuilder idStr = new StringBuilder();
 		for (JobInfo info : jobList) {
 			if (idStr.length() > 0) {
-				idStr += ", ";
+				idStr.append(", ");
 			}
-			idStr += info.getId();
+			idStr.append(info.getId());
 		}
 		
 		m_log.debug("getJobFullList : id=" + idStr);
@@ -206,7 +213,7 @@ public class JobEndpoint {
 	 * @see com.clustercontrol.jobmanagement.factory.ModifyJob#registerJob(JobTreeItem, String)
 	 */
 	public Long registerJobunit(JobTreeItem item) throws HinemosUnknown, JobMasterNotFound, JobInvalid, InvalidUserPass, InvalidRole, InvalidSetting {
-		long start = System.currentTimeMillis();
+		long start = HinemosTime.currentTimeMillis();
 		String id = null;
 		if (item != null && item.getData() != null) {
 			id = item.getData().getId();
@@ -238,7 +245,7 @@ public class JobEndpoint {
 		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_JOB + " Set Jobunit, Method=registerJobunit, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx)
 				+ msg.toString());
-		m_log.debug(String.format("registerJobunit: %d ms", System.currentTimeMillis() - start));
+		m_log.debug(String.format("registerJobunit: %d ms", HinemosTime.currentTimeMillis() - start));
 		
 		return lastUpdateTime;
 	}
@@ -297,7 +304,7 @@ public class JobEndpoint {
 	 *
 	 * @see com.clustercontrol.jobmanagement.factory.JobOperationProperty#getStartProperty(String, String, String, String, Locale)
 	 */
-	public ArrayList<String> getAvailableStartOperation(String sessionId, String jobunitId, String jobId, String facilityId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+	public ArrayList<Integer> getAvailableStartOperation(String sessionId, String jobunitId, String jobId, String facilityId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
 		m_log.debug("getAvailableStartOperation : sessionId=" + sessionId +
 				", jobunitId=" + jobunitId + ", jobId=" + jobId + ", facilityId=" + facilityId);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
@@ -338,7 +345,7 @@ public class JobEndpoint {
 	 *
 	 * @see com.clustercontrol.jobmanagement.factory.JobOperationProperty#getStopProperty(String, String, String, String, Locale)
 	 */
-	public ArrayList<String> getAvailableStopOperation(String sessionId, String jobunitId,  String jobId, String facilityId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+	public ArrayList<Integer> getAvailableStopOperation(String sessionId, String jobunitId,  String jobId, String facilityId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
 		m_log.debug("getAvailableStopOperation : sessionId=" + sessionId +
 				", jobunitId=" + jobunitId + ", jobId=" + jobId + ", facilityId=" + facilityId);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
@@ -384,6 +391,9 @@ public class JobEndpoint {
 	public String runJob(String jobunitId, String jobId, OutputBasicInfo info, JobTriggerInfo triggerInfo)
 			throws  FacilityNotFound, HinemosUnknown, JobInfoNotFound, JobMasterNotFound, InvalidUserPass, InvalidRole, JobSessionDuplicate, InvalidSetting
 	{
+		if (triggerInfo==null)
+			throw new HinemosUnknown("triggerInfo is null. jobId" + jobId);
+		
 		m_log.debug("runJob : jobunitId=" + jobunitId + ", jobId=" + jobId + ", info=" + info +
 				", triggerInfo=" + triggerInfo);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
@@ -403,7 +413,7 @@ public class JobEndpoint {
 		msg.append(", JobID=");
 		msg.append(jobId);
 		msg.append(", Trigger=");
-		msg.append(triggerInfo==null?null:triggerTypeToString(triggerInfo.getTrigger_type()));
+		msg.append(triggerTypeToString(triggerInfo.getTrigger_type()));
 
 		try {
 			ret = new JobControllerBean().runJob(jobunitId, jobId, info, triggerInfo);
@@ -493,6 +503,7 @@ public class JobEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(property != null){
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			msg.append(", StartFromDate=");
 			msg.append(property.getStartFromDate()==null?null:sdf.format(new Date(property.getStartFromDate())));
 			msg.append(", StartToDate=");
@@ -505,6 +516,8 @@ public class JobEndpoint {
 			msg.append(property.getJobId());
 			msg.append(", Status=");
 			msg.append(property.getStatus());
+			msg.append(", EndStatus=");
+			msg.append(property.getEndStatus());
 			msg.append(", TriggerType=");
 			msg.append(property.getTriggerType());
 			msg.append(", TriggerInfo=");
@@ -633,20 +646,21 @@ public class JobEndpoint {
 	 * @throws InvalidUserPass
 	 * @throws InvalidSetting
 	 *
-	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#addSchedule(JobSchedule, String)
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#addJobKick(JobKick, String, Integer)
 	 */
 	public void addSchedule(JobSchedule info) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobKickDuplicate {
 		m_log.debug("addSchedule : jobSchedule=" + info);
+		if (info == null)
+			throw new HinemosUnknown("jobSchedule is null");
+			
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.ADD));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		if(info != null){
-			msg.append(", ScheduleID=");
-			msg.append(info.getId());
-		}
+		msg.append(", JobkickID=");
+		msg.append(info.getId());
 
 		try {
 			new JobControllerBean().addSchedule(info);
@@ -671,20 +685,21 @@ public class JobEndpoint {
 	 * @throws InvalidUserPass
 	 * @throws InvalidSetting
 	 *
-	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#addSchedule(JobFileCheck, String)
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#addJobKick(JobKick, String, Integer)
 	 */
 	public void addFileCheck(JobFileCheck info) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobKickDuplicate {
 		m_log.debug("addFileCheck : jobFileCheck=" + info);
+		if (info == null)
+			throw new HinemosUnknown("JobFileCheck is null");
+		
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.ADD));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		if(info != null){
-			msg.append(", ScheduleID=");
-			msg.append(info.getId());
-		}
+		msg.append(", JobkickID=");
+		msg.append(info.getId());
 
 		try {
 			new JobControllerBean().addFileCheck(info);
@@ -695,6 +710,45 @@ public class JobEndpoint {
 			throw e;
 		}
 		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_JOB + " Add FileCheck, Method=addFileCheck, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+	}
+	/**
+	 * ジョブ[実行契機]マニュアル実行契機情報を登録します。<BR>
+	 *
+	 * JobManagementAdd権限が必要
+	 *
+	 * @param info ジョブ[実行契機]マニュアル実行契機情報
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 * @throws InvalidSetting
+	 *
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#addJobKick(JobKick, String, Integer)
+	 */
+	public void addJobManual(JobKick info) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobKickDuplicate {
+		m_log.debug("addJobManual : JobManual=" + info);
+		if (info == null)
+			throw new HinemosUnknown("JobManual is null");
+		
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.ADD));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", JobkickID=");
+		msg.append(info.getId());
+
+		try {
+			new JobControllerBean().addJobManual(info);
+		} catch (Exception e) {
+			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_JOB + " Add JobManual Failed, Method=addJobManual, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+			throw e;
+		}
+		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_JOB + " Add JobManual, Method=addJobManual, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx)
 				+ msg.toString());
 	}
@@ -710,20 +764,21 @@ public class JobEndpoint {
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
 	 * @throws InvalidSetting
-	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#modifySchedule(JobSchedule, String)
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#modifyJobKick(JobKick, String, Integer)
 	 */
 	public void modifySchedule(JobSchedule info) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobInfoNotFound {
 		m_log.debug("modifySchedule : jobSchedule=" + info);
+		if (info == null)
+			throw new HinemosUnknown("jobSchedule is null");
+		
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		if(info != null){
-			msg.append(", ScheduleID=");
-			msg.append(info.getId());
-		}
+		msg.append(", JobkickID=");
+		msg.append(info.getId());
 
 		try {
 			new JobControllerBean().modifySchedule(info);
@@ -747,20 +802,20 @@ public class JobEndpoint {
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
 	 * @throws InvalidSetting
-	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#modifySchedule(JobSchedule, String)
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#modifyJobKick(JobKick, String, Integer)
 	 */
 	public void modifyFileCheck(JobFileCheck info) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobInfoNotFound {
 		m_log.debug("modifyFileCheck : jobSchedule=" + info);
+		if (info == null)
+			throw new HinemosUnknown("jobFileCheck is null");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		if(info != null){
-			msg.append(", ScheduleID=");
-			msg.append(info.getId());
-		}
+		msg.append(", JobkickID=");
+		msg.append(info.getId());
 
 		try {
 			new JobControllerBean().modifyFileCheck(info);
@@ -775,30 +830,67 @@ public class JobEndpoint {
 				+ msg.toString());
 	}
 	/**
-	 * ジョブ[実行契機]スケジュール情報を削除します。<BR>
+	 * ジョブ[実行契機]マニュアル実行契機情報を変更します。<BR>
 	 *
 	 * JobManagementWrite権限が必要
 	 *
-	 * @param scheduleIdList スケジュールIDリスト
+	 * @param info ジョブ[実行契機]マニュアル実行契機情報
 	 * @throws HinemosUnknown
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
-	 *
-	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#deleteSchedule(String)
+	 * @throws InvalidSetting
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#modifyJobKick(JobKick, String, Integer)
 	 */
-	public void deleteSchedule(List<String> scheduleIdList) throws HinemosUnknown, InvalidUserPass, InvalidRole, JobInfoNotFound {
-		m_log.debug("deleteSchedule : scheduleId=" + scheduleIdList);
+	public void modifyJobManual(JobKick info) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobInfoNotFound {
+		m_log.debug("modifyJobManual : jobManual=" + info);
+		if (info == null)
+			throw new HinemosUnknown("jobManual is null");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		msg.append(", ScheduleIDList=");
-		msg.append(scheduleIdList);
+		msg.append(", JobkickID=");
+		msg.append(info.getId());
 
 		try {
-			new JobControllerBean().deleteSchedule(scheduleIdList);
+			new JobControllerBean().modifyJobManual(info);
+		} catch (Exception e) {
+			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_JOB + " Change JobManual Failed, Method=modifyJobManual, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+			throw e;
+		}
+		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_JOB + " Change JobManual, Method=modifyJobManual, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+	}
+	/**
+	 * ジョブ[実行契機]スケジュール情報を削除します。<BR>
+	 *
+	 * JobManagementWrite権限が必要
+	 *
+	 * @param jobkickIdList 実行契機IDリスト
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 *
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#deleteJobKick(String, Integer)
+	 */
+	public void deleteSchedule(List<String> jobkickIdList) throws HinemosUnknown, InvalidUserPass, InvalidRole, JobInfoNotFound {
+		m_log.debug("deleteSchedule : jobkickId=" + jobkickIdList);
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", JobkickIDList=");
+		msg.append(jobkickIdList);
+
+		try {
+			new JobControllerBean().deleteSchedule(jobkickIdList);
 		} catch (Exception e) {
 			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_JOB + " Delete Schedule Failed, Method=deleteSchedule, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -815,26 +907,61 @@ public class JobEndpoint {
 	 *
 	 * JobManagementWrite権限が必要
 	 *
-	 * @param scheduleIdList スケジュールIDリスト
+	 * @param jobkickIdList 実行契機IDリスト
 	 * @throws HinemosUnknown
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
 	 *
-	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#deleteSchedule(String)
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#deleteJobKick(String, Integer)
 	 */
-	public void deleteFileCheck(List<String> scheduleIdList) throws HinemosUnknown, InvalidUserPass, InvalidRole, JobInfoNotFound {
-		m_log.debug("deleteFileCheck : scheduleId=" + scheduleIdList);
+	public void deleteFileCheck(List<String> jobkickIdList) throws HinemosUnknown, InvalidUserPass, InvalidRole, JobInfoNotFound {
+		m_log.debug("deleteFileCheck : jobkickId=" + jobkickIdList);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		msg.append(", ScheduleID=");
-		msg.append(scheduleIdList);
+		msg.append(", JobkickID=");
+		msg.append(jobkickIdList);
 
 		try {
-			new JobControllerBean().deleteFileCheck(scheduleIdList);
+			new JobControllerBean().deleteFileCheck(jobkickIdList);
+		} catch (Exception e) {
+			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_JOB + " Delete FileCheck Failed, Method=deleteFileCheck, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+			throw e;
+		}
+		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_JOB + " Delete FileCheck, Method=deleteFileCheck, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+	}
+	/**
+	 * ジョブ[実行契機]マニュアル実行契機情報を削除します。<BR>
+	 *
+	 * JobManagementWrite権限が必要
+	 *
+	 * @param jobkickIdList 実行契機IDリスト
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 *
+	 * @see com.clustercontrol.jobmanagement.factory.ModifyJobKick#deleteJobKick(String, Integer)
+	 */
+	public void deleteJobManual(List<String> jobkickIdList) throws HinemosUnknown, InvalidUserPass, InvalidRole, JobInfoNotFound {
+		m_log.debug("deleteJobManual : jobkickId=" + jobkickIdList);
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", JobkickID=");
+		msg.append(jobkickIdList);
+
+		try {
+			new JobControllerBean().deleteFileCheck(jobkickIdList);
 		} catch (Exception e) {
 			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_JOB + " Delete FileCheck Failed, Method=deleteFileCheck, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -887,33 +1014,75 @@ public class JobEndpoint {
 
 		return new JobControllerBean().getJobFileCheck(jobKickId);
 	}
+	/**
+	 * 実行契機IDと一致するマニュアル実行契機を返します。<BR>
+	 * @param jobKickId
+	 * @return
+	 * @throws JobMasterNotFound
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public JobKick getJobManual(String jobKickId) throws JobMasterNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getJobManual :");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getJobManual, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new JobControllerBean().getJobManual(jobKickId);
+	}
+	/**
+	 * 実行契機IDと一致するジョブ実行契機を返します。<BR>
+	 * @param jobKickId
+	 * @return
+	 * @throws JobMasterNotFound
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public JobKick getJobKick(String jobKickId) throws JobMasterNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getJobKick :");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getJobKick, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new JobControllerBean().getJobKick(jobKickId);
+	}
 
 	/**ジョブ[実行契機]スケジュール情報の有効/無効を変更します。<BR>
 	 *
 	 * JobManagementWrite権限が必要
 	 *
-	 * @param scheduleId スケジュールID
+	 * @param jobkickId 実行契機ID
 	 * @param validFlag 有効/無効
 	 * @throws HinemosUnknown
 	 * @throws InvalidUserPass
 	 * @throws InvalidRole
 	 * @throws InvalidSetting
 	 */
-	public void setJobKickStatus(String scheduleId, boolean validFlag) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobMasterNotFound, JobInfoNotFound {
-		m_log.debug("setJobKickStatus : scheduleId=" + scheduleId + ", validFlag=" + validFlag);
+	public void setJobKickStatus(String jobkickId, boolean validFlag) throws HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting, JobMasterNotFound, JobInfoNotFound {
+		m_log.debug("setJobKickStatus : jobkickId=" + jobkickId + ", validFlag=" + validFlag);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
-		msg.append(", ScheduleID=");
-		msg.append(scheduleId);
+		msg.append(", JobkickID=");
+		msg.append(jobkickId);
 		msg.append(", ValidFlag=");
 		msg.append(validFlag);
 
 		try {
-			new JobControllerBean().setJobKickStatus(scheduleId, validFlag);
+			new JobControllerBean().setJobKickStatus(jobkickId, validFlag);
 		} catch (Exception e) {
 			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_JOB + " Change Valid Failed, Method=setJobKickStatus, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -926,12 +1095,11 @@ public class JobEndpoint {
 
 	}
 	/**
-	 * ジョブ[実行契機]スケジュール&ファイルチェック一覧情報を返します。<BR>
-	 * スケジュール一覧情報を返します。<BR>
+	 * ジョブ実行契機一覧情報を返します。<BR>
 	 *
 	 * JobManagementRead権限が必要
 	 *
-	 * @return スケジュール一覧情報（Objectの2次元配列）
+	 * @return ジョブ実行契機一覧情報
 	 * @throws HinemosUnknown
 	 * @throws JobMasterNotFound
 	 * @throws InvalidRole
@@ -939,16 +1107,75 @@ public class JobEndpoint {
 	 * @see com.clustercontrol.jobmanagement.factory.SelectJobKick#getJobKickList()
 	 */
 	public ArrayList<JobKick> getJobKickList() throws JobMasterNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
-		m_log.debug("getScheduleList :");
+		m_log.debug("getJobKickList :");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// 認証済み操作ログ
-		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getScheduleList, User="
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getJobKickList, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx));
 
 		return new JobControllerBean().getJobKickList();
+	}
+
+	/**
+	 * ジョブ実行契機一覧情報を返します。<BR>
+	 *
+	 * JobManagementRead権限が必要
+	 *
+	 * @return ジョブ実行契機一覧情報
+	 * @throws HinemosUnknown
+	 * @throws JobMasterNotFound
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public ArrayList<JobKick> getJobKickListByCondition(JobKickFilterInfo condition) throws HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getJobKickList(condition) :");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		if(condition != null){
+			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
+			StringBuffer msg = new StringBuffer();
+			msg.append(", JobkickID=");
+			msg.append(condition.getJobkickId());
+			msg.append(", JobkickName=");
+			msg.append(condition.getJobkickName());
+			msg.append(", JobkickType=");
+			msg.append(condition.getJobkickType());
+			msg.append(", JobunitID=");
+			msg.append(condition.getJobunitId());
+			msg.append(", JobID=");
+			msg.append(condition.getJobId());
+			msg.append(", CalendarID=");
+			msg.append(condition.getCalendarId());
+			msg.append(", ValidFlg=");
+			msg.append(condition.getValidFlg());
+			msg.append(", RegUser=");
+			msg.append(condition.getRegUser());
+			msg.append(", RegFromDate=");
+			msg.append(condition.getRegFromDate()==null?null:sdf.format(new Date(condition.getRegFromDate())));
+			msg.append(", RegToDate=");
+			msg.append(condition.getRegToDate()==null?null:sdf.format(new Date(condition.getRegToDate())));
+			msg.append(", UpdateUser=");
+			msg.append(condition.getUpdateUser());
+			msg.append(", UpdateFromDate=");
+			msg.append(condition.getUpdateFromDate()==null?null:sdf.format(new Date(condition.getUpdateFromDate())));
+			msg.append(", UpdateToDate=");
+			msg.append(condition.getUpdateToDate()==null?null:sdf.format(new Date(condition.getUpdateToDate())));
+			msg.append(", OwnerRoleId=");
+			msg.append(condition.getOwnerRoleId());
+			m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get"
+					+ ", Method=getJobKickListByCondition, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+		}
+
+		return new JobControllerBean().getJobKickList(condition);
 	}
 
 	/**
@@ -1010,6 +1237,7 @@ public class JobEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(property != null){
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			msg.append(", fromDate=");
 			msg.append(property.getFromDate()==null?null:sdf.format(new Date(property.getFromDate())));
 			msg.append(", toDate=");
@@ -1112,12 +1340,12 @@ public class JobEndpoint {
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
-		String jobunitIdStr = "";
+		StringBuilder jobunitIdStr = new StringBuilder();
 		for (String str : jobunitIdList) {
 			if (jobunitIdStr.length() > 0) {
-				jobunitIdStr += ", ";
+				jobunitIdStr.append(", ");
 			}
-			jobunitIdStr += str;
+			jobunitIdStr.append(str);
 		}
 		
 		// 認証済み操作ログ
@@ -1246,5 +1474,267 @@ public class JobEndpoint {
 		String ipAddr = userIpAddr.substring(userIpAddr.indexOf("[") + 1, userIpAddr.indexOf("]"));
 		
 		new JobControllerBean().releaseEditLock(editSession, user, ipAddr);
+	}
+	
+	/**
+	 * 登録済みモジュール一覧情報を取得する。<BR>
+	 *
+	 * @param jobunitId ジョブユニットID
+	 * @return 登録済みモジュール一覧情報
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public List<JobInfo> getRegisteredModule(String jobunitId) throws HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getRegisteredModule : jobunitId=" + jobunitId);
+		if (jobunitId == null)
+			throw new HinemosUnknown("jobunitId is null");
+		
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", JobUnitID=");
+		msg.append(jobunitId);
+			m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getRegisteredModule, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+		
+		return new JobControllerBean().getRegisteredModule(jobunitId);
+	}
+
+	/**
+	 * ジョブマップ用アイコン情報一覧を返します。<BR>
+	 * 
+	 * @return ジョブマップ用アイコン情報一覧
+	 * @throws IconFileNotFound
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public List<JobmapIconImage> getJobmapIconImageList() throws IconFileNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getJobmapIconImageList :");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getJobmapIconImageList, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new JobControllerBean().getJobmapIconImageList();
+	}
+
+	/**
+	 * ジョブ設定用のジョブマップアイコン情報一覧を返します。<BR>
+	 * 
+	 * @param ownerRoleId オーナーロールID
+	 * @return ジョブマップ用アイコン情報一覧
+	 * @throws IconFileNotFound
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public List<String> getJobmapIconImageIdListForSelect(String ownerRoleId) throws IconFileNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getJobmapIconImageIdListForSelect : ownerRoleId=" + ownerRoleId);
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getJobmapIconImageIdListForSelect, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new JobControllerBean().getJobmapIconImageIdListForSelect(ownerRoleId);
+	}
+
+	/**
+	 * 承認ジョブにおける承認画面へのリンク先アドレスを取得する。<BR>
+	 *
+	 * @return 承認画面へのリンク先アドレス
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public String getApprovalPageLink() throws HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getDefaultApprovalViewLink");
+		
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getApprovalPageLink, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx));
+		
+		return new JobControllerBean().getApprovalPageLink();
+	}
+
+	/**
+	 * 承認ジョブにおける参照のオブジェクト権限を持つロールIDのリストを取得。<BR>
+	 *
+	 * @param objectId オブジェクトID
+	 * @return 参照のオブジェクト権限を持つロールIDリスト
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public List<String> getRoleIdListWithReadObjectPrivilege(String objectId) throws HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getRoleIdListWithReadObjectPrivilege");
+		
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", ObjectId=");
+		msg.append(objectId);
+			m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getRoleIdListWithReadObjectPrivilege, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+		
+		return new JobControllerBean().getRoleIdListWithReadObjectPrivilege(objectId);
+	}
+
+	/**
+	 * 指定のロールIDに属するユーザIDのリストを取得。<BR>
+	 *
+	 * @param roleId ロールID
+	 * @return ロールIDに属するユーザIDのリスト
+	 * @throws HinemosUnknown
+	 * @throws InvalidUserPass
+	 * @throws InvalidRole
+	 */
+	public List<String> getUserIdListBelongToRoleId(String roleId) throws HinemosUnknown, InvalidUserPass, InvalidRole {
+		m_log.debug("getUserIdListBelongToRoleId");
+		
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", ObjectId=");
+		msg.append(roleId);
+			m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getUserIdListBelongToRoleId, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+		
+		return new JobControllerBean().getUserIdListBelongToRoleId(roleId);
+	}
+	
+	/**
+	 * 監視設定一覧の取得
+	 *
+	 * MonitorSettingRead権限が必要
+	 *
+	 * @param monitorTypeIds 監視設定IDリスト
+	 * @param ownerRoleId オーナーロールID
+	 * @return 監視設定一覧
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public ArrayList<MonitorInfo> getMonitorListForJobMonitor(String ownerRoleId) throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		m_log.debug("getMonitorListForJobMonitor");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_SETTING, SystemPrivilegeMode.READ));
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_MONITOR + " Get"
+				+ ", Method=getMonitorListForJobMonitor, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new JobControllerBean().getMonitorListForJobMonitor(ownerRoleId);
+	}
+	
+	/**
+	 * 承認対象ジョブの一覧情報を取得します。<BR>
+	 *
+	 * JobManagementRead権限が必要
+	 *
+	 * @param property 一覧フィルタ用プロパティ
+	 * @param limit 表示上限件数
+	 * @return 承認対象ジョブの一覧情報
+	 * @throws JobInfoNotFound
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 * @see com.clustercontrol.jobmanagement.factory.SelectJob#getApprovalJobList()
+	 */
+	public ArrayList<JobApprovalInfo> getApprovalJobList(JobApprovalFilter property, int limit) throws InvalidUserPass, InvalidRole, HinemosUnknown, JobInfoNotFound {
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getApprovalJobList, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+
+		return new JobControllerBean().getApprovalJobList(property, limit);
+	}
+	
+	/**
+	 * 承認情報を更新します。<BR>
+	 *
+	 * JobManagementWrite権限が必要
+	 *
+	 * @param info 承認情報
+	 * @param isApprove 承認操作有無
+	 * @throws JobInfoNotFound
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 * @see com.clustercontrol.jobmanagement.factory.SelectJob#getApprovalJobList()
+	 */
+	public void modifyApprovalInfo(JobApprovalInfo info, Boolean isApprove)	throws InvalidUserPass, InvalidRole, HinemosUnknown, JobInfoNotFound, InvalidApprovalStatus {
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.APPROVAL));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=modifyApprovalInfo, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		msg.append(", JobID=");
+		msg.append(info.getJobId());
+
+		try {
+			new JobControllerBean().modifyApprovalInfo(info, isApprove);
+		} catch (Exception e) {
+			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_JOB + " Change Approval Job Failed, Method=modifyApprovalInfo, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+			throw e;
+		}
+		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_JOB + " Change Approval Job, Method=modifyApprovalInfo, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+	}
+	
+	/**
+	 * スクリプトの最大サイズを取得します。<BR>
+	 *
+	 * JobManagementWrite権限が必要
+	 *
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 */
+	public int getScriptContentMaxSize() throws InvalidUserPass, InvalidRole, HinemosUnknown {
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.JOBMANAGEMENT, SystemPrivilegeMode.MODIFY));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		
+		int maxsize = 0;
+		maxsize = HinemosPropertyCommon.job_script_maxsize.getIntegerValue();
+		
+		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_JOB + " Get, Method=getScriptContentMaxSize, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx));
+		
+		return maxsize;
 	}
 }

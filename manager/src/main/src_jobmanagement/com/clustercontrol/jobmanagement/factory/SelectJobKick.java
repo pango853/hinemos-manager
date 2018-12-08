@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.factory;
@@ -18,27 +11,36 @@ package com.clustercontrol.jobmanagement.factory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.commons.scheduler.QuartzUtil;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
+import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidSetting;
 import com.clustercontrol.fault.JobMasterNotFound;
 import com.clustercontrol.jobmanagement.bean.JobFileCheck;
 import com.clustercontrol.jobmanagement.bean.JobKick;
+import com.clustercontrol.jobmanagement.bean.JobKickConstant;
+import com.clustercontrol.jobmanagement.bean.JobKickFilterInfo;
+import com.clustercontrol.jobmanagement.bean.JobRuntimeParam;
+import com.clustercontrol.jobmanagement.bean.JobRuntimeParamDetail;
 import com.clustercontrol.jobmanagement.bean.JobPlan;
 import com.clustercontrol.jobmanagement.bean.JobPlanFilter;
 import com.clustercontrol.jobmanagement.bean.JobSchedule;
-import com.clustercontrol.jobmanagement.model.JobFileCheckEntity;
+import com.clustercontrol.jobmanagement.model.JobKickEntity;
+import com.clustercontrol.jobmanagement.model.JobRuntimeParamDetailEntity;
+import com.clustercontrol.jobmanagement.model.JobRuntimeParamEntity;
 import com.clustercontrol.jobmanagement.model.JobMstEntity;
-import com.clustercontrol.jobmanagement.model.JobScheduleEntity;
 import com.clustercontrol.jobmanagement.util.QueryUtil;
+import com.clustercontrol.repository.session.RepositoryControllerBean;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * 
@@ -51,103 +53,45 @@ public class SelectJobKick {
 	private static Log m_log = LogFactory.getLog( SelectJobKick.class );
 
 	/**
-	 * scheduleIdのジョブスケジュールを取得します
+	 * jobkickIdのジョブスケジュールを取得します
 	 * 
-	 * @param scheduleId
+	 * @param jobkickId
+	 * @param jobkickType
 	 * @return
 	 * @throws JobMasterNotFound
 	 * @throws InvalidRole
+	 * @throws HinemosUnknown
 	 */
-	public JobSchedule getJobSchedule(String scheduleId) throws JobMasterNotFound, InvalidRole {
+	public JobKick getJobKick(String jobkickId, Integer jobkickType) throws JobMasterNotFound, InvalidRole, HinemosUnknown {
 
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		JobSchedule jobSchedule = null;
+			JobKick jobKick = null;
 
-		m_log.debug("getJobSchedule() scheduleId = " + scheduleId);
+			m_log.debug("getJobSchedule() jobkickId = " + jobkickId + ", jobkickType = " + jobkickType);
 
-		JobScheduleEntity scheduleBean = em.find(JobScheduleEntity.class, scheduleId, ObjectPrivilegeMode.READ);
-		if (scheduleBean == null) {
-			JobMasterNotFound je = new JobMasterNotFound("JobScheduleEntity.findByPrimaryKey"
-					+ ", scheduleId = " + scheduleId);
-			m_log.info("getJobSchedule() : "
-					+ je.getClass().getSimpleName() + ", " + je.getMessage());
-			throw je;
-		}
-		jobSchedule = createJobScheduleInfo(scheduleBean);
-		return jobSchedule;
-	}
-
-	/**
-	 * scheduleIdのジョブファイルチェックを取得します
-	 * 
-	 * @param scheduleId
-	 * @return
-	 * @throws JobMasterNotFound
-	 * @throws InvalidRole
-	 * 
-	 */
-	public JobFileCheck getJobFileCheck(String scheduleId) throws JobMasterNotFound, InvalidRole {
-
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-
-		JobFileCheck jobFileCheck = null;
-
-		m_log.debug("getJobFileCheck() scheduleId = " + scheduleId);
-
-		JobFileCheckEntity fileCheckBean = em.find(JobFileCheckEntity.class, scheduleId, ObjectPrivilegeMode.READ);
-		if (fileCheckBean == null) {
-			JobMasterNotFound je = new JobMasterNotFound("JobFileCheckEntity.findByPrimaryKey"
-					+ ", scheduleId = " + scheduleId);
-			m_log.info("getJobFileCheck() : "
-					+ je.getClass().getSimpleName() + ", " + je.getMessage());
-			throw je;
-		}
-		jobFileCheck = createJobFileCheckInfo(fileCheckBean);
-		return jobFileCheck;
-	}
-
-	/**
-	 * scheduleIdと一致するジョブ[実行契機]（スケジュールまたは、ファイルチェック）を取得します
-	 * @param scheduleId
-	 * @return
-	 * @throws JobMasterNotFound
-	 * @throws InvalidRole
-	 */
-	public JobKick getJobKick(String scheduleId) throws JobMasterNotFound, InvalidRole {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-
-		m_log.debug("getJobKick()");
-
-		JobFileCheckEntity fileCheckBean = em.find(JobFileCheckEntity.class, scheduleId, ObjectPrivilegeMode.READ);
-		JobScheduleEntity scheduleBean = em.find(JobScheduleEntity.class, scheduleId, ObjectPrivilegeMode.READ);
-
-		JobKick jobKick = new JobKick();
-		if(scheduleBean != null){
-			m_log.debug("createJobScheduleInfo : scheduleId = " + scheduleId);
-			jobKick = createJobScheduleInfo(scheduleBean);
-		}
-		else if(fileCheckBean != null){
-			m_log.debug("createJobFileCheckInfo : scheduleId = " + scheduleId);
-			jobKick = createJobFileCheckInfo(fileCheckBean);
-		}
-		else {
-			JobMasterNotFound je = new JobMasterNotFound();
-			if (scheduleBean == null) {
-				je = new JobMasterNotFound("JobScheduleEntity.findByPrimaryKey"
-						+ ", scheduleId = " + scheduleId);
-				m_log.info("getJobSchedule() : "
+			JobKickEntity jobKickEntity = em.find(JobKickEntity.class, jobkickId, ObjectPrivilegeMode.READ);
+			if (jobKickEntity == null || (jobkickType != null && jobKickEntity.getJobkickType().intValue() != jobkickType.intValue())) {
+				JobMasterNotFound je = new JobMasterNotFound("JobKickEntity.findByPrimaryKey"
+						+ ", jobkickId = " + jobkickId
+						+ ", jobkickType = " + jobkickType);
+				m_log.info("getJobKick() : "
 						+ je.getClass().getSimpleName() + ", " + je.getMessage());
+				throw je;
 			}
-			if(fileCheckBean == null){
-				je = new JobMasterNotFound("JobFileCheckEntity.findByPrimaryKey"
-						+ ", scheduleId = " + scheduleId);
-				m_log.info("getJobFileCheck() : "
-						+ je.getClass().getSimpleName() + ", " + je.getMessage());
+			
+			if (jobKickEntity.getJobkickType() == JobKickConstant.TYPE_SCHEDULE) {
+				jobKick = createJobScheduleInfo(jobKickEntity);
+			} else if (jobKickEntity.getJobkickType() == JobKickConstant.TYPE_FILECHECK) {
+				jobKick = createJobFileCheckInfo(jobKickEntity);
+			} else if (jobKickEntity.getJobkickType() == JobKickConstant.TYPE_MANUAL) {
+				 jobKick = createJobManual(jobKickEntity);
+			} else {
+				// 処理なし
 			}
-			throw je;
+			return jobKick;
 		}
-		return jobKick;
 	}
 
 	/**
@@ -157,41 +101,111 @@ public class SelectJobKick {
 	 * @throws JobMasterNotFound
 	 * @throws InvalidRole
 	 */
-	public ArrayList<JobKick> getJobKickList(String userId) throws JobMasterNotFound, InvalidRole {
+	public ArrayList<JobKick> getJobKickList() throws JobMasterNotFound, InvalidRole, HinemosUnknown {
 
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		m_log.debug("getJobKickList()");
+			m_log.debug("getJobKickList()");
 
-		ArrayList<JobKick> list = new ArrayList<JobKick>();
-		//実行契機[スケジュール]情報を取得する
-		Collection<JobScheduleEntity> jobScheduleList;
-		jobScheduleList = em.createNamedQuery("JobScheduleEntity.findAll", JobScheduleEntity.class).getResultList();
-		if (jobScheduleList == null) {
-			JobMasterNotFound je = new JobMasterNotFound("JobScheduleEntity.findAll");
-			m_log.info("getJobKickList()  JobSchedule : "
+			ArrayList<JobKick> list = new ArrayList<JobKick>();
+			//実行契機情報を取得する
+			Collection<JobKickEntity> jobKickList;
+			jobKickList = em.createNamedQuery("JobKickEntity.findAll", JobKickEntity.class).getResultList();
+			if (jobKickList == null) {
+				JobMasterNotFound je = new JobMasterNotFound("JobKickEntity.findAll");
+				m_log.info("getJobKickList() : "
+						+ je.getClass().getSimpleName() + ", " + je.getMessage());
+				throw je;
+			}
+			for(JobKickEntity jobKickBean : jobKickList){
+				if (jobKickBean.getJobkickType() == JobKickConstant.TYPE_SCHEDULE) {
+					// スケジュールを取得する
+					list.add(createJobScheduleInfo(jobKickBean));
+				} else if (jobKickBean.getJobkickType() == JobKickConstant.TYPE_FILECHECK) {
+					// ファイルチェックを取得する
+					list.add(createJobFileCheckInfo(jobKickBean));
+				} else if (jobKickBean.getJobkickType() == JobKickConstant.TYPE_MANUAL) {
+					// マニュアル実行契機の場合は追加の取得は不要。
+					list.add(createJobManual(jobKickBean));
+				}
+			}
+			return list;
+		}
+	}
+
+	/**
+	 * スケジュール一覧情報を取得します。
+	 * 
+	 * @return スケジュール一覧情報
+	 * @throws JobMasterNotFound
+	 * @throws InvalidRole
+	 */
+	public ArrayList<JobKick> getJobKickList(JobKickFilterInfo condition) throws JobMasterNotFound, InvalidRole, HinemosUnknown {
+
+		m_log.debug("getJobKickList() condition");
+		if (m_log.isDebugEnabled()) {
+			if (condition != null) {
+				m_log.debug("getJobKickList() " +
+					"jobkickId = " + condition.getJobkickId() +
+					", jobkickName = " + condition.getJobkickName() +
+					", jobkickType = " + condition.getJobkickType() +
+					", jobunitId = " + condition.getJobunitId() +
+					", jobId = " + condition.getJobId() +
+					", calendarId = " + condition.getCalendarId() +
+					", validFlg = " + condition.getValidFlg() +
+					", regUser = " + condition.getRegUser() +
+					", regFromDate = " + condition.getRegFromDate() +
+					", regToDate = " + condition.getRegToDate() +
+					", updateUser = " + condition.getUpdateUser() +
+					", updateFromDate = " + condition.getUpdateFromDate() +
+					", updateToDate = " + condition.getUpdateToDate() +
+					", ownerRoleId = " + condition.getOwnerRoleId());
+			}
+		}
+
+		ArrayList<JobKick> filterList = new ArrayList<JobKick>();
+		// 条件未設定の場合は空のリストを返却する
+		if (condition == null) {
+			m_log.debug("getJobKickList() condition is null");
+			return filterList;
+		}
+		List<JobKickEntity> entityList = QueryUtil.getJobKickEntityFindByFilter(
+				condition.getJobkickId(),
+				condition.getJobkickName(),
+				condition.getJobkickType(),
+				condition.getJobunitId(),
+				condition.getJobId(),
+				condition.getCalendarId(),
+				condition.getValidFlg(),
+				condition.getRegUser(),
+				condition.getRegFromDate(),
+				condition.getRegToDate(),
+				condition.getUpdateUser(),
+				condition.getUpdateFromDate(),
+				condition.getUpdateToDate(),
+				condition.getOwnerRoleId());
+
+		if (entityList == null) {
+			JobMasterNotFound je = new JobMasterNotFound("JobKickEntity.findByFilter");
+			m_log.info("getJobKickList() : "
 					+ je.getClass().getSimpleName() + ", " + je.getMessage());
 			throw je;
 		}
-		for(JobScheduleEntity scheduleBean : jobScheduleList){
-			//スケジュールを取得する
-			list.add(createJobScheduleInfo(scheduleBean));
+
+		for(JobKickEntity entity : entityList){
+			if (entity.getJobkickType() == JobKickConstant.TYPE_SCHEDULE) {
+				// スケジュールを取得する
+				filterList.add(createJobScheduleInfo(entity));
+			} else if (entity.getJobkickType() == JobKickConstant.TYPE_FILECHECK) {
+				// ファイルチェックを取得する
+				filterList.add(createJobFileCheckInfo(entity));
+			} else if (entity.getJobkickType() == JobKickConstant.TYPE_MANUAL) {
+				// マニュアル実行契機の場合は追加の取得は不要。
+				filterList.add(createJobManual(entity));
+			}
 		}
-		em = new JpaTransactionManager().getEntityManager();
-		//実行契機[ファイルチェック]情報を取得する
-		Collection<JobFileCheckEntity> jobFileCheckList;
-		jobFileCheckList = em.createNamedQuery("JobFileCheckEntity.findAll", JobFileCheckEntity.class).getResultList();
-		if (jobFileCheckList == null) {
-			JobMasterNotFound je = new JobMasterNotFound("JobFileCheckEntity.findAll");
-			m_log.info("getJobKickList()  JobFileCheck : "
-					+ je.getClass().getSimpleName() + ", " + je.getMessage());
-			throw je;
-		}
-		for(JobFileCheckEntity fileCheckBean : jobFileCheckList){
-			//ファイルチェックを取得する
-			list.add(createJobFileCheckInfo(fileCheckBean));
-		}
-		return list;
+		return filterList;
 	}
 	/**
 	 * スケジュール[スケジュール予定]一覧情報を取得します。
@@ -202,17 +216,15 @@ public class SelectJobKick {
 	 * @throws JobMasterNotFound
 	 * @throws InvalidSetting
 	 * @throws InvalidRole
+	 * @throws
 	 */
-	public ArrayList<JobPlan> getPlanList(String userId, JobPlanFilter filter,int plans) throws JobMasterNotFound, InvalidSetting, InvalidRole {
-
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
+	public ArrayList<JobPlan> getPlanList(String userId, JobPlanFilter filter,int plans) throws JobMasterNotFound, InvalidSetting, InvalidRole, HinemosUnknown {
 
 		m_log.debug("getPlanList()");
 
-		Collection<JobScheduleEntity> jobScheduleList =
-				em.createNamedQuery("JobScheduleEntity.findAll", JobScheduleEntity.class).getResultList();
-		if (jobScheduleList == null) {
-			JobMasterNotFound je = new JobMasterNotFound("JobScheduleEntity.findAll");
+		Collection<JobKickEntity> jobKickList = QueryUtil.getJobKickEntityFindByJobKickType(JobKickConstant.TYPE_SCHEDULE);
+		if (jobKickList == null) {
+			JobMasterNotFound je = new JobMasterNotFound("JobKickEntity.findByJobKickType jobkickType = " + JobKickConstant.TYPE_SCHEDULE);
 			m_log.info("getPlanList() : "
 					+ je.getClass().getSimpleName() + ", " + je.getMessage());
 			throw je;
@@ -220,10 +232,10 @@ public class SelectJobKick {
 
 		//ジョブ[スケジュール予定]一覧表示に必要なものだけ抽出
 		ArrayList<JobPlan> planList = new ArrayList<JobPlan>();
-		for(JobScheduleEntity scheduleBean : jobScheduleList){
-			JobSchedule js = createJobScheduleInfo(scheduleBean);
+		for(JobKickEntity jobKickBean : jobKickList){
+			JobSchedule js = createJobScheduleInfo(jobKickBean);
 			//スケジュールが有効なら表示 0:無効 1:有効
-			if (js.getValid() != ValidConstant.TYPE_VALID) {
+			if (!js.isValid().booleanValue()) {
 				continue;
 			}
 			String str = QuartzUtil.getCronString(js.getScheduleType(),
@@ -231,7 +243,7 @@ public class SelectJobKick {
 					js.getFromXminutes(),js.getEveryXminutes());
 			m_log.debug("Cron =" + str);
 			//表示開始日時のデフォルトはマネージャへアクセスしたときの日時
-			Long startTime = System.currentTimeMillis();
+			Long startTime = HinemosTime.currentTimeMillis();
 			//フィルタの開始時間が設定されていたらこれを基準に表示
 			if(filter != null && filter.getFromDate() != null){
 				startTime = filter.getFromDate();
@@ -265,7 +277,12 @@ public class SelectJobKick {
 		}
 		m_log.debug("planList.size()=" + planList.size());
 		//昇順ソート
-		Collections.sort(planList);
+		Collections.sort(planList, new Comparator<JobPlan>() {
+			@Override
+			public int compare(JobPlan o1, JobPlan o2) {
+				return o1.getDate().compareTo(o2.getDate());
+			}
+		});
 		//palns数リストにまとめる
 		ArrayList<JobPlan> retList = new ArrayList<JobPlan>();
 		int counter = 0;
@@ -282,122 +299,160 @@ public class SelectJobKick {
 	}
 
 	/**
-	 * JobScheduleEntityよりJobScheduleを作成するクラス
+	 * JobKickEntityよりJobScheduleを作成するクラス
 	 * 
-	 * @param scheduleBean
-	 * @return
+	 * @param jobKickEntity
+	 * @return スケジュール情報
 	 * @throws JobMasterNotFound
 	 * @throws InvalidRole
 	 */
-	private JobSchedule createJobScheduleInfo(JobScheduleEntity scheduleBean) throws JobMasterNotFound, InvalidRole {
+	private JobSchedule createJobScheduleInfo(JobKickEntity jobKickEntity) throws JobMasterNotFound, InvalidRole {
 
-		JobSchedule info = new JobSchedule();
-		//スケジュールIDを取得
-		info.setId(scheduleBean.getScheduleId());
-		//スケジュール名を取得
-		info.setName(scheduleBean.getScheduleName());
-		//ジョブIDを取得
-		info.setJobId(scheduleBean.getJobId());
-		//ジョブ名を取得
-		JobMstEntity jobMstEntity = QueryUtil.getJobMstPK_OR(
-				scheduleBean.getJobunitId(),
-				scheduleBean.getJobId(),
-				scheduleBean.getOwnerRoleId());
-		String jobName = jobMstEntity.getJobName();
-		info.setJobName(jobName);
-
-		//ジョブユニットIDを取得
-		info.setJobunitId(scheduleBean.getJobunitId());
-		//カレンダIDを取得
-		info.setCalendarId(scheduleBean.getCalendarId());
+		JobSchedule jobSchedule = new JobSchedule();
+		createJobKickInfo(jobKickEntity, jobSchedule);
 
 		//スケジュール設定を取得
-		info.setScheduleType(scheduleBean.getScheduleType());
-		info.setHour(scheduleBean.getHour());
-		info.setMinute(scheduleBean.getMinute());
-		info.setWeek(scheduleBean.getWeek());
-		info.setFromXminutes(scheduleBean.getFromXMinutes());
-		info.setEveryXminutes(scheduleBean.getEveryXMinutes());
-
-		//有効/無効を取得
-		info.setValid(scheduleBean.getValidFlg());
-
-		//オーナーロールIDを取得
-		info.setOwnerRoleId(scheduleBean.getOwnerRoleId());
-
-		//登録者を取得
-		info.setCreateUser(scheduleBean.getRegUser());
-		//登録日時を取得
-		if (scheduleBean.getRegDate() != null) {
-			info.setCreateTime(scheduleBean.getRegDate().getTime());
-		}
-		//更新者を取得
-		info.setUpdateUser(scheduleBean.getUpdateUser());
-		//更新日時を取得
-		if (scheduleBean.getUpdateDate() != null) {
-			info.setUpdateTime(scheduleBean.getUpdateDate().getTime());
-		}
-		return info;
+		jobSchedule.setScheduleType(jobKickEntity.getScheduleType());
+		jobSchedule.setHour(jobKickEntity.getHour());
+		jobSchedule.setMinute(jobKickEntity.getMinute());
+		jobSchedule.setWeek(jobKickEntity.getWeek());
+		jobSchedule.setFromXminutes(jobKickEntity.getFromXMinutes());
+		jobSchedule.setEveryXminutes(jobKickEntity.getEveryXMinutes());
+		return jobSchedule;
 	}
 
 	/**
-	 * JobFileCheckEntityよりJobFileCheckを作成するクラス
+	 * JobKickEntityよりJobFileCheckを作成するクラス
 	 * 
-	 * @param fileCheckBean
-	 * @return
+	 * @param jobKickEntity
+	 * @return ファイルチェック情報
+	 * @throws JobMasterNotFound
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 */
+	private JobFileCheck createJobFileCheckInfo(JobKickEntity jobKickEntity) throws JobMasterNotFound, InvalidRole, HinemosUnknown {
+
+		JobFileCheck jobFileCheck = new JobFileCheck();
+		createJobKickInfo(jobKickEntity, jobFileCheck);
+
+		//ファシリティID取得
+		jobFileCheck.setFacilityId(jobKickEntity.getFacilityId());
+		//ファシリティパス取得
+		String facilityId = jobKickEntity.getFacilityId();
+		String scopePath = new RepositoryControllerBean().getFacilityPath(facilityId, null);
+		jobFileCheck.setScope(scopePath);
+		//ディレクトリ取得
+		jobFileCheck.setDirectory(jobKickEntity.getDirectory());
+		//ファイル名取得
+		jobFileCheck.setFileName(jobKickEntity.getFileName());
+		//ファイルチェック種別取得
+		jobFileCheck.setEventType(jobKickEntity.getEventType());
+		//ファイルチェック種別が変更の場合 変更種別取得
+		jobFileCheck.setModifyType(jobKickEntity.getModifyType());
+
+		return jobFileCheck;
+	}
+
+	/**
+	 * JobKickEntityよりJobKickを作成するクラス
+	 * 
+	 * @param jobKickEntity
+	 * @return マニュアル実行契機情報
+	 * @throws JobMasterNotFound
+	 * @throws InvalidRole
+	 * @throws HinemosUnknown
+	 */
+	private JobKick createJobManual(JobKickEntity jobKickEntity) throws JobMasterNotFound, InvalidRole {
+
+		JobKick jobKick = new JobKick();
+		createJobKickInfo(jobKickEntity, jobKick);
+		return jobKick;
+	}
+
+	/**
+	 * JobKickEntityよりJobKickを作成するクラス
+	 * 
+	 * @param jobKickEntity データ取得元Entity
+	 * @param jobKick データ格納先Bean
 	 * @throws JobMasterNotFound
 	 * @throws InvalidRole
 	 */
-	private JobFileCheck createJobFileCheckInfo(JobFileCheckEntity fileCheckBean) throws JobMasterNotFound, InvalidRole {
+	private void createJobKickInfo(JobKickEntity jobKickEntity, JobKick jobKick) throws JobMasterNotFound, InvalidRole {
 
-		JobFileCheck info = new JobFileCheck();
-		//スケジュールIDを取得
-		info.setId(fileCheckBean.getScheduleId());
-		//スケジュール名を取得
-		info.setName(fileCheckBean.getScheduleName());
+		//実行契機IDを取得
+		jobKick.setId(jobKickEntity.getJobkickId());
+		//実行契機名を取得
+		jobKick.setName(jobKickEntity.getJobkickName());
 		//ジョブIDを取得
-		info.setJobId(fileCheckBean.getJobId());
+		jobKick.setJobId(jobKickEntity.getJobId());
 		//ジョブ名を取得
 		JobMstEntity jobMstEntity = QueryUtil.getJobMstPK_OR(
-				fileCheckBean.getJobunitId(),
-				fileCheckBean.getJobId(),
-				fileCheckBean.getOwnerRoleId());
+				jobKickEntity.getJobunitId(),
+				jobKickEntity.getJobId(),
+				jobKickEntity.getOwnerRoleId());
 		String jobName = jobMstEntity.getJobName();
-		info.setJobName(jobName);
+		jobKick.setJobName(jobName);
 
 		//ジョブユニットIDを取得
-		info.setJobunitId(fileCheckBean.getJobunitId());
+		jobKick.setJobunitId(jobKickEntity.getJobunitId());
+
 		//カレンダIDを取得
-		info.setCalendarId(fileCheckBean.getCalendarId());
-		//ファシリティID取得
-		info.setFacilityId(fileCheckBean.getFacilityId());
-		//ディレクトリ取得
-		info.setDirectory(fileCheckBean.getDirectory());
-		//ファイル名取得
-		info.setFileName(fileCheckBean.getFileName());
-		//ファイルチェック種別取得
-		info.setEventType(fileCheckBean.getEventType());
-		//ファイルチェック種別が変更の場合 変更種別取得
-		info.setModifyType(fileCheckBean.getModifyType());
+		jobKick.setCalendarId(jobKickEntity.getCalendarId());
 
 		//有効/無効を取得
-		info.setValid(fileCheckBean.getValidFlg());
+		jobKick.setValid(jobKickEntity.getValidFlg());
+
+		// ランタイムジョブ変数情報取得
+		if (jobKickEntity.getJobRuntimeParamEntities() != null 
+				&& jobKickEntity.getJobRuntimeParamEntities().size() > 0) {
+
+			jobKick.setJobRuntimeParamList(new ArrayList<JobRuntimeParam>());
+			for (JobRuntimeParamEntity jobRuntimeParamEntity : jobKickEntity.getJobRuntimeParamEntities()) {
+				JobRuntimeParam jobRuntimeParam = new JobRuntimeParam();
+				// 名前
+				jobRuntimeParam.setParamId(jobRuntimeParamEntity.getId().getParamId());
+				// 種別
+				jobRuntimeParam.setParamType(jobRuntimeParamEntity.getParamType());
+				// デフォルト値
+				jobRuntimeParam.setValue(jobRuntimeParamEntity.getDefaultValue());
+				// 説明
+				jobRuntimeParam.setDescription(jobRuntimeParamEntity.getDescription());
+				// 必須フラグ
+				jobRuntimeParam.setRequiredFlg(jobRuntimeParamEntity.getRequiredFlg());
+
+				if (jobRuntimeParamEntity.getJobRuntimeParamDetailEntities() != null
+						&& jobRuntimeParamEntity.getJobRuntimeParamDetailEntities().size() > 0) {
+
+					// ランタイムジョブ変数詳細情報の取得
+					jobRuntimeParam.setJobRuntimeParamDetailList(new ArrayList<JobRuntimeParamDetail>());
+					for (JobRuntimeParamDetailEntity jobRuntimeParamDetailEntity 
+							: jobRuntimeParamEntity.getJobRuntimeParamDetailEntities()) {
+						JobRuntimeParamDetail jobRuntimeParamDetail = new JobRuntimeParamDetail();
+						// 値
+						jobRuntimeParamDetail.setParamValue(jobRuntimeParamDetailEntity.getParamValue());
+						// 説明
+						jobRuntimeParamDetail.setDescription(jobRuntimeParamDetailEntity.getDescription());
+						jobRuntimeParam.getJobRuntimeParamDetailList().add(jobRuntimeParamDetail);
+					}
+				}
+				jobKick.getJobRuntimeParamList().add(jobRuntimeParam);
+			}
+		}
 
 		//オーナーロールIDを取得
-		info.setOwnerRoleId(fileCheckBean.getOwnerRoleId());
+		jobKick.setOwnerRoleId(jobKickEntity.getOwnerRoleId());
 
 		//登録者を取得
-		info.setCreateUser(fileCheckBean.getRegUser());
+		jobKick.setCreateUser(jobKickEntity.getRegUser());
 		//登録日時を取得
-		if (fileCheckBean.getRegDate() != null) {
-			info.setCreateTime(fileCheckBean.getRegDate().getTime());
+		if (jobKickEntity.getRegDate() != null) {
+			jobKick.setCreateTime(jobKickEntity.getRegDate());
 		}
 		//更新者を取得
-		info.setUpdateUser(fileCheckBean.getUpdateUser());
+		jobKick.setUpdateUser(jobKickEntity.getUpdateUser());
 		//更新日時を取得
-		if (fileCheckBean.getUpdateDate() != null) {
-			info.setUpdateTime(fileCheckBean.getUpdateDate().getTime());
+		if (jobKickEntity.getUpdateDate() != null) {
+			jobKick.setUpdateTime(jobKickEntity.getUpdateDate());
 		}
-		return info;
 	}
 }

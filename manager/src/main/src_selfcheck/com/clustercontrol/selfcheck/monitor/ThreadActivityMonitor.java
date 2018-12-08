@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.selfcheck.monitor;
@@ -20,8 +13,11 @@ import java.util.Date;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.commons.bean.ThreadInfo;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -61,7 +57,7 @@ public class ThreadActivityMonitor extends SelfCheckMonitorBase {
 
 	@Override
 	public void execute() {
-		if (!HinemosPropertyUtil.getHinemosPropertyBool("selfcheck.monitoring.thread.activity", true)) {
+		if (!HinemosPropertyCommon.selfcheck_monitoring_thread_activity.getBooleanValue()) {
 			log.debug("skip");
 			return;
 		}
@@ -71,12 +67,12 @@ public class ThreadActivityMonitor extends SelfCheckMonitorBase {
 		String startTimeStr = null;
 		boolean warn = true;
 
-		thresholdSec = HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.monitoring.thread.activity.threshold", 300);
+		thresholdSec = HinemosPropertyCommon.selfcheck_monitoring_thread_activity_threshold.getIntegerValue();
 
 		/** メイン処理 */
 		log.debug("monitoring thread. (threadInfo = " + threadInfo + ")");
 
-		now = new Date();
+		now = HinemosTime.getDateInstance();
 		startTimeStr =  String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", new Date(threadInfo.taskStartTime));
 
 		if (now.getTime() - threadInfo.taskStartTime <= thresholdSec * 1000) {
@@ -92,9 +88,8 @@ public class ThreadActivityMonitor extends SelfCheckMonitorBase {
 		if (!isNotify(subKey, warn)) {
 			return;
 		}
-		String[] msgAttr1 = { new Long(threadInfo.thread.getId()).toString(), threadInfo.thread.getName(), threadInfo.taskClassName, startTimeStr, Integer.toString(thresholdSec) };
-		AplLogger aplLogger = new AplLogger(PLUGIN_ID, APL_ID);
-		aplLogger.put(MESSAGE_ID, "012", msgAttr1,
+		String[] msgAttr1 = { Long.toString(threadInfo.thread.getId()), threadInfo.thread.getName(), threadInfo.taskClassName, startTimeStr, Integer.toString(thresholdSec) };
+		AplLogger.put(PriorityConstant.TYPE_WARNING, PLUGIN_ID, MessageConstant.MESSAGE_SYS_012_SYS_SFC, msgAttr1,
 				"internal logic (tid " +
 						threadInfo.thread.getId() +
 						", thread name " +
@@ -112,12 +107,12 @@ public class ThreadActivityMonitor extends SelfCheckMonitorBase {
 
 	private static String getStackTrace(Thread t){
 		StackTraceElement[] eList = t.getStackTrace();
-		String trace = "";
+		StringBuilder trace = new StringBuilder();
 		for (StackTraceElement e : eList) {
-			trace += "\n\tat ";
-			trace += e.getClassName() + "." + e.getMethodName() + "(" + e.getFileName() + ":" + e.getLineNumber() + ")";
+			trace.append("\n\tat ");
+			trace.append(e.getClassName() + "." + e.getMethodName() + "(" + e.getFileName() + ":" + e.getLineNumber() + ")");
 		}
-		return trace;
+		return trace.toString();
 	}
 
 }

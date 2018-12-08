@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.http.factory;
@@ -20,7 +13,6 @@ import javax.persistence.EntityExistsException;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.http.util.ControlHttpScenarioInfo;
-import com.clustercontrol.monitor.run.factory.AddMonitor;
 import com.clustercontrol.monitor.run.factory.ModifyMonitor;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.TriggerType;
 
@@ -48,7 +40,7 @@ public class ModifyMonitorHttpScenario extends ModifyMonitor {
 	 */
 	@Override
 	protected int getDelayTime() {
-		return AddMonitor.getDelayTimeBasic(m_monitorInfo);
+		return  ModifyMonitor.getDelayTimeBasic(m_monitorInfo);
 	}
 
 	/**
@@ -62,5 +54,18 @@ public class ModifyMonitorHttpScenario extends ModifyMonitor {
 	@Override
 	protected boolean modifyJudgementInfo() throws MonitorNotFound, EntityExistsException, InvalidRole {
 		return true;
+	}
+
+	@Override
+	protected boolean addJudgementInfo() throws MonitorNotFound, InvalidRole {
+		return true;
+	}
+	
+	@Override
+	protected boolean addCheckInfo() throws MonitorNotFound, InvalidRole {
+
+		// HTTP監視(シナリオ)情報を追加
+		ControlHttpScenarioInfo http = new ControlHttpScenarioInfo(m_monitorInfo.getMonitorId(), m_monitorInfo.getMonitorTypeId());
+		return http.add(m_monitorInfo.getHttpScenarioCheckInfo());
 	}
 }

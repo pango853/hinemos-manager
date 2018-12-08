@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.factory;
@@ -21,18 +14,20 @@ import java.util.Date;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.monitor.bean.ScopeDataInfo;
 import com.clustercontrol.monitor.session.MonitorControllerBean;
 import com.clustercontrol.notify.monitor.model.EventLogEntity;
 import com.clustercontrol.notify.monitor.model.StatusInfoEntity;
-import com.clustercontrol.repository.model.FacilityEntity;
+import com.clustercontrol.repository.model.FacilityInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 import com.clustercontrol.repository.util.QueryUtil;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -146,7 +141,7 @@ public class SelectScope {
 					if(scopeInfo != null){
 
 						//そのfacilityTreeのソート順を読み出す。ArrayListに追加する。
-						FacilityEntity facility = QueryUtil.getFacilityPK_NONE(facilityIds[index]);
+						FacilityInfo facility = QueryUtil.getFacilityPK_NONE(facilityIds[index]);
 						Integer sortValue = facility.getDisplaySortOrder();
 
 						scopeInfo.setSortValue(sortValue);
@@ -222,14 +217,12 @@ public class SelectScope {
 
 			}
 		} catch (FacilityNotFound e) {
-			AplLogger apllog = new AplLogger("MON", "mon");
 			String[] args = {facilityId};
-			apllog.put("SYS", "001", args);
+			AplLogger.put(PriorityConstant.TYPE_WARNING, HinemosModuleConstant.MONITOR, MessageConstant.MESSAGE_SYS_001_MON, args);
 			throw new MonitorNotFound(e.getMessage(), e);
 		} catch (HinemosUnknown e) {
-			AplLogger apllog = new AplLogger("MON", "mon");
 			String[] args = {facilityId};
-			apllog.put("SYS", "001", args);
+			AplLogger.put(PriorityConstant.TYPE_WARNING, HinemosModuleConstant.MONITOR, MessageConstant.MESSAGE_SYS_001_MON, args);
 			throw e;
 		}
 		return list;
@@ -276,7 +269,7 @@ public class SelectScope {
 			}
 			else if((status.getPriority()).intValue() == (event.getPriority()).intValue()){
 				// 重要度が等しい場合、更新日時は最新の情報を設定する
-				if((status.getOutputDate()).after(event.getId().getOutputDate())){
+				if((status.getOutputDate()).compareTo(event.getId().getOutputDate()) > 0){
 					statusInfoFlg = true;
 				}
 				else{
@@ -291,7 +284,7 @@ public class SelectScope {
 			scopeInfo.setFacilityId(facilityId);
 			scopeInfo.setFacilityPath(facilityPath);
 			if (status.getOutputDate() != null) {
-				scopeInfo.setOutputDate(status.getOutputDate().getTime());
+				scopeInfo.setOutputDate(status.getOutputDate());
 			}
 		}
 		else if(eventLogFlg){
@@ -299,7 +292,7 @@ public class SelectScope {
 			scopeInfo.setFacilityId(facilityId);
 			scopeInfo.setFacilityPath(facilityPath);
 			if (event.getId().getOutputDate() != null) {
-				scopeInfo.setOutputDate(event.getId().getOutputDate().getTime());
+				scopeInfo.setOutputDate(event.getId().getOutputDate());
 			}
 		}
 		return scopeInfo;

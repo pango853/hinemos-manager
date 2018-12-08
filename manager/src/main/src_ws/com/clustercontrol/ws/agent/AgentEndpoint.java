@@ -1,23 +1,19 @@
 /*
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.agent;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.StringTokenizer;
 
 import javax.activation.DataHandler;
@@ -32,11 +28,11 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.commons.bean.SettingUpdateInfo;
 import com.clustercontrol.custom.bean.CommandExecuteDTO;
-import com.clustercontrol.custom.bean.CommandResultDTO;
 import com.clustercontrol.custom.session.MonitorCustomControllerBean;
 import com.clustercontrol.fault.CustomInvalid;
 import com.clustercontrol.fault.FacilityNotFound;
@@ -58,18 +54,17 @@ import com.clustercontrol.jobmanagement.bean.JobTriggerTypeConstant;
 import com.clustercontrol.jobmanagement.bean.RunResultInfo;
 import com.clustercontrol.jobmanagement.session.JobControllerBean;
 import com.clustercontrol.jobmanagement.session.JobRunManagementBean;
-import com.clustercontrol.logfile.bean.LogfileResultDTO;
 import com.clustercontrol.logfile.session.MonitorLogfileControllerBean;
-import com.clustercontrol.monitor.run.bean.MonitorInfo;
-import com.clustercontrol.monitor.run.bean.MonitorStringValueInfo;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
 import com.clustercontrol.repository.factory.FacilitySelector;
 import com.clustercontrol.repository.factory.NodeProperty;
+import com.clustercontrol.repository.factory.SearchNodeBySNMP;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
-import com.clustercontrol.systemlog.service.MessageInfo;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
-import com.clustercontrol.winevent.bean.WinEventResultDTO;
 import com.clustercontrol.winevent.session.MonitorWinEventControllerBean;
+import com.clustercontrol.ws.util.HashMapInfo;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 
 /**
@@ -248,8 +243,9 @@ public class AgentEndpoint {
 			 */
 			try {
 				for (String ipAddress : agentInfo.getIpAddress()) {
-					ArrayList<String> list
-					= new RepositoryControllerBean().getFacilityIdList(agentInfo.getHostname(), ipAddress);
+					String hostname = agentInfo.getHostname();
+					hostname = SearchNodeBySNMP.getShortName(hostname);
+					ArrayList<String> list = new RepositoryControllerBean().getFacilityIdList(hostname, ipAddress);
 					if (list != null && list.size() != 0) {
 						for (String facilityId : list) {
 							m_log.debug("facilityId=" + facilityId + ", " + agentInfo.toString());
@@ -278,12 +274,23 @@ public class AgentEndpoint {
 	public boolean jobResult (RunResultInfo info)
 			throws HinemosUnknown, JobInfoNotFound,
 			InvalidUserPass, InvalidRole {
+		
+		// ログが見にくなるので、短くして、改行を取り除く
+		String command = info.getCommand();
+		int length = 32;
+		if (command != null) {
+			if (length < command.length()){
+				command = command.substring(0, length);
+			}
+			command = command.replaceAll("\n", "");
+		}
+		
 		m_log.info("jobResult : " +
 				info.getSessionId() + ", " +
 				info.getJobunitId() + ", " +
 				info.getJobId() + ", " +
 				info.getCommandType() + ", " +
-				info.getCommand() + ", " +
+				command + ", " +
 				info.getStatus() + ", " +
 				info.getFacilityId() + ", "
 				);
@@ -314,24 +321,11 @@ public class AgentEndpoint {
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 		ArrayList<String> facilityIdList = new ArrayList<String>();
 
-		if (agentInfo.getFacilityId() != null && !agentInfo.getFacilityId().equals("")) {
-			facilityIdList.add(agentInfo.getFacilityId());
-		} else {
-			try {
-				RepositoryControllerBean bean = new RepositoryControllerBean();
-				for (String ipAddress : agentInfo.getIpAddress()) {
-					ArrayList<String> list = bean.getFacilityIdList(agentInfo.getHostname(), ipAddress);
-					if (list != null && list.size() != 0) {
-						for (String facilityId : list) {
-							m_log.debug("facilityId=" + facilityId + ", " + agentInfo.toString());
-						}
-						facilityIdList.addAll(list);
-					}
-				}
-			} catch (Exception e) {
-				m_log.warn(e,e);
-				return null;
-			}
+		try {
+			facilityIdList.addAll(getFacilityId(agentInfo));
+		} catch (Exception e) {
+			m_log.warn(e,e);
+			return null;
 		}
 
 		ArrayList<MonitorInfo> list = new ArrayList<MonitorInfo>();
@@ -362,24 +356,11 @@ public class AgentEndpoint {
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 		ArrayList<String> facilityIdList = new ArrayList<String>();
 
-		if (agentInfo.getFacilityId() != null && !agentInfo.getFacilityId().equals("")) {
-			facilityIdList.add(agentInfo.getFacilityId());
-		} else {
-			try {
-				RepositoryControllerBean bean = new RepositoryControllerBean();
-				for (String ipAddress : agentInfo.getIpAddress()) {
-					ArrayList<String> list = bean.getFacilityIdList(agentInfo.getHostname(), ipAddress);
-					if (list != null && list.size() != 0) {
-						for (String facilityId : list) {
-							m_log.debug("facilityId=" + facilityId + ", " + agentInfo.toString());
-						}
-						facilityIdList.addAll(list);
-					}
-				}
-			} catch (Exception e) {
-				m_log.warn(e,e);
-				return null;
-			}
+		try {
+			facilityIdList.addAll(getFacilityId(agentInfo));
+		} catch (Exception e) {
+			m_log.warn(e,e);
+			return null;
 		}
 
 		return new JobControllerBean().getJobFileCheck(facilityIdList);
@@ -416,6 +397,7 @@ public class AgentEndpoint {
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		JobTriggerInfo trigger = new JobTriggerInfo();
+		trigger.setJobkickId(jobFileCheck.getId());
 		trigger.setTrigger_type(JobTriggerTypeConstant.TYPE_FILECHECK);
 		trigger.setTrigger_info(jobFileCheck.getName() + "(" + id + ") file=" + filename);
 		trigger.setFilename(filename);
@@ -432,9 +414,8 @@ public class AgentEndpoint {
 					sessionId = new JobControllerBean().runJob(jobunitId, jobId, output, trigger);
 				} catch (Exception e) {
 					m_log.warn("jobFileCheckResult() : " + e.getMessage());
-					AplLogger apllog = new AplLogger(HinemosModuleConstant.JOB, "job");
 					String[] args = { jobId, trigger.getTrigger_info() };
-					apllog.put("SYS", "017", args);
+					AplLogger.put(PriorityConstant.TYPE_WARNING, HinemosModuleConstant.JOB, MessageConstant.MESSAGE_SYS_017_JOB, args);
 					throw new HinemosUnknown(e.getMessage(), e);
 				}
 			}
@@ -462,24 +443,11 @@ public class AgentEndpoint {
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 		ArrayList<String> facilityIdList = new ArrayList<String>();
 
-		if (agentInfo.getFacilityId() != null && !agentInfo.getFacilityId().equals("")) {
-			facilityIdList.add(agentInfo.getFacilityId());
-		} else {
-			try {
-				RepositoryControllerBean bean = new RepositoryControllerBean();
-				for (String ipAddress : agentInfo.getIpAddress()) {
-					ArrayList<String> list = bean.getFacilityIdList(agentInfo.getHostname(), ipAddress);
-					if (list != null && list.size() != 0) {
-						for (String facilityId : list) {
-							m_log.debug("facilityId=" + facilityId + ", " + agentInfo.toString());
-						}
-						facilityIdList.addAll(list);
-					}
-				}
-			} catch (Exception e) {
-				m_log.warn(e,e);
-				return null;
-			}
+		try {
+			facilityIdList.addAll(getFacilityId(agentInfo));
+		} catch (Exception e) {
+			m_log.warn(e,e);
+			return null;
 		}
 
 		ArrayList<MonitorInfo> list = new ArrayList<MonitorInfo>();
@@ -489,43 +457,6 @@ public class AgentEndpoint {
 		}
 		return list;
 	}
-
-	/**
-	 * [Logfile] ログファイル監視でマッチしたものに対して通知をマネージャに依頼する。
-	 *
-	 * HinemosAgentAccess権限が必要
-	 *
-	 * @throws HinemosUnknown
-	 * @throws InvalidRole
-	 * @throws InvalidUserPass
-	 */
-	@Deprecated
-	public void sendNotify(String message, MessageInfo logmsg,
-			MonitorInfo monitorInfo, MonitorStringValueInfo rule, AgentInfo agentInfo) throws HinemosUnknown, InvalidRole, InvalidUserPass {
-
-		m_log.debug("sendNotify : " + message);
-		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
-		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
-		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
-
-		for (String logFacilityId : getFacilityId(agentInfo)) {
-			String facilityId = monitorInfo.getFacilityId();
-			ArrayList<String> facilityList = FacilitySelector.getFacilityIdList(facilityId, monitorInfo.getOwnerRoleId(), 0, false, false);
-			String str = "";
-			if (m_log.isDebugEnabled()) {
-				for (String s : facilityList) {
-					str += s + ", ";
-				}
-				m_log.debug("facilityId=" + logFacilityId + ", (" + str + ")");
-			}
-			if (facilityList.contains(logFacilityId)) {
-				new MonitorLogfileControllerBean().run(logFacilityId, Arrays.asList(new LogfileResultDTO(message, logmsg, monitorInfo, rule)));
-			} else {
-				m_log.debug("sendNotify facilityId=" + logFacilityId + ", " + str);
-			}
-		}
-	}
-	
 
 	/**
 	 * [Command Monitor] コマンド実行情報を問い合わせられた場合にコールされるメソッドであり、問い合わせたエージェントが実行すべきコマンド実行情報を返す。
@@ -560,93 +491,6 @@ public class AgentEndpoint {
 		}
 
 		return dtos;
-			}
-
-	/**
-	 * [Custom Monitor] コマンド監視において、コマンドの実行結果をマネージャに通知する。
-	 *
-	 * HinemosAgentAccess権限が必要
-	 *
-	 * @param result コマンドの実行結果
-	 * @throws InvalidRole
-	 * @throws InvalidUserPass
-	 * @throws HinemosUnknown
-	 */
-	@Deprecated
-	public void putCommandResultDTO(CommandResultDTO result) throws InvalidUserPass, InvalidRole, HinemosUnknown
-	{
-		forwardCustomResult(Arrays.asList(result));
-	}
-	
-	/**
-	 * [Custom Monitor] コマンド監視において、コマンドの実行結果をまとめてマネージャに通知する。
-	 * 1 HTTP Requestで多数のコマンド実行結果を送信できるため、リソース観点から効率的に処理できる。
-	 *
-	 * HinemosAgentAccess権限が必要
-	 *
-	 * @param resultList コマンドの実行結果のリスト
-	 * @throws InvalidRole
-	 * @throws InvalidUserPass
-	 * @throws HinemosUnknown
-	 */
-	public void forwardCustomResult(List<CommandResultDTO> resultList)  throws InvalidUserPass, InvalidRole, HinemosUnknown
-	{
-		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
-		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
-		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
-
-		// MAIN
-		try {
-			new MonitorCustomControllerBean().evalCommandResult(resultList);
-		} catch (MonitorNotFound e) {
-			m_log.warn("monitor not found...", e);
-		} catch (HinemosUnknown e) {
-			m_log.warn("unexpected internal failure occurred...", e);
-			throw e;
-		} catch (CustomInvalid e) {
-			m_log.warn("configuration of command monitor is not valid...", e);
-		}
-	}
-	
-
-	/**
-	 * [Logfile] ログファイル監視でマッチしたものに対して通知をマネージャに依頼する。
-	 * 1 HTTP Requestで多数の監視実行結果を送信できるため、リソース観点から効率的に処理できる。
-	 *
-	 * HinemosAgentAccess権限が必要
-	 *
-	 * @throws HinemosUnknown
-	 * @throws InvalidRole
-	 * @throws InvalidUserPass
-	 */
-	public void forwardLogfileResult(List<LogfileResultDTO> resultList, AgentInfo agentInfo) throws InvalidUserPass, InvalidRole, HinemosUnknown {
-		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
-		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
-		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
-		
-		for (String facilityId : getFacilityId(agentInfo)) {
-			new MonitorLogfileControllerBean().run(facilityId, resultList);
-		}
-	}
-	
-	/**
-	 * [WinEvent] Windowsイベント監視でマッチしたものに対して通知をマネージャに依頼する。
-	 * 1 HTTP Requestで多数の監視実行結果を送信できるため、リソース観点から効率的に処理できる。
-	 *
-	 * HinemosAgentAccess権限が必要
-	 *
-	 * @throws HinemosUnknown
-	 * @throws InvalidRole
-	 * @throws InvalidUserPass
-	 */
-	public void forwardWinEventResult(List<WinEventResultDTO> resultList, AgentInfo agentInfo) throws InvalidUserPass, InvalidRole, HinemosUnknown {
-		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
-		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
-		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
-		
-		for (String facilityId : getFacilityId(agentInfo)) {
-			new MonitorWinEventControllerBean().run(facilityId, resultList);
-		}
 	}
 
 	/**
@@ -659,16 +503,16 @@ public class AgentEndpoint {
 	 * @throws InvalidUserPass
 	 */
 	@XmlMimeType("application/octet-stream")
-	public DataHandler downloadModule(String filename) throws InvalidUserPass, InvalidRole, HinemosUnknown
+	public DataHandler downloadModule(String libPath) throws InvalidUserPass, InvalidRole, HinemosUnknown
 	{
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
-		String filepath= "/opt/hinemos/lib/agent/" + filename;
-		File file = new File(filepath);
+		String homeDir = System.getProperty("hinemos.manager.home.dir");
+		File file = new File(new File(homeDir + "/lib/agent"), libPath);
 		if(!file.exists()) {
-			m_log.info("file not found : " + filepath);
+			m_log.info("file not found : " + file.getAbsolutePath());
 			return null;
 		}
 		FileDataSource source = new FileDataSource(file);
@@ -686,18 +530,19 @@ public class AgentEndpoint {
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
 	 */
-	public ArrayList<String> getAgentLibMap() throws HinemosUnknown, InvalidRole, InvalidUserPass {
+	public ArrayList<String> getAgentLibMap(AgentInfo agentInfo) throws HinemosUnknown, InvalidRole, InvalidUserPass {
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
 		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 
 		// TODO HashMapが利用できないのでArrayList<String>で実装。
 		// あとで調査すること。
-		HashMap<String, String> map = new RepositoryControllerBean().getAgentLibMap();
+		ArrayList<String> facilityIdList = agentInfo == null ? null : getFacilityId(agentInfo);
+		Map<String, String> map = new RepositoryControllerBean().getAgentLibMap(facilityIdList);
 		ArrayList<String> ret = new ArrayList<String>();
-		for (String str : map.keySet()) {
-			ret.add(str);
-			ret.add(map.get(str));
+		for (Map.Entry<String, String> entry : map.entrySet()) {
+			ret.add(entry.getKey());
+			ret.add(entry.getValue());
 		}
 		return ret;
 	}
@@ -725,7 +570,7 @@ public class AgentEndpoint {
 		HashMap<String, String> map = new HashMap<String, String>();
 		Iterator<String> itr = filenameMd5.iterator();
 		while(itr.hasNext()) {
-			map.put(itr.next(), itr.next());
+			map.put(itr.next().replace("/", File.separator).replace("\\", File.separator), itr.next());
 		}
 
 		ArrayList<String> facilityIdList = getFacilityId(agentInfo);
@@ -733,5 +578,99 @@ public class AgentEndpoint {
 			m_log.debug("setAgentLibMd5() : facilityId=" + facilityId);
 			AgentConnectUtil.setAngetLibMd5(facilityId, map);
 		}
+	}
+	
+	/**
+	 * [Job] スクリプト情報を取得する
+	 *
+	 * HinemosAgentAccess権限が必要
+	 *
+	 * @param jonunitId
+	 * @param jonId
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public List<String> getScript(String sessionId, String jobunitId, String jobId)
+			throws HinemosUnknown, JobInfoNotFound,
+			InvalidUserPass, InvalidRole {
+		m_log.debug("getScript : sessionId=" + sessionId + ", jobunitId=" + jobunitId + ", jobId=" + jobId);
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.READ));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		return new JobControllerBean().getJobScriptInfo(sessionId, jobunitId, jobId);
+	}
+
+	/**
+	 * [Job] 監視ジョブの監視設定を取得
+	 *
+	 * HinemosAgentAccess権限が必要
+	 *
+	 * @param monitorTypeId
+	 * @param agentInfo
+	 * @return
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 * @throws MonitorNotFound
+	 */
+	public HashMapInfo getMonitorJobMap (String monitorTypeId, AgentInfo agentInfo)
+			throws MonitorNotFound, HinemosUnknown, InvalidUserPass, InvalidRole
+	{
+		m_log.debug("getMonitorJobMap : " + agentInfo);
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+		ArrayList<String> facilityIdList = new ArrayList<String>();
+
+		try {
+			facilityIdList.addAll(getFacilityId(agentInfo));
+		} catch (Exception e) {
+			m_log.warn(e,e);
+			return null;
+		}
+		HashMapInfo info = new HashMapInfo();
+		JobRunManagementBean bean = new JobRunManagementBean();
+		for (String facilityId : facilityIdList) {
+			info.getMap8().putAll(bean.getMonitorJobMap(monitorTypeId, facilityId));
+		}
+		return info;
+	}
+
+
+	/**
+	 * [Job] コマンド実行情報を問い合わせられた場合にコールされるメソッドであり、問い合わせたエージェントが実行すべきコマンド実行情報を返す。
+	 * ※監視ジョブ用
+	 *
+	 * HinemosAgentAccess権限が必要
+	 *
+	 * @param agentInfo メソッドをコールしたエージェント情報
+	 * @return コマンド実行情報の一覧
+	 * @throws CustomInvalid コマンド監視設定に不整合が見つかった場合にスローされる例外
+	 * @throws HinemosUnknown 予期せぬ内部エラーによりスローされる例外
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 */
+	public ArrayList<CommandExecuteDTO> getCommandExecuteDTOForMonitorJob(AgentInfo agentInfo)
+			throws CustomInvalid, HinemosUnknown,
+			InvalidUserPass, InvalidRole
+			{
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.HINEMOS_AGENT, SystemPrivilegeMode.MODIFY));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// Local Variables
+		ArrayList<CommandExecuteDTO> dtos = null;
+		ArrayList<String> facilityIds = null;
+
+		// MAIN
+		facilityIds = getFacilityId(agentInfo);
+		dtos = new ArrayList<CommandExecuteDTO>();
+		JobRunManagementBean jobRunManagement = new JobRunManagementBean();
+		for (String facilityId : facilityIds) {
+			dtos.addAll(jobRunManagement.getCommandExecuteDTOForMonitorJob(facilityId));
+		}
+		return dtos;
 	}
 }

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -37,12 +30,13 @@ public class JobHistoryFilter implements Serializable{
 	private Long endToDate = null;
 	private String jobId = null;
 	private Integer status = null;
+	private Integer endStatus = null;
 	private Integer triggerType = null;
 	private String triggerInfo = null;
 	private String ownerRoleId = null;
 
 	public JobHistoryFilter(Long startFromDate, Long startToDate,
-			Long endFromDate, Long endToDate, String jobId, Integer status,
+			Long endFromDate, Long endToDate, String jobId, Integer status, Integer endStatus,
 			Integer triggerType, String triggerInfo, String ownerRoleId) {
 		super();
 		this.startFromDate = startFromDate;
@@ -51,6 +45,7 @@ public class JobHistoryFilter implements Serializable{
 		this.endToDate = endToDate;
 		this.jobId = jobId;
 		this.status = status;
+		this.endStatus = endStatus;
 		this.triggerType = triggerType;
 		this.triggerInfo = triggerInfo;
 		this.ownerRoleId = ownerRoleId;
@@ -104,6 +99,14 @@ public class JobHistoryFilter implements Serializable{
 
 	public void setStatus(Integer status) {
 		this.status = status;
+	}
+
+	public Integer getEndStatus() {
+		return endStatus;
+	}
+
+	public void setEndStatus(Integer endStatus) {
+		this.endStatus = endStatus;
 	}
 
 	public Integer getTriggerType() {

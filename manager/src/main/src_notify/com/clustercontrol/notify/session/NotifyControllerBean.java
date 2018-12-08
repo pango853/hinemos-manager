@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.session;
@@ -18,16 +11,12 @@ package com.clustercontrol.notify.session;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.accesscontrol.util.RoleValidator;
 import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.bean.PluginConstant;
-import com.clustercontrol.bean.ValidConstant;
 import com.clustercontrol.commons.session.CheckFacility;
 import com.clustercontrol.commons.util.AsyncTaskPersistentConfig;
 import com.clustercontrol.commons.util.HinemosSessionContext;
@@ -41,23 +30,22 @@ import com.clustercontrol.fault.NotifyNotFound;
 import com.clustercontrol.fault.ObjectPrivilege_InvalidRole;
 import com.clustercontrol.fault.UsedFacility;
 import com.clustercontrol.notify.bean.NotifyCheckIdResultInfo;
-import com.clustercontrol.notify.bean.NotifyInfo;
-import com.clustercontrol.notify.bean.NotifyRelationInfo;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
-import com.clustercontrol.notify.entity.MonitorStatusPK;
-import com.clustercontrol.notify.factory.AddNotify;
-import com.clustercontrol.notify.factory.AddNotifyRelation;
-import com.clustercontrol.notify.factory.DeleteNotify;
-import com.clustercontrol.notify.factory.DeleteNotifyRelation;
 import com.clustercontrol.notify.factory.ModifyNotify;
 import com.clustercontrol.notify.factory.ModifyNotifyRelation;
 import com.clustercontrol.notify.factory.NotifyDispatcher;
 import com.clustercontrol.notify.factory.SelectNotify;
 import com.clustercontrol.notify.factory.SelectNotifyRelation;
-import com.clustercontrol.notify.model.NotifyJobInfoEntity;
-import com.clustercontrol.notify.model.NotifyLogEscalateInfoEntity;
+import com.clustercontrol.notify.model.NotifyInfo;
+import com.clustercontrol.notify.model.NotifyInfraInfo;
+import com.clustercontrol.notify.model.NotifyJobInfo;
+import com.clustercontrol.notify.model.NotifyLogEscalateInfo;
+import com.clustercontrol.notify.model.NotifyRelationInfo;
 import com.clustercontrol.notify.util.NotifyCache;
+import com.clustercontrol.notify.util.NotifyCacheRefreshCallback;
+import com.clustercontrol.notify.util.NotifyCallback;
 import com.clustercontrol.notify.util.NotifyRelationCache;
+import com.clustercontrol.notify.util.NotifyRelationCacheRefreshCallback;
 import com.clustercontrol.notify.util.NotifyValidator;
 import com.clustercontrol.notify.util.OutputEvent;
 import com.clustercontrol.notify.util.OutputStatus;
@@ -65,6 +53,7 @@ import com.clustercontrol.notify.util.QueryUtil;
 import com.clustercontrol.notify.util.SendMail;
 import com.clustercontrol.notify.util.SendSyslog;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * 通知機能の管理を行う Session Bean です。<BR>
@@ -75,6 +64,8 @@ public class NotifyControllerBean implements CheckFacility {
 	private static Log m_log = LogFactory.getLog( NotifyControllerBean.class );
 	
 	private static SendMail m_reportingSendMail = null;
+
+	private static Object notifyLock = new Object();
 
 	/**
 	 * 通知情報を作成します。
@@ -99,8 +90,13 @@ public class NotifyControllerBean implements CheckFacility {
 
 			//入力チェック
 			NotifyValidator.validateNotifyInfo(info);
+			
+			//ユーザがオーナーロールIDに所属しているかチェック
+			RoleValidator.validateUserBelongRole(info.getOwnerRoleId(),
+					(String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID),
+					(Boolean)HinemosSessionContext.instance().getProperty(HinemosSessionContext.IS_ADMINISTRATOR));
 
-			AddNotify notify = new AddNotify();
+			ModifyNotify notify = new ModifyNotify();
 			flag = notify.add(info,(String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID));
 
 			jtm.commit();
@@ -109,25 +105,24 @@ public class NotifyControllerBean implements CheckFacility {
 			NotifyCache.refresh();
 			NotifyRelationCache.refresh();
 
-		} catch (NotifyDuplicate e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (NotifyDuplicate | InvalidSetting | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("addNotify() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return  flag;
@@ -160,34 +155,28 @@ public class NotifyControllerBean implements CheckFacility {
 			ModifyNotify notify = new ModifyNotify();
 			flag = notify.modify(info,(String)HinemosSessionContext.instance().getProperty(HinemosSessionContext.LOGIN_USER_ID));
 
+			jtm.addCallback(new NotifyCacheRefreshCallback());
+			jtm.addCallback(new NotifyRelationCacheRefreshCallback());
 			jtm.commit();
 
-			// コミット後にキャッシュクリア
-			NotifyCache.refresh();
-			NotifyRelationCache.refresh();
-
-		} catch (NotifyDuplicate e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidSetting e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (NotifyDuplicate | InvalidSetting | HinemosUnknown | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("modifyNotify() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return flag;
 	}
@@ -207,7 +196,7 @@ public class NotifyControllerBean implements CheckFacility {
 		JpaTransactionManager jtm = null;
 
 		// 通知情報を削除
-		DeleteNotify notify = new DeleteNotify();
+		ModifyNotify notify = new ModifyNotify();
 		boolean flag = true;
 		try {
 			jtm = new JpaTransactionManager();
@@ -223,25 +212,24 @@ public class NotifyControllerBean implements CheckFacility {
 			NotifyCache.refresh();
 			NotifyRelationCache.refresh();
 
-		} catch(NotifyNotFound e){
-			jtm.rollback();
-			throw e;
-		} catch(HinemosUnknown e){
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch(NotifyNotFound | HinemosUnknown | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("deleteNotify() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return flag;
 	}
@@ -269,25 +257,24 @@ public class NotifyControllerBean implements CheckFacility {
 
 			info = notify.getNotify(notifyId);
 			jtm.commit();
-		} catch (NotifyNotFound e){
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e){
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e){
-			jtm.rollback();
+		} catch (NotifyNotFound | HinemosUnknown | InvalidRole e){
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getNotify() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return info;
@@ -315,22 +302,24 @@ public class NotifyControllerBean implements CheckFacility {
 
 			list = notify.getNotifyList();
 			jtm.commit();
-		}catch (NotifyNotFound e){
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
+		} catch (NotifyNotFound | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getNotifyList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return list;
@@ -358,15 +347,18 @@ public class NotifyControllerBean implements CheckFacility {
 			list = notify.getNotifyListByOwnerRole(ownerRoleId);
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("getNotifyListByOwnerRole() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 
 		return list;
@@ -382,29 +374,28 @@ public class NotifyControllerBean implements CheckFacility {
 	 * @throws HinemosUnknown
 	 *
 	 */
-	public  ArrayList<NotifyRelationInfo> getNotifyRelation(String notifyGroupId) throws InvalidRole, HinemosUnknown {
+	public  ArrayList<NotifyRelationInfo> getNotifyRelation(String notifyGroupId) throws HinemosUnknown {
 		JpaTransactionManager jtm = null;
 
 		SelectNotifyRelation notify = new SelectNotifyRelation();
-		ArrayList<NotifyRelationInfo> info =  new ArrayList<NotifyRelationInfo>();
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 
-			info = notify.getNotifyRelation(notifyGroupId);
+			ArrayList<NotifyRelationInfo> info = notify.getNotifyRelation(notifyGroupId);
 			jtm.commit();
-		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
-			throw new InvalidRole(e.getMessage(), e);
+
+			return info;
 		} catch (Exception e) {
 			m_log.warn("getNotifyRelation(notifyGroupId) : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
-		return info;
 	}
 
 
@@ -433,22 +424,24 @@ public class NotifyControllerBean implements CheckFacility {
 
 			flag = notify.modify(info, notifyGroupId);
 			jtm.commit();
-		} catch (NotifyNotFound e){
-			jtm.rollback();
+		} catch (NotifyNotFound | HinemosUnknown e){
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
-		} catch (HinemosUnknown e){
-			jtm.rollback();
-			throw e;
 		} catch (Exception e){
 			m_log.warn("modifyNotifyRelation() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return flag;
 	}
@@ -466,7 +459,7 @@ public class NotifyControllerBean implements CheckFacility {
 		JpaTransactionManager jtm = null;
 
 		// システム通知情報を削除
-		DeleteNotifyRelation notify = new DeleteNotifyRelation();
+		ModifyNotifyRelation notify = new ModifyNotifyRelation();
 		boolean flag;
 		try {
 			jtm = new JpaTransactionManager();
@@ -476,7 +469,8 @@ public class NotifyControllerBean implements CheckFacility {
 
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (HinemosUnknown e){
 			jtm.rollback();
@@ -484,10 +478,12 @@ public class NotifyControllerBean implements CheckFacility {
 		} catch (Exception e){
 			m_log.warn("deleteNotifyRelation() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return flag;
 	}
@@ -505,7 +501,7 @@ public class NotifyControllerBean implements CheckFacility {
 
 		// システム通知情報を登録
 		if(info != null){
-			AddNotifyRelation notify = new AddNotifyRelation();
+			ModifyNotifyRelation notify = new ModifyNotifyRelation();
 			boolean flag;
 			try {
 				jtm = new JpaTransactionManager();
@@ -515,7 +511,8 @@ public class NotifyControllerBean implements CheckFacility {
 
 				jtm.commit();
 			} catch (ObjectPrivilege_InvalidRole e) {
-				jtm.rollback();
+				if (jtm != null)
+					jtm.rollback();
 				throw new InvalidRole(e.getMessage(), e);
 			} catch (HinemosUnknown e){
 				jtm.rollback();
@@ -523,10 +520,12 @@ public class NotifyControllerBean implements CheckFacility {
 			} catch (Exception e){
 				m_log.warn("addNotifyRelation() : " + e.getClass().getSimpleName() +
 						", " + e.getMessage(), e);
-				jtm.rollback();
+				if (jtm != null)
+					jtm.rollback();
 				throw new HinemosUnknown(e.getMessage(), e);
 			} finally {
-				jtm.close();
+				if (jtm != null)
+					jtm.close();
 			}
 			return flag;
 		}else{
@@ -560,15 +559,18 @@ public class NotifyControllerBean implements CheckFacility {
 			}
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e){
 			m_log.warn("checkNotifyId() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return ret;
 	}
@@ -600,49 +602,43 @@ public class NotifyControllerBean implements CheckFacility {
 			NotifyInfo info = getNotify(notifyId);
 			if (validFlag) {
 				// 通知設定の有効化
-				if(info.getValidFlg().intValue() != ValidConstant.TYPE_VALID){
-					info.setValidFlg(ValidConstant.TYPE_VALID);
+				if(!info.getValidFlg().booleanValue()){
+					info.setValidFlg(true);
 					modifyNotify(info);
 				}
 			} else {
 				// 通知設定の無効化
-				if(info.getValidFlg().intValue() != ValidConstant.TYPE_INVALID){
-					info.setValidFlg(ValidConstant.TYPE_INVALID);
+				if(info.getValidFlg().booleanValue()){
+					info.setValidFlg(false);
 					modifyNotify(info);
 				}
 			}
 
+			jtm.addCallback(new NotifyCacheRefreshCallback());
+			jtm.addCallback(new NotifyRelationCacheRefreshCallback());
 			jtm.commit();
 
-			// コミット後にキャッシュクリア
-			NotifyCache.refresh();
-			NotifyRelationCache.refresh();
-
-		} catch (NotifyNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (NotifyDuplicate e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (NotifyNotFound | NotifyDuplicate | HinemosUnknown | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (InvalidSetting e) {
 			jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("setNotifyStatus() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -656,45 +652,69 @@ public class NotifyControllerBean implements CheckFacility {
 		JpaTransactionManager jtm = null;
 
 		try {
+			String message = "";
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 
 			// 指定のファシリティIDが存在するか確認
 			new RepositoryControllerBean().getFacilityEntityByPK(facilityId);
 
-			List<NotifyJobInfoEntity> notifyJobInfoEntityList = QueryUtil.getNotifyJobInfoByJobExecFacilityId(facilityId);
+			List<NotifyJobInfo> notifyJobInfoEntityList = QueryUtil.getNotifyJobInfoByJobExecFacilityId(facilityId);
 			if (notifyJobInfoEntityList != null
 					&& notifyJobInfoEntityList.size() > 0) {
-				UsedFacility e = new UsedFacility(PluginConstant.TYPE_NOTIFY);
-				m_log.info("isUseFacilityId() : " + e.getClass().getSimpleName() +
-						", " + e.getMessage());
-				throw e;
+				// ID名を取得する
+				StringBuilder sb = new StringBuilder();
+				for (NotifyJobInfo entity : notifyJobInfoEntityList) {
+					sb.append(entity.getNotifyId());
+					sb.append(", ");
+				}
+				message += sb.toString();
 			}
-			List<NotifyLogEscalateInfoEntity> notifyLogEscalateInfoEntityList
+			List<NotifyLogEscalateInfo> notifyLogEscalateInfoEntityList
 			= QueryUtil.getNotifyLogEscalateInfoByEscalateFacilityId(facilityId);
 			if (notifyLogEscalateInfoEntityList != null
 					&& notifyLogEscalateInfoEntityList.size() > 0) {
-				UsedFacility e = new UsedFacility(PluginConstant.TYPE_NOTIFY);
+				// ID名を取得する
+				String listID = "";
+				for (NotifyLogEscalateInfo entity : notifyLogEscalateInfoEntityList) {
+					listID += (entity.getNotifyId() + ", ");
+				}
+				message += listID;
+			}
+			List<NotifyInfraInfo> notifyInfraInfoEntityList
+			= QueryUtil.getNotifyInfraInfoByInfraExecFacilityId(facilityId);
+			if (notifyInfraInfoEntityList != null
+					&& notifyInfraInfoEntityList.size() > 0) {
+				// ID名を取得する
+				String listID = "";
+				for (NotifyInfraInfo entity : notifyInfraInfoEntityList) {
+					listID += (entity.getNotifyId() + ", ");
+				}
+				message += listID;
+			}
+			
+			if (message.trim().length() > 0) {
+				UsedFacility e = new UsedFacility(MessageConstant.NOTIFY.getMessage() + " : " + message);
 				m_log.info("isUseFacilityId() : " + e.getClass().getSimpleName() +
-						", " + e.getMessage());
+						", " + facilityId + ", " + e.getMessage());
 				throw e;
 			}
 			jtm.commit();
+		} catch (HinemosUnknown | FacilityNotFound | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 		} catch (UsedFacility e) {
 			jtm.rollback();
 			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
-		} catch (FacilityNotFound e) {
-			jtm.rollback();
-		} catch (InvalidRole e) {
-			jtm.rollback();
 		} catch (Exception e) {
 			m_log.warn("isUseFacilityId() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
@@ -717,12 +737,14 @@ public class NotifyControllerBean implements CheckFacility {
 
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("insertEventLog() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
 			if (jtm != null) {
@@ -752,7 +774,8 @@ public class NotifyControllerBean implements CheckFacility {
 		} catch (Exception e) {
 			m_log.warn("insertEventLog() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
 			if (jtm != null) {
@@ -780,15 +803,36 @@ public class NotifyControllerBean implements CheckFacility {
 
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("sendAfterConvertHostname() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
+		}
+	}
+	
+	private static Object lock = new Object();
+	
+	private static void initReportMail () throws HinemosUnknown {
+		synchronized (lock) {
+			if(m_reportingSendMail == null) {
+				String sendMailClass = "com.clustercontrol.notify.util.ReportingSendMail";
+				try {
+					@SuppressWarnings("unchecked")
+					Class<? extends SendMail> clazz = (Class<? extends SendMail>) Class.forName(sendMailClass);
+					m_reportingSendMail = clazz.newInstance();
+					m_log.info("load " + sendMailClass + ".");
+				} catch (Exception e) {
+					throw new HinemosUnknown(e.getMessage(), e);
+				}
+			}
 		}
 	}
 
@@ -811,19 +855,7 @@ public class NotifyControllerBean implements CheckFacility {
 			// レポーティングオプション用添付ファイル対応 
 			if(outputBasicInfo.getPluginId().equals(HinemosModuleConstant.REPORTING) 
 					&& outputBasicInfo.getSubKey() != null) {
-				
-				// 最初の1回だけ実施
-				if(m_reportingSendMail == null) {
-					String sendMailClass = "com.clustercontrol.notify.util.ReportingSendMail";
-					try {
-						Class<? extends SendMail> clazz = (Class<? extends SendMail>) Class.forName(sendMailClass);
-						m_reportingSendMail = clazz.newInstance();
-						m_log.info("load " + sendMailClass + ".");
-					} catch (Exception e) {
-						throw new HinemosUnknown(e.getMessage(), e);
-					}
-				}
-				
+				initReportMail();
 				m_log.debug("m_reportingSendMail.notify");
 				sendMail = m_reportingSendMail;
 				
@@ -838,46 +870,19 @@ public class NotifyControllerBean implements CheckFacility {
 
 			jtm.commit();
 		} catch (ObjectPrivilege_InvalidRole e) {
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new InvalidRole(e.getMessage(), e);
 		} catch (Exception e) {
 			m_log.warn("sendMail() : " + e.getClass().getSimpleName() +
 					", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
-	}
-
-	// 排他制御用のキーセット
-	private static ConcurrentHashMap<MonitorStatusPK, MonitorStatusPK> m_keyMap = new ConcurrentHashMap<MonitorStatusPK, MonitorStatusPK>();
-
-	private static MonitorStatusPK getLock(MonitorStatusPK pk) {
-		MonitorStatusPK lockObject = null;
-		synchronized (m_keyMap) {
-			lockObject = m_keyMap.get(pk);
-			if(lockObject == null){
-				lockObject = pk;
-				// このキャッシュを削除する機構は実装していない。
-				// 問題にならない容量であり、削除する機構を実装すると複雑なので。
-				m_keyMap.put(pk, lockObject);
-			}
-		}
-		return lockObject;
-	}
-	
-	// ジョブは実行ごとにキャッシュができるためそれを消すための機構
-	public static void removeCache(String pluginId, Map<String, String> monitorMap) {
-		synchronized (m_keyMap) {
-			Set<MonitorStatusPK> keySet = m_keyMap.keySet();
-			for (MonitorStatusPK key : keySet) {
-				if (key.getPluginId().equals(pluginId) && monitorMap.containsKey(key.getMonitorId())) {
-					m_keyMap.remove(key);
-				}
-			}
-		}
-		return;
 	}
 
 	/**
@@ -890,7 +895,6 @@ public class NotifyControllerBean implements CheckFacility {
 	 * @param generationDate 出力日時（エポック秒）
 	 * @param priority 重要度
 	 * @param application アプリケーション
-	 * @param messageId メッセージID
 	 * @param message メッセージ
 	 * @param messageOrg オリジナルメッセージ
 	 * @param notifyIdList 通知IDのリスト
@@ -908,7 +912,6 @@ public class NotifyControllerBean implements CheckFacility {
 			long generationDate,
 			int priority,
 			String application,
-			String messageId,
 			String message,
 			String messageOrg,
 			ArrayList<String> notifyIdList,
@@ -921,7 +924,6 @@ public class NotifyControllerBean implements CheckFacility {
 				+ ", generationDate = " + generationDate
 				+ ", priority = " + priority
 				+ ", application = " + application
-				+ ", messageId = " + messageId
 				+ ", message = " + message
 				+ ", messageOrg = " + messageOrg
 				+ ", srcId = " + srcId
@@ -942,9 +944,6 @@ public class NotifyControllerBean implements CheckFacility {
 		} else if(application == null){
 			m_log.info("notify() Invalid argument. application is null.");
 			return;
-		} else if(messageId == null){
-			m_log.info("notify() Invalid argument. messageId is null.");
-			return;
 		} else if(message == null){
 			m_log.info("notify() Invalid argument. message is null.");
 			return;
@@ -961,110 +960,114 @@ public class NotifyControllerBean implements CheckFacility {
 			subKey = "";
 		}
 
-		// 通知キューに入れる処理(抑制チェック処理)はpkで排他とする。
-		MonitorStatusPK pk = new MonitorStatusPK(facilityId, pluginId, monitorId, subKey);
-		MonitorStatusPK lockObject = getLock(pk);
-		synchronized (lockObject) {
+		// 通知情報
+		OutputBasicInfo output = new OutputBasicInfo();
+
+		try {
+			jtm = new JpaTransactionManager();
+			jtm.begin();
+
+			// 指定のファシリティIDが存在するか確認
+			new RepositoryControllerBean().getFacilityEntityByPK(facilityId);
+
+			// 指定の通知設定が存在するか確認
+			ArrayList<String> confirmedNotifyIdList = new ArrayList<String>();
+			for(String notifyId : notifyIdList){
+				QueryUtil.getNotifyInfoPK(notifyId);
+				confirmedNotifyIdList.add(notifyId);
+			}
+
+			output.setApplication(application);
+			output.setFacilityId(facilityId);
 			try {
-				jtm = new JpaTransactionManager();
-				jtm.begin();
-
-				// 指定のファシリティIDが存在するか確認
-				new RepositoryControllerBean().getFacilityEntityByPK(facilityId);
-
-				// 指定の通知設定が存在するか確認
-				ArrayList<String> confirmedNotifyIdList = new ArrayList<String>();
-				for(String notifyId : notifyIdList){
-					QueryUtil.getNotifyInfoPK(notifyId);
-					confirmedNotifyIdList.add(notifyId);
-				}
-
-				OutputBasicInfo output = new OutputBasicInfo();
-				output.setApplication(application);
-				output.setFacilityId(facilityId);
-				try {
-					String facilityPath = new RepositoryControllerBean().getFacilityPath(facilityId, null);
-					output.setScopeText(facilityPath);
-				} catch (ObjectPrivilege_InvalidRole e) {
-					throw new InvalidRole(e.getMessage(), e);
-				} catch (HinemosUnknown e) {
-					// ファシリティIDをファシリティパスとする
-					output.setScopeText(facilityId);
-				} catch (Exception e) {
-					m_log.warn("notify() : "
-							+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-					// ファシリティIDをファシリティパスとする
-					output.setScopeText(facilityId);
-				}
-				output.setGenerationDate(generationDate);
-				output.setMessage(message);
-				output.setMessageId(messageId);
-				output.setMessageOrg(messageOrg);
-				output.setMonitorId(monitorId);
-				output.setMultiId(srcId);
-				output.setPluginId(pluginId);
-				output.setPriority(priority);
-				output.setSubKey(subKey);
-
-				notify(output, confirmedNotifyIdList);
-
-				jtm.commit();
-			} catch (NotifyNotFound e) {
-				jtm.rollback();
-				throw e;
-			} catch (InvalidRole e) {
-				jtm.rollback();
-				throw e;
+				String facilityPath = new RepositoryControllerBean().getFacilityPath(facilityId, null);
+				output.setScopeText(facilityPath);
+			} catch (ObjectPrivilege_InvalidRole e) {
+				throw new InvalidRole(e.getMessage(), e);
+			} catch (HinemosUnknown e) {
+				// ファシリティIDをファシリティパスとする
+				output.setScopeText(facilityId);
 			} catch (Exception e) {
 				m_log.warn("notify() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-				jtm.rollback();
-				throw new HinemosUnknown(e.getMessage(), e);
-			} finally {
-				jtm.close();
+				// ファシリティIDをファシリティパスとする
+				output.setScopeText(facilityId);
 			}
+			output.setGenerationDate(generationDate);
+			output.setMessage(message);
+			output.setMessageOrg(messageOrg);
+			output.setMonitorId(monitorId);
+			output.setMultiId(srcId);
+			output.setPluginId(pluginId);
+			output.setPriority(priority);
+			output.setSubKey(subKey);
+
+			// 通知設定
+			jtm.addCallback(new NotifyCallback(output));
+
+			jtm.commit();
+		} catch (NotifyNotFound | InvalidRole e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
+			throw e;
+		} catch (Exception e) {
+			m_log.warn("notify() : "
+					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			if (jtm != null)
+				jtm.rollback();
+			throw new HinemosUnknown(e.getMessage(), e);
+		} finally {
+			if (jtm != null)
+				jtm.close();
 		}
 	}
 
 	/**
 	 * 外部から直接通知処理を実行します。
 	 *
-	 * @param notifyInfo 通知情報
+	 * @param notifyInfoList 通知情報リスト
 	 * @param notifyGroupId
 	 * @throws HinemosUnknown 
 	 */
-	public void notify(OutputBasicInfo notifyInfo, String notifyGroupId) throws HinemosUnknown {
+	public static void notify(List<OutputBasicInfo> notifyInfoList) {
 
 		JpaTransactionManager jtm = null;
 
-		// 通知キューに入れる処理(抑制チェック処理)はpkで排他とする。
-		MonitorStatusPK pk = new MonitorStatusPK(notifyInfo.getFacilityId(),
-				notifyInfo.getPluginId(), notifyInfo.getMonitorId(), notifyInfo.getSubKey());
-		MonitorStatusPK lockObject = getLock(pk);
-		synchronized (lockObject) {
+		if (notifyInfoList == null || notifyInfoList.isEmpty()) {
+			return;
+		}
+
+		synchronized (notifyLock) {
 			try {
 				jtm = new JpaTransactionManager();
-				jtm.begin();
+				jtm.begin(true);
 
-				// 監視設定から通知IDのリストを取得する
-				List<String> notifyIdList = NotifyRelationCache.getNotifyIdList(notifyGroupId);
-				m_log.trace("notifyIdList.size=" + notifyIdList.size() + ", notifyGroupId=" + notifyGroupId);
-				// 該当の通知IDのリストがない場合は終了する
-				if(notifyIdList == null || notifyIdList.size() <= 0){
-					return;
+				for (OutputBasicInfo notifyInfo : notifyInfoList) {
+					if (notifyInfo == null) {
+						continue;
+					}
+					// 監視設定から通知IDのリストを取得する
+					List<String> notifyIdList = NotifyRelationCache.getNotifyIdList(notifyInfo.getNotifyGroupId());
+					m_log.trace("notifyIdList.size=" + notifyIdList.size() + ", notifyGroupId=" + notifyInfo.getNotifyGroupId());
+					// 該当の通知IDのリストがない場合は終了する
+					if(notifyIdList == null || notifyIdList.size() <= 0){
+						continue;
+					}
+	
+					// 通知処理を行う
+					new NotifyControllerBean().notify(notifyInfo, notifyIdList);
 				}
-
-				// 通知処理を行う
-				notify(notifyInfo, notifyIdList);
-
 				jtm.commit();
 			} catch (Exception e) {
 				m_log.warn("notify() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-				jtm.rollback();
-				
-				throw new HinemosUnknown("notify() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+				if (jtm != null) {
+					jtm.rollback();
+				}
+				throw new RuntimeException(e.getMessage(), e);
 			} finally {
-				jtm.close();
+				if (jtm != null)
+					jtm.close();
 			}
 		}
 	}
@@ -1075,54 +1078,5 @@ public class NotifyControllerBean implements CheckFacility {
 
 		// 通知キューへの登録処理を実行
 		NotifyDispatcher.notifyAction(notifyInfo, notifyIdList, persist);
-	}
-
-	/**
-	 * 一括通知
-	 * 前提条件：notifyInfoListの通知情報は同じ監視項目に属する。
-	 * 
-	 * @param notifyInfoList 通知情報配列
-	 * @param notifyGroupId 通知グループID
-	 */
-	public void notify(ArrayList<OutputBasicInfo> notifyInfoList,
-			String notifyGroupId) {
-
-		JpaTransactionManager jtm = null;
-		try {
-			jtm = new JpaTransactionManager();
-			jtm.begin();
-
-			// 監視設定から通知IDのリストを取得する
-			List<String> notifyIdList = NotifyRelationCache.getNotifyIdList(notifyGroupId);
-
-			// 該当の通知IDのリストがない場合は終了する
-			if(notifyIdList == null || notifyIdList.size() <= 0){
-				return;
-			}
-
-			// 通知処理を行う
-			notify(notifyInfoList, notifyIdList);
-
-			jtm.commit();
-		} catch (Exception e) {
-			m_log.warn("notify() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
-			throw new RuntimeException("notify() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-		} finally {
-			jtm.close();
-		}
-	}
-
-	private void notify(ArrayList<OutputBasicInfo> outputBasicInfoList,
-			List<String> notifyIdList) throws HinemosUnknown {
-		if (outputBasicInfoList.isEmpty()) {
-			return;
-		}
-
-		// 機能毎に設定されているJMSの永続化モードを取得
-		boolean persist = AsyncTaskPersistentConfig.isPersisted(outputBasicInfoList.get(0).getPluginId());
-
-		// 通知キューへの登録処理を実行
-		NotifyDispatcher.notifyAction(outputBasicInfoList, notifyIdList, persist);
 	}
 }

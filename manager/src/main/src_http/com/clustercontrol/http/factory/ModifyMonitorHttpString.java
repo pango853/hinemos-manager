@@ -1,24 +1,19 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.http.factory;
 
+import com.clustercontrol.commons.util.HinemosEntityManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.http.util.ControlHttpInfo;
-import com.clustercontrol.monitor.run.factory.AddMonitor;
+import com.clustercontrol.monitor.run.factory.ModifyMonitor;
 import com.clustercontrol.monitor.run.factory.ModifyMonitorStringValueType;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.TriggerType;
 
@@ -38,8 +33,7 @@ public class ModifyMonitorHttpString extends ModifyMonitorStringValueType{
 	protected boolean modifyCheckInfo() throws MonitorNotFound, InvalidRole {
 
 		// HTTP監視情報を変更
-		ControlHttpInfo http = new ControlHttpInfo(m_monitorInfo.getMonitorId(), m_monitorInfo.getMonitorTypeId());
-		return http.modify(m_monitorInfo.getHttpCheckInfo());
+		return new ControlHttpInfo().modify(m_monitorInfo.getMonitorId(), m_monitorInfo.getHttpCheckInfo());
 	}
 
 	/**
@@ -47,7 +41,7 @@ public class ModifyMonitorHttpString extends ModifyMonitorStringValueType{
 	 */
 	@Override
 	protected int getDelayTime() {
-		return AddMonitor.getDelayTimeBasic(m_monitorInfo);
+		return  ModifyMonitor.getDelayTimeBasic(m_monitorInfo);
 	}
 
 	/**
@@ -56,5 +50,15 @@ public class ModifyMonitorHttpString extends ModifyMonitorStringValueType{
 	@Override
 	protected TriggerType getTriggerType() {
 		return TriggerType.SIMPLE;
+	}
+
+	@Override
+	protected boolean addCheckInfo() throws MonitorNotFound, InvalidRole {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			// HTTP監視情報を追加
+			em.persist(m_monitorInfo.getHttpCheckInfo());
+			return true;
+		}
 	}
 }

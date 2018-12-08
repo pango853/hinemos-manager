@@ -1,21 +1,18 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.monitor;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import javax.activation.DataHandler;
 import javax.annotation.Resource;
@@ -27,6 +24,11 @@ import javax.xml.ws.soap.MTOM;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.accesscontrol.bean.FunctionConstant;
+import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
+import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.EventLogNotFound;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
@@ -34,11 +36,6 @@ import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidSetting;
 import com.clustercontrol.fault.InvalidUserPass;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.accesscontrol.bean.FunctionConstant;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
-import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.monitor.bean.ConfirmConstant;
 import com.clustercontrol.monitor.bean.EventBatchConfirmInfo;
 import com.clustercontrol.monitor.bean.EventDataInfo;
@@ -49,6 +46,8 @@ import com.clustercontrol.monitor.bean.StatusFilterInfo;
 import com.clustercontrol.monitor.bean.ViewListInfo;
 import com.clustercontrol.monitor.session.MonitorControllerBean;
 import com.clustercontrol.repository.bean.FacilityTargetConstant;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.Messages;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 
 /**
@@ -116,14 +115,15 @@ public class MonitorEndpoint {
 		msg.append(facilityId);
 		if(filter != null){
 			// 重要度リストの文字列化
-			String priorityMsg = "";
+			StringBuilder priorityMsg = new StringBuilder();
 			if(filter.getPriorityList() != null) {
 				for(int i = 0; i<filter.getPriorityList().length; i++) {
-					priorityMsg = priorityMsg + PriorityConstant.typeToStringEN(filter.getPriorityList()[i]) + " ";
+					priorityMsg.append(Messages.getString(PriorityConstant.typeToMessageCode(filter.getPriorityList()[i]), Locale.ENGLISH) + " ");
 				}
 			}
 			
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			msg.append(", Priority=");
 			msg.append(priorityMsg);
 			msg.append(", OutputDateFrom=");
@@ -134,6 +134,10 @@ public class MonitorEndpoint {
 			msg.append(filter.getGenerationDateFrom()==null?null:sdf.format(new Date(filter.getGenerationDateFrom())));
 			msg.append(", GenerationDateTo=");
 			msg.append(filter.getGenerationDateTo()==null?null:sdf.format(new Date(filter.getGenerationDateTo())));
+			msg.append(", MonitorId=");
+			msg.append(filter.getMonitorId());
+			msg.append(", MonitorDetailId=");
+			msg.append(filter.getMonitorDetailId());
 			msg.append(", FacilityType=");
 			msg.append(filter.getFacilityType());
 			msg.append(", Application=");
@@ -154,6 +158,8 @@ public class MonitorEndpoint {
 			msg.append(filter.getCommentDate()==null?null:sdf.format(new Date(filter.getCommentDate())));
 			msg.append(", CommentUser=");
 			msg.append(filter.getCommentUser());
+			msg.append(", CollectGraphFlg=");
+			msg.append(filter.getCollectGraphFlg());
 			msg.append(", OwnerRoleId=");
 			msg.append(filter.getOwnerRoleId());
 		}
@@ -237,14 +243,15 @@ public class MonitorEndpoint {
 		msg.append(facilityId);
 		if(filter != null){
 			// 重要度リストの文字列化
-			String priorityMsg = "";
+			StringBuilder priorityMsg = new StringBuilder();
 			if(filter.getPriorityList() != null) {
 				for(int i = 0; i<filter.getPriorityList().length; i++) {
-					priorityMsg = priorityMsg + PriorityConstant.typeToStringEN(filter.getPriorityList()[i]) + " ";
+					priorityMsg.append(Messages.getString(PriorityConstant.typeToMessageCode(filter.getPriorityList()[i]), Locale.ENGLISH)).append(" ");
 				}
 			}
 			
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			msg.append(", Priority=");
 			msg.append(priorityMsg);
 			msg.append(", OutputDateFrom=");
@@ -346,7 +353,7 @@ public class MonitorEndpoint {
 	 * @see com.clustercontrol.monitor.factory.SelectEvent#getEventListForReport(String, EventFilterInfo)
 	 */
 	@XmlMimeType("application/octet-stream")
-	public DataHandler downloadEventFile(String facilityId, EventFilterInfo filter, String filename) throws HinemosUnknown, InvalidUserPass, InvalidRole
+	public DataHandler downloadEventFile(String facilityId, EventFilterInfo filter, String filename, String language) throws HinemosUnknown, InvalidUserPass, InvalidRole
 	{
 		m_log.debug("downloadEventFile");
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
@@ -359,15 +366,18 @@ public class MonitorEndpoint {
 		msg.append(facilityId);
 		msg.append(", FileName=");
 		msg.append(filename);
+		msg.append(", Locale=");
+		msg.append(language);
 		if(filter != null){
 			// 重要度リストの文字列化
-			String priorityMsg = "";
+			StringBuilder priorityMsg = new StringBuilder();
 			if(filter.getPriorityList() != null) {
 				for(int i = 0; i<filter.getPriorityList().length; i++) {
-					priorityMsg = priorityMsg + PriorityConstant.typeToStringEN(filter.getPriorityList()[i]) + " ";
+					priorityMsg.append(Messages.getString(PriorityConstant.typeToMessageCode(filter.getPriorityList()[i]), Locale.ENGLISH) + " ");
 				}
 			}
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			msg.append(", Priority=");
 			msg.append(priorityMsg);
 			msg.append(", OutputDateFrom=");
@@ -380,6 +390,10 @@ public class MonitorEndpoint {
 			msg.append(filter.getGenerationDateTo()==null?null:sdf.format(new Date(filter.getGenerationDateTo())));
 			msg.append(", FacilityType=");
 			msg.append(filter.getFacilityType());
+			msg.append(", MonitorId=");
+			msg.append(filter.getMonitorId());
+			msg.append(", MonitorDetailId=");
+			msg.append(filter.getMonitorDetailId());
 			msg.append(", Application=");
 			msg.append(filter.getApplication());
 			msg.append(", Message=");
@@ -398,11 +412,13 @@ public class MonitorEndpoint {
 			msg.append(filter.getCommentDate()==null?null:sdf.format(new Date(filter.getCommentDate())));
 			msg.append(", CommentUser=");
 			msg.append(filter.getCommentUser());
+			msg.append(", CollectGraphFlg=");
+			msg.append(filter.getCollectGraphFlg());
 		}
 		DataHandler ret = null;
 
 		try {
-			ret = new MonitorControllerBean().downloadEventFile(facilityId, filter, filename);
+			ret = new MonitorControllerBean().downloadEventFile(facilityId, filter, filename, new Locale(language));
 		} catch (Exception e) {
 			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_MONITOR + " Download Failed, Method=downloadEventFile, User="
 					+ HttpAuthenticator.getUserAccountString(wsctx)
@@ -466,6 +482,7 @@ public class MonitorEndpoint {
 
 		// 認証済み操作ログ
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+		sdf.setTimeZone(HinemosTime.getTimeZone());
 		StringBuffer msg = new StringBuffer();
 		msg.append(", MonitorID=");
 		msg.append(monitorId);
@@ -515,6 +532,7 @@ public class MonitorEndpoint {
 
 		// 認証済み操作ログ
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+		sdf.setTimeZone(HinemosTime.getTimeZone());
 		StringBuffer msg = new StringBuffer();
 		msg.append(", MonitorID=");
 		msg.append(monitorId);
@@ -572,11 +590,12 @@ public class MonitorEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(list != null && list.size() > 0){
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			String confirmTypeStr = "";
 			if(confirmType == ConfirmConstant.TYPE_CONFIRMED) {
 				confirmTypeStr = "Confirmed";
 			} else {
-				confirmTypeStr = "Unonfirmed";
+				confirmTypeStr = "Unconfirmed";
 			}
 
 			for (int i=0; i<list.size(); i++) {
@@ -586,7 +605,7 @@ public class MonitorEndpoint {
 				msg.append(", FacilityID=");
 				msg.append(list.get(i).getFacilityId());
 				msg.append(", Priority=");
-				msg.append((list.get(i).getPriority()==null?null:PriorityConstant.typeToStringEN(list.get(i).getPriority())));
+				msg.append((list.get(i).getPriority()==null?null:Messages.getString(PriorityConstant.typeToMessageCode(list.get(i).getPriority()), Locale.ENGLISH)));
 				msg.append(", Time Received=");
 				msg.append((list.get(i).getOutputDate()==null?null:sdf.format(new Date(list.get(i).getOutputDate()))));
 				msg.append(", Time Created=");
@@ -639,7 +658,7 @@ public class MonitorEndpoint {
 			String priorityMsg = "";
 			if(info.getPriorityList() != null) {
 				for(int i = 0; i<info.getPriorityList().length; i++) {
-					priorityMsg = priorityMsg + PriorityConstant.typeToStringEN(info.getPriorityList()[i]) + " ";
+					priorityMsg = priorityMsg + Messages.getString(PriorityConstant.typeToMessageCode(info.getPriorityList()[i]), Locale.ENGLISH) + " ";
 				}
 			}
 			msg.append(", FacilityID=");
@@ -647,7 +666,7 @@ public class MonitorEndpoint {
 			msg.append(", Priority=");
 			msg.append(info.getPriorityList()==null?null:priorityMsg);
 			msg.append(", Target Facility=");
-			if(FacilityTargetConstant.STRING_BENEATH.equals(info.getFacilityType())) {
+			if(FacilityTargetConstant.TYPE_BENEATH == info.getFacilityType()) {
 				msg.append("Sub-scope Facilities Only");
 			} else {
 				msg.append("ALL Facilities");
@@ -671,4 +690,59 @@ public class MonitorEndpoint {
 				+ msg.toString());
 	}
 
+	/**
+	 * 引数で指定されたイベント情報一覧の性能グラフ用フラグを更新します。<BR><BR>
+	 * 複数のイベント情報を更新します。
+	 * 
+	 * MonitorResultWrite権限が必要
+	 * 
+	 * @param list 更新対象のイベント情報一覧（EventDataInfoが格納されたArrayList）
+	 * @param collectGraphFlg 性能グラフ用フラグ（ON:true、OFF:false）（更新値）
+	 * @throws HinemosUnknown
+	 * @throws InvalidRole
+	 * @throws InvalidUserPass
+	 * @throws MonitorNotFound
+	 */
+	public void modifyCollectGraphFlg(ArrayList<EventDataInfo> list, Boolean collectGraphFlg) throws InvalidUserPass, InvalidRole, HinemosUnknown, MonitorNotFound {
+		m_log.debug("modifyCollectGraphFlg");
+		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.MONITOR_RESULT, SystemPrivilegeMode.MODIFY));
+		HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
+
+		// 認証済み操作ログ
+		StringBuffer msg = new StringBuffer();
+		if(list != null && list.size() > 0){
+			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
+
+			for (int i=0; i<list.size(); i++) {
+				msg.append(", " + (i + 1) + "=(");
+				msg.append("PluginID=");
+				msg.append(list.get(i).getPluginId());
+				msg.append(", FacilityID=");
+				msg.append(list.get(i).getFacilityId());
+				msg.append(", Priority=");
+				msg.append((list.get(i).getPriority()==null?null:Messages.getString(PriorityConstant.typeToMessageCode(list.get(i).getPriority()), Locale.ENGLISH)));
+				msg.append(", Time Received=");
+				msg.append((list.get(i).getOutputDate()==null?null:sdf.format(new Date(list.get(i).getOutputDate()))));
+				msg.append(", Time Created=");
+				msg.append((list.get(i).getGenerationDate()==null?null:sdf.format(new Date(list.get(i).getGenerationDate()))));
+				msg.append(", CollectGraphFlg=");
+				msg.append(collectGraphFlg);
+				msg.append(")");
+			}
+		}
+
+		try {
+			new MonitorControllerBean().modifyCollectGraphFlg(list, collectGraphFlg);
+		} catch (Exception e) {
+			m_opelog.warn(HinemosModuleConstant.LOG_PREFIX_MONITOR + " CollectGraphFlg update Failed, Method=modifyCollectGraphFlg, User="
+					+ HttpAuthenticator.getUserAccountString(wsctx)
+					+ msg.toString());
+			throw e;
+		}
+		m_opelog.info(HinemosModuleConstant.LOG_PREFIX_MONITOR + " CollectGraphFlg update, Method=modifyCollectGraphFlg, User="
+				+ HttpAuthenticator.getUserAccountString(wsctx)
+				+ msg.toString());
+	}
 }

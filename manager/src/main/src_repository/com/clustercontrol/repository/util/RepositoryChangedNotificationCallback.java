@@ -1,30 +1,18 @@
 /*
-
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.util;
 
 import com.clustercontrol.commons.bean.SettingUpdateInfo;
 import com.clustercontrol.commons.util.JpaTransactionCallback;
+import com.clustercontrol.util.HinemosTime;
 
 public class RepositoryChangedNotificationCallback implements JpaTransactionCallback {
-
-	@Override
-	public void preBegin() { }
-
-	@Override
-	public void postBegin() { }
 
 	@Override
 	public void preFlush() { }
@@ -38,7 +26,7 @@ public class RepositoryChangedNotificationCallback implements JpaTransactionCall
 	@Override
 	public void postCommit() {
 		// リポジトリ更新時刻リフレッシュ
-		SettingUpdateInfo.getInstance().setRepositoryUpdateTime(System.currentTimeMillis());
+		SettingUpdateInfo.getInstance().setRepositoryUpdateTime(HinemosTime.currentTimeMillis());
 		
 		// 接続中のHinemosAgentに対する更新通知
 		RepositoryManagerUtil.broadcastConfigured();

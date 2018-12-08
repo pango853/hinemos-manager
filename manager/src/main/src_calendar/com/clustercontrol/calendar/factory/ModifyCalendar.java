@@ -1,23 +1,14 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.calendar.factory;
 
-import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import javax.persistence.EntityExistsException;
@@ -26,17 +17,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.bean.ValidConstant;
-import com.clustercontrol.calendar.bean.CalendarDetailInfo;
-import com.clustercontrol.calendar.bean.CalendarInfo;
-import com.clustercontrol.calendar.bean.CalendarPatternInfo;
-import com.clustercontrol.calendar.bean.YMD;
-import com.clustercontrol.calendar.model.CalDetailInfoEntity;
-import com.clustercontrol.calendar.model.CalDetailInfoEntityPK;
-import com.clustercontrol.calendar.model.CalInfoEntity;
-import com.clustercontrol.calendar.model.CalPatternDetailInfoEntity;
-import com.clustercontrol.calendar.model.CalPatternDetailInfoEntityPK;
-import com.clustercontrol.calendar.model.CalPatternInfoEntity;
+import com.clustercontrol.calendar.model.CalendarDetailInfo;
+import com.clustercontrol.calendar.model.CalendarDetailInfoPK;
+import com.clustercontrol.calendar.model.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarPatternInfo;
+import com.clustercontrol.calendar.model.YMD;
+import com.clustercontrol.calendar.model.YMDPK;
 import com.clustercontrol.calendar.util.QueryUtil;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
@@ -45,6 +31,7 @@ import com.clustercontrol.fault.CalendarNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.ObjectPrivilege_InvalidRole;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * カレンダ更新を行うファクトリークラス<BR>
@@ -68,55 +55,28 @@ public class ModifyCalendar {
 	public void addCalendar(CalendarInfo info, String userName)
 			throws HinemosUnknown, CalendarDuplicate, CalendarNotFound {
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
 		//カレンダを作成
-		String id = null;
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			//現在日時を取得
-			Timestamp now = new Timestamp(new Date().getTime());
-			//ID取得
-			id = info.getId();
-			//名前を取得
-			String name = info.getName();
-			//説明を取得
-			String description = info.getDescription();
-			//オーナーロールIDを取得
-			String ownerRoleId = info.getOwnerRoleId();
-			//有効期間(From)を取得
-			Timestamp validTimeFrom = null;
-			if (info.getValidTimeFrom() != null) {
-				validTimeFrom = new Timestamp(info.getValidTimeFrom());
-			}
-			//有効期間(To)を取得
-			Timestamp validTimeTo = null;
-			if (info.getValidTimeTo() != null) {
-				validTimeTo = new Timestamp(info.getValidTimeTo());
-			}
-			// インスタンス生成
-			CalInfoEntity entity = new CalInfoEntity(id);
+			Long now = HinemosTime.currentTimeMillis();
+			
 			// 重複チェック
-			jtm.checkEntityExists(CalInfoEntity.class, id);
-			entity.setCalendarName(name);
-			entity.setDescription(description);
-			entity.setOwnerRoleId(ownerRoleId);
-			entity.setRegDate(now);
-			entity.setRegUser(userName);
-			entity.setStartTime(null);
-			entity.setUpdateDate(now);
-			entity.setUpdateUser(userName);
-			entity.setValidTimeFrom(validTimeFrom);
-			entity.setValidTimeTo(validTimeTo);
+			jtm.checkEntityExists(CalendarInfo.class, info.getCalendarId());
+			
+			info.setRegDate(now);
+			info.setRegUser(userName);
+			info.setUpdateDate(now);
+			info.setUpdateUser(userName);
+			em.persist(info);
+			
 			// カレンダ詳細情報登録
-			if (info.getCalendarDetailList() != null) {
-				CalDetailInfoEntity calDetailInfoEntity = null;
-				for (int i = 0 ; i < info.getCalendarDetailList().size();  i++ ) {
-					try {
-						calDetailInfoEntity = QueryUtil.getCalDetailInfoPK(id, i + 1);
-					} catch (CalendarNotFound e) {
-						calDetailInfoEntity = new CalDetailInfoEntity(entity, i + 1);
-					}
-					copyProperties(calDetailInfoEntity, info.getCalendarDetailList().get(i));
-				}
+			for (int i = 0 ; i < info.getCalendarDetailList().size();  i++ ) {
+				CalendarDetailInfo calDetailInfoEntity = info.getCalendarDetailList().get(i);
+				calDetailInfoEntity.setCalendarId(info.getCalendarId());
+				calDetailInfoEntity.setOrderNo(i + 1);
+				em.persist(calDetailInfoEntity);
+				calDetailInfoEntity.relateToCalInfoEntity(info);
 			}
 		} catch (EntityExistsException e) {
 			m_log.info("addCalendar() : "
@@ -136,32 +96,30 @@ public class ModifyCalendar {
 	 * @param CalendarDetailInfo
 	 * @return
 	 */
-	public void copyProperties(CalDetailInfoEntity calDetailInfoEntity, CalendarDetailInfo info) {
+	public void copyProperties(CalendarDetailInfo calDetailInfoEntity, CalendarDetailInfo info) {
 
 		//説明
 		calDetailInfoEntity.setDescription(info.getDescription());
 		//年
-		calDetailInfoEntity.setYearNo(info.getYear());
+		calDetailInfoEntity.setYear(info.getYear());
 		//月
-		calDetailInfoEntity.setMonthNo(info.getMonth());
+		calDetailInfoEntity.setMonth(info.getMonth());
 		//曜日
 		calDetailInfoEntity.setDayType(info.getDayType());
-		calDetailInfoEntity.setWeekNo(info.getDayOfWeek());
-		calDetailInfoEntity.setWeekXth(info.getDayOfWeekInMonth());
-		calDetailInfoEntity.setDayNo(info.getDate());
+		calDetailInfoEntity.setDayOfWeek(info.getDayOfWeek());
+		calDetailInfoEntity.setDayOfWeekInMonth(info.getDayOfWeekInMonth());
+		calDetailInfoEntity.setDate(info.getDate());
 		calDetailInfoEntity.setCalPatternId(info.getCalPatternId());
-		calDetailInfoEntity.setAfterDay(info.getAfterday());
+		calDetailInfoEntity.setAfterday(info.getAfterday());
 		//時間
-		Long startTime = info.getTimeFrom();
-		if(startTime != null){
-			calDetailInfoEntity.setStartTime(new Timestamp(startTime));
-		}
-		Long endTime = info.getTimeTo();
-		if(endTime != null){
-			calDetailInfoEntity.setEndTime(new Timestamp(endTime));
-		}
+		calDetailInfoEntity.setTimeFrom(info.getTimeFrom());
+		calDetailInfoEntity.setTimeTo(info.getTimeTo());
+		//振り替える
+		calDetailInfoEntity.setSubstituteFlg(info.isSubstituteFlg());
+		calDetailInfoEntity.setSubstituteTime(info.getSubstituteTime());
+		calDetailInfoEntity.setSubstituteLimit(info.getSubstituteLimit());
 		//稼動・非稼動
-		calDetailInfoEntity.setExecuteFlg(Integer.valueOf(ValidConstant.booleanToType(info.isOperateFlg())));
+		calDetailInfoEntity.setOperateFlg(info.isOperateFlg());
 	}
 
 	/**
@@ -178,29 +136,30 @@ public class ModifyCalendar {
 	public void addCalendarPattern(CalendarPatternInfo info, String userName)
 			throws HinemosUnknown, InvalidRole, CalendarDuplicate, CalendarNotFound {
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
 		//カレンダパターンを作成
 		String id = null;
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+
 			//現在日時を取得
-			Timestamp now = new Timestamp(new Date().getTime());
+			long now = HinemosTime.currentTimeMillis();
 			//ID取得
-			id = info.getId();
+			id = info.getCalPatternId();
 			//名前を取得
-			String name = info.getName();
+			String name = info.getCalPatternName();
 			//オーナーロールIDを取得
 			String ownerRoleId = info.getOwnerRoleId();
 			// 重複チェック
-			jtm.checkEntityExists(CalPatternInfoEntity.class, id);
+			jtm.checkEntityExists(CalendarPatternInfo.class, id);
 			// インスタンス生成
-			CalPatternInfoEntity entity = new CalPatternInfoEntity(id);
+			CalendarPatternInfo entity = new CalendarPatternInfo(id);
 			entity.setCalPatternName(name);
 			entity.setOwnerRoleId(ownerRoleId);
 			entity.setRegDate(now);
 			entity.setRegUser(userName);
 			entity.setUpdateDate(now);
 			entity.setUpdateUser(userName);
-
+			em.persist(entity);
 			if(info.getYmd() != null){
 				int num = 1;
 				for(YMD ymd : info.getYmd()){
@@ -234,10 +193,9 @@ public class ModifyCalendar {
 	private void addCalendarPatternDetail(String id, YMD ymd)
 			throws InvalidRole, CalendarDuplicate, CalendarNotFound, HinemosUnknown {
 
-		JpaTransactionManager jtm = new JpaTransactionManager();
-
-		try {
-			CalPatternInfoEntity calPatternEntity = QueryUtil.getCalPatternInfoPK(id);
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			CalendarPatternInfo calPatternEntity = QueryUtil.getCalPatternInfoPK(id);
 
 			//年を取得
 			Integer year = ymd.getYear();
@@ -250,11 +208,14 @@ public class ModifyCalendar {
 
 			//カレンダパターン詳細情報を作成
 			// 主キー作成
-			CalPatternDetailInfoEntityPK entityPk = new CalPatternDetailInfoEntityPK(id,year,month,day);
+			YMDPK entityPk = new YMDPK(id,year,month,day);
 			// インスタンス生成
-			new CalPatternDetailInfoEntity(entityPk, calPatternEntity);
+			ymd.setCalPatternId(id);
+			em.persist(ymd);
+			ymd.relateToCalPatternInfoEntity(calPatternEntity);
+
 			// 重複チェック
-			jtm.checkEntityExists(CalPatternDetailInfoEntity.class, entityPk);
+			jtm.checkEntityExists(YMD.class, entityPk);
 		} catch (InvalidRole e) {
 			throw e;
 		} catch (CalendarNotFound e) {
@@ -282,29 +243,20 @@ public class ModifyCalendar {
 	public void modifyCalendar(CalendarInfo info, String userName)
 			throws CalendarNotFound, HinemosUnknown, InvalidRole {
 		String id = null;
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			//現在日時を取得
-			Timestamp now = new Timestamp(new Date().getTime());
+			Long now = HinemosTime.currentTimeMillis();
 			//ID取得
-			id = info.getId();
+			id = info.getCalendarId();
 			//名前を取得
-			String name = info.getName();
+			String name = info.getCalendarName();
 			//説明を取得
 			String description = info.getDescription();
 			//オーナーロールを取得
 			String ownerRoleId = info.getOwnerRoleId();
-			//有効期間(From)を取得
-			Timestamp validTimeFrom = null;
-			if (info.getValidTimeFrom() != null) {
-				validTimeFrom = new Timestamp(info.getValidTimeFrom());
-			}
-			//有効期間(To)を取得
-			Timestamp validTimeTo = null;
-			if (info.getValidTimeTo() != null) {
-				validTimeTo = new Timestamp(info.getValidTimeTo());
-			}
 			//カレンダを作成
-			CalInfoEntity entity = QueryUtil.getCalInfoPK(id, ObjectPrivilegeMode.MODIFY);
+			CalendarInfo entity = QueryUtil.getCalInfoPK(id, ObjectPrivilegeMode.MODIFY);
 			entity.setCalendarName(name);
 			entity.setDescription(description);
 			/* 作成時刻、作成ユーザは変更時に更新されるはずがないので、再度登録しない
@@ -312,24 +264,26 @@ public class ModifyCalendar {
 				entity.setRegUser(userName);
 			 */
 			entity.setOwnerRoleId(ownerRoleId);
-			entity.setStartTime(null);
 			entity.setUpdateDate(now);
 			entity.setUpdateUser(userName);
-			entity.setValidTimeFrom(validTimeFrom);
-			entity.setValidTimeTo(validTimeTo);
+			entity.setValidTimeFrom(info.getValidTimeFrom());
+			entity.setValidTimeTo(info.getValidTimeTo());
 
 			// カレンダ詳細情報登録
 			if (info.getCalendarDetailList() != null) {
-				CalDetailInfoEntity calDetailInfoEntity = null;
-				List<CalDetailInfoEntityPK> calDetailInfoEntityPkList
-				= new ArrayList<CalDetailInfoEntityPK>();
+				CalendarDetailInfo calDetailInfoEntity = null;
+				List<CalendarDetailInfoPK> calDetailInfoEntityPkList
+				= new ArrayList<CalendarDetailInfoPK>();
+				
 				for (int i = 0 ; i < info.getCalendarDetailList().size();  i++ ) {
 					try {
 						calDetailInfoEntity = QueryUtil.getCalDetailInfoPK(id, i + 1);
 					} catch (CalendarNotFound e) {
-						calDetailInfoEntity = new CalDetailInfoEntity(entity, i + 1);
+						calDetailInfoEntity = new CalendarDetailInfo(entity.getCalendarId(), i + 1);
+						em.persist(calDetailInfoEntity);
+						calDetailInfoEntity.relateToCalInfoEntity(entity);
 					}
-					calDetailInfoEntityPkList.add(new CalDetailInfoEntityPK(id, i + 1));
+					calDetailInfoEntityPkList.add(new CalendarDetailInfoPK(id, i + 1));
 					copyProperties(calDetailInfoEntity, info.getCalendarDetailList().get(i));
 				}
 				// 不要なCalDetailInfoEntityを削除
@@ -356,17 +310,18 @@ public class ModifyCalendar {
 	public void modifyCalendarPattern(CalendarPatternInfo info, String userName)
 			throws HinemosUnknown, CalendarNotFound, InvalidRole {
 		String id = null;
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			//現在日時を取得
-			Timestamp now = new Timestamp(new Date().getTime());
+			long now = HinemosTime.currentTimeMillis();
 			//ID取得
-			id = info.getId();
+			id = info.getCalPatternId();
 			//名前を取得
-			String name = info.getName();
+			String name = info.getCalPatternName();
 			//オーナーロールIDを取得
 			String ownerRoleId = info.getOwnerRoleId();
 			//カレンダを作成
-			CalPatternInfoEntity entity = QueryUtil.getCalPatternInfoPK(id, ObjectPrivilegeMode.MODIFY);
+			CalendarPatternInfo entity = QueryUtil.getCalPatternInfoPK(id, ObjectPrivilegeMode.MODIFY);
 			entity.setCalPatternId(id);
 			entity.setCalPatternName(name);
 			entity.setOwnerRoleId(ownerRoleId);
@@ -380,15 +335,18 @@ public class ModifyCalendar {
 			// カレンダパターン詳細情報登録
 			//TODO: 実装を見直す
 			if (info.getYmd() != null) {
-				List<CalPatternDetailInfoEntityPK> calPatternDetailInfoEntityPkList
-				= new ArrayList<CalPatternDetailInfoEntityPK>();
+				List<YMDPK> calPatternDetailInfoEntityPkList
+				= new ArrayList<YMDPK>();
+				
 				for (YMD ymd : info.getYmd()) {
 					try {
 						QueryUtil.getCalPatternDetailInfoPK(id, ymd.getYear(), ymd.getMonth(), ymd.getDay());
 					} catch (CalendarNotFound e) {
-						new CalPatternDetailInfoEntity(id, ymd.getYear(), ymd.getMonth(), ymd.getDay(), entity);
+						YMD y = new YMD(id, ymd.getYear(), ymd.getMonth(), ymd.getDay());
+						em.persist(y);
+						y.relateToCalPatternInfoEntity(entity);
 					}
-					calPatternDetailInfoEntityPkList.add(new CalPatternDetailInfoEntityPK(id, ymd.getYear(), ymd.getMonth(), ymd.getDay()));
+					calPatternDetailInfoEntityPkList.add(new YMDPK(id, ymd.getYear(), ymd.getMonth(), ymd.getDay()));
 				}
 				// 不要なCalDetailInfoEntityを削除
 				entity.deleteCalPatternDetailInfoEntities(calPatternDetailInfoEntityPkList);
@@ -419,11 +377,10 @@ public class ModifyCalendar {
 	 */
 	public void deleteCalendar(String id) throws HinemosUnknown, CalendarNotFound, InvalidRole {
 
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			//カレンダ情報を検索し取得
-			CalInfoEntity cal = QueryUtil.getCalInfoPK(id, ObjectPrivilegeMode.MODIFY);
+			CalendarInfo cal = QueryUtil.getCalInfoPK(id, ObjectPrivilegeMode.MODIFY);
 
 			//カレンダ情報を削除
 			em.remove(cal);
@@ -450,11 +407,11 @@ public class ModifyCalendar {
 	 */
 	public void deleteCalendarPattern(String id) throws HinemosUnknown, CalendarNotFound, InvalidRole {
 
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
 		m_log.info("deleteCalendarPattern : deleted " + id);
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			//カレンダ[カレンダパターン]情報を検索し取得
-			CalPatternInfoEntity calPa = QueryUtil.getCalPatternInfoPK(id, ObjectPrivilegeMode.MODIFY);
+			CalendarPatternInfo calPa = QueryUtil.getCalPatternInfoPK(id, ObjectPrivilegeMode.MODIFY);
 			//カレンダ[カレンダパターン]情報を削除
 			em.remove(calPa);
 		} catch (CalendarNotFound e) {

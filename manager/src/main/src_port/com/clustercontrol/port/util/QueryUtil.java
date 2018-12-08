@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.port.util;
@@ -22,7 +15,7 @@ import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMo
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.port.model.MonitorPortInfoEntity;
+import com.clustercontrol.port.model.PortCheckInfo;
 import com.clustercontrol.port.model.MonitorProtocolMstEntity;
 
 public class QueryUtil {
@@ -30,28 +23,32 @@ public class QueryUtil {
 	private static Log m_log = LogFactory.getLog( QueryUtil.class );
 
 	public static MonitorProtocolMstEntity getMonitorProtocolMstPK(String serviceId) throws MonitorNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		MonitorProtocolMstEntity entity = em.find(MonitorProtocolMstEntity.class, serviceId, ObjectPrivilegeMode.READ);
-		if (entity == null) {
-			MonitorNotFound e = new MonitorNotFound("MonitorProtocolMstEntity.findByPrimaryKey"
-					+ ", serviceId = " + serviceId);
-			m_log.info("getMonitorProtocolMstPK() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			MonitorProtocolMstEntity entity = em.find(MonitorProtocolMstEntity.class, serviceId, ObjectPrivilegeMode.READ);
+			if (entity == null) {
+				MonitorNotFound e = new MonitorNotFound("MonitorProtocolMstEntity.findByPrimaryKey"
+						+ ", serviceId = " + serviceId);
+				m_log.info("getMonitorProtocolMstPK() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+			return entity;
 		}
-		return entity;
 	}
 
-	public static MonitorPortInfoEntity getMonitorPortInfoPK(String monitorId) throws MonitorNotFound {
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		MonitorPortInfoEntity entity = em.find(MonitorPortInfoEntity.class, monitorId, ObjectPrivilegeMode.READ);
-		if (entity == null) {
-			MonitorNotFound e = new MonitorNotFound("MonitorPortInfoEntity.findByPrimaryKey"
-					+ ", monitorId = " + monitorId);
-			m_log.info("getMonitorPortInfoPK() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage());
-			throw e;
+	public static PortCheckInfo getMonitorPortInfoPK(String monitorId) throws MonitorNotFound {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+			PortCheckInfo entity = em.find(PortCheckInfo.class, monitorId, ObjectPrivilegeMode.READ);
+			if (entity == null) {
+				MonitorNotFound e = new MonitorNotFound("MonitorPortInfoEntity.findByPrimaryKey"
+						+ ", monitorId = " + monitorId);
+				m_log.info("getMonitorPortInfoPK() : "
+						+ e.getClass().getSimpleName() + ", " + e.getMessage());
+				throw e;
+			}
+			return entity;
 		}
-		return entity;
 	}
 }

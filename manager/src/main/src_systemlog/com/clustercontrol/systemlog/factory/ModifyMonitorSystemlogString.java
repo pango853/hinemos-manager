@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.systemlog.factory;
@@ -27,7 +20,16 @@ import com.clustercontrol.plugin.impl.SchedulerPlugin.TriggerType;
  * 
  */
 public class ModifyMonitorSystemlogString extends ModifyMonitorStringValueType{
+	/* (non-Javadoc)
+	 * @see com.clustercontrol.monitor.run.factory.AddMonitor#addCheckInfo()
+	 */
+	@Override
+	protected boolean addCheckInfo() throws MonitorNotFound {
 
+		// システムログ監視のチェック条件はないため、常にtrue
+		return true;
+	}
+	
 	/* (non-Javadoc)
 	 * @see com.clustercontrol.monitor.run.factory.ModifyMonitor#modifyCheckInfo()
 	 */
@@ -37,6 +39,16 @@ public class ModifyMonitorSystemlogString extends ModifyMonitorStringValueType{
 		return true;
 	}
 
+	/* (non-Javadoc)
+	 * @see com.clustercontrol.monitor.run.factory.DeleteMonitor#deleteCheckInfo()
+	 */
+	@Override
+	protected boolean deleteCheckInfo() {
+
+		// システムログ監視のチェック条件はないため、常にtrue
+		return true;
+	}
+	
 	/**
 	 * スケジュール実行の遅延時間を返します。
 	 */

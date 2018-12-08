@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.util;
@@ -27,13 +20,14 @@ import org.apache.commons.logging.LogFactory;
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.commons.util.AbstractCacheManager;
 import com.clustercontrol.commons.util.CacheManagerFactory;
+import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
-import com.clustercontrol.notify.bean.NotifyRelationInfo;
-import com.clustercontrol.notify.model.NotifyRelationInfoEntity;
+import com.clustercontrol.notify.model.NotifyRelationInfo;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * 通知グループIDと通知IDとの関連をマップで管理するクラス。
@@ -114,18 +108,9 @@ public class NotifyRelationCache {
 			}
 			
 			m_log.debug("getNotifyIdList() : Job Master or Job Session. " + notifyGroupId);
-			List<NotifyRelationInfoEntity> nriList
+			List<NotifyRelationInfo> nriList
 			= QueryUtil.getNotifyRelationInfoByNotifyGroupId(notifyGroupId);
-			List<NotifyRelationInfo> notifyList = new ArrayList<NotifyRelationInfo>();
-			for(NotifyRelationInfoEntity nri : nriList){
-				NotifyRelationInfo info
-				= new NotifyRelationInfo(
-						nri.getId().getNotifyGroupId(),
-						nri.getId().getNotifyId(),
-						nri.getNotifyType());
-				notifyList.add(info);
-			}
-			return notifyList;
+			return nriList;
 		} catch (Exception e) {
 			m_log.warn("getNotifyList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
@@ -144,61 +129,54 @@ public class NotifyRelationCache {
 	}
 
 	public static void refresh(){
-		JpaTransactionManager jtm = new JpaTransactionManager();
-		if (!jtm.isNestedEm()) {
-			m_log.warn("refresh() : transactioin has not been begined.");
-			jtm.close();
-			return;
-		}
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		try {
-			_lock.writeLock();
-			
-			long start = System.currentTimeMillis();
-			HashMap<String, List<NotifyRelationInfo>> notifyMap = new HashMap<String, List<NotifyRelationInfo>>();
-			List<NotifyRelationInfoEntity> nriList = null;
-			try {
-				nriList = QueryUtil.getAllNotifyRelationInfoWithoutJob();
-			} catch (Exception e) {
-				m_log.warn("refresh() : "
-						+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			if (!jtm.isNestedEm()) {
+				m_log.warn("refresh() : transactioin has not been begined.");
 				return;
 			}
-			for (NotifyRelationInfoEntity nri : nriList) {
-				String notifyGroupId = nri.getId().getNotifyGroupId();
-				// ジョブセッションで利用されている通知グループの場合は、キャッシュしない。
-				if(onCache(notifyGroupId)){
-					List<NotifyRelationInfo> notifyList = notifyMap.get(notifyGroupId);
-					if (notifyList == null) {
-						notifyList = new ArrayList<NotifyRelationInfo>();
-						NotifyRelationInfo info
-						= new NotifyRelationInfo(
-								nri.getId().getNotifyGroupId(),
-								nri.getId().getNotifyId(),
-								nri.getNotifyType());
-						notifyList.add(info);
-						notifyMap.put(notifyGroupId, notifyList);
-					} else {
-						NotifyRelationInfo info
-						= new NotifyRelationInfo(
-								nri.getId().getNotifyGroupId(),
-								nri.getId().getNotifyId(),
-								nri.getNotifyType());
-						notifyList.add(info);
+
+			try {
+				_lock.writeLock();
+				
+				long start = HinemosTime.currentTimeMillis();
+				em.clear();
+				HashMap<String, List<NotifyRelationInfo>> notifyMap = new HashMap<String, List<NotifyRelationInfo>>();
+				List<NotifyRelationInfo> nriList = null;
+				try {
+					nriList = QueryUtil.getAllNotifyRelationInfoWithoutJob();
+				} catch (Exception e) {
+					m_log.warn("refresh() : "
+							+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+					return;
+				}
+				for (NotifyRelationInfo nri : nriList) {
+					String notifyGroupId = nri.getId().getNotifyGroupId();
+					// ジョブセッションで利用されている通知グループの場合は、キャッシュしない。
+					if(onCache(notifyGroupId)){
+						List<NotifyRelationInfo> notifyList = notifyMap.get(notifyGroupId);
+						if (notifyList == null) {
+							notifyList = new ArrayList<NotifyRelationInfo>();
+							notifyList.add(nri);
+							notifyMap.put(notifyGroupId, notifyList);
+						} else {
+							notifyList.add(nri);
+						}
 					}
 				}
-			}
-			for (List<NotifyRelationInfo> notifyList : notifyMap.values()) {
-				if (notifyList == null) {
-					continue;
+				for (List<NotifyRelationInfo> notifyList : notifyMap.values()) {
+					if (notifyList == null) {
+						continue;
+					}
+					Collections.sort(notifyList);
 				}
-				Collections.sort(notifyList);
+				storeCache(notifyMap);
+				m_log.info("refresh NotifyRelationCache. " + (HinemosTime.currentTimeMillis() - start)
+						+ "ms. size=" + notifyMap.size());
+			} finally {
+				_lock.writeUnlock();
 			}
-			storeCache(notifyMap);
-			m_log.info("refresh NotifyRelationCache. " + (System.currentTimeMillis() - start)
-					+ "ms. size=" + notifyMap.size());
-		} finally {
-			_lock.writeUnlock();
 		}
 	}
 }

@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.vm.model;
 
 import java.io.Serializable;
@@ -33,6 +41,7 @@ public class VmProtocolMstEntityPK implements Serializable {
 		this.subPlatformId = subPlatformId;
 	}
 
+	@Column(name="protocol")
 	public String getProtocol() {
 		return this.protocol;
 	}

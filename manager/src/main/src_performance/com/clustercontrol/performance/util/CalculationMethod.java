@@ -1,16 +1,9 @@
 /*
-
-」Copyright (C) 2008 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.performance.util;
@@ -29,9 +22,9 @@ import com.clustercontrol.performance.monitor.model.CollectorItemCalcMethodMstEn
 import com.clustercontrol.performance.monitor.util.QueryUtil;
 import com.clustercontrol.performance.operator.Operator;
 import com.clustercontrol.performance.operator.Operator.CollectedDataNotFoundException;
+import com.clustercontrol.performance.operator.Operator.InvalidValueException;
 import com.clustercontrol.performance.operator.Undefined;
-import com.clustercontrol.repository.bean.NodeDeviceInfo;
-import com.clustercontrol.sharedtable.DataTable;
+import com.clustercontrol.poller.util.DataTable;
 
 /**
  *SNMPで取得した値からグラフに必要な値への計算を行うクラス
@@ -53,62 +46,44 @@ public final class CalculationMethod {
 			final String platformId,
 			final String subPlatformId,
 			final CollectorItemInfo itemInfo,
-			final NodeDeviceInfo deviceInfo,
+			final String deviceName,
 			final DataTable currentTable,
-			final DataTable previousTable){
+			final DataTable previousTable) throws CollectedDataNotFoundException, InvalidValueException, IllegalStateException{
 
 		// 計算方法を取得
-		try {
+		// ItemCodeからItemCodeMstのデータを取得
+		CollectorItemCodeMstData itemCodeMst =
+				CollectorMasterCache.getCategoryCodeMst(itemInfo.getItemCode());
 
-			// ItemCodeからItemCodeMstのデータを取得
-			CollectorItemCodeMstData itemCodeMst =
-					CollectorMasterCache.getCategoryCodeMst(itemInfo.getItemCode());
+		String method = CollectorMasterCache.getCollectMethod(
+				platformId, subPlatformId, itemCodeMst.getCategoryCode());
 
-			String method = CollectorMasterCache.getCollectMethod(
-					platformId, subPlatformId, itemCodeMst.getCategoryCode());
-
-			// 収集項目・収集メソッドに該当する計算式クラスを取得する
-			// 但し、SubplatformがVMやクラウドの場合、物理環境と同じポーリングができる必要があるため、
-			// OperatorがUndefinedだった場合には、Subplatformを空にして再トライする
-			Operator ope = getOperator(
+		// 収集項目・収集メソッドに該当する計算式クラスを取得する
+		// 但し、SubplatformがVMやクラウドの場合、物理環境と同じポーリングができる必要があるため、
+		// OperatorがUndefinedだった場合には、Subplatformを空にして再トライする
+		Operator ope = getOperator(
+				new CollectorItemCalcMethodMstPK(
+						method,
+						platformId,
+						subPlatformId,
+						itemInfo.getItemCode()));
+		if (!subPlatformId.isEmpty() && ope.getClass().equals(Undefined.class)) {
+			m_log.debug("getPerformance() : could not get operator. retry and get physical operator");
+			ope = getOperator(
 					new CollectorItemCalcMethodMstPK(
 							method,
 							platformId,
-							subPlatformId,
+							"",
 							itemInfo.getItemCode()));
-			if (!subPlatformId.isEmpty() && ope.getClass().equals(Undefined.class)) {
-				m_log.debug("getPerformance() : could not get operator. retry and get physical operator");
-				ope = getOperator(
-						new CollectorItemCalcMethodMstPK(
-								method,
-								platformId,
-								"",
-								itemInfo.getItemCode()));
-			}
-			if (m_log.isDebugEnabled()) {
-				m_log.debug("getPerformance() : method = " + method +
-						", platform = " + platformId +
-						", subPlatformId = " + subPlatformId +
-						", itemCode = " + itemInfo.getItemCode() +
-						", Operator = " + ope.toString());
-			}
-
-			// データテーブルをセットして計算
-			// デバイス情報が必要な場合
-			String deviceName = "";
-			if(deviceInfo != null){
-				deviceName = deviceInfo.getDeviceName();
-			}
-
-			return ope.calc(currentTable, previousTable, deviceName);
-		} catch (CollectedDataNotFoundException | IllegalStateException | Operator.InvalidValueException e) {
-			return Double.NaN;
-		} catch (Exception e){
-			m_log.warn("getPerformance() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			// 例外発生時はNaNを返す
-			return Double.NaN;
 		}
+		if (m_log.isDebugEnabled()) {
+			m_log.debug("getPerformance() : method = " + method +
+					", platform = " + platformId +
+					", subPlatformId = " + subPlatformId +
+					", itemCode = " + itemInfo.getItemCode() +
+					", Operator = " + ope.toString());
+		}
+		return ope.calc(currentTable, previousTable, deviceName);
 	}
 
 	private static Operator getOperator(CollectorItemCalcMethodMstPK pk){

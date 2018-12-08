@@ -1,8 +1,14 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.jobmanagement.model;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
-import java.util.Date;
 import java.util.List;
 
 import javax.persistence.CascadeType;
@@ -16,10 +22,8 @@ import javax.persistence.PrimaryKeyJoinColumn;
 import javax.persistence.PrimaryKeyJoinColumns;
 import javax.persistence.Table;
 
-import com.clustercontrol.bean.YesNoConstant;
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
-
+import com.clustercontrol.jobmanagement.bean.ConditionTypeConstant;
+import com.clustercontrol.util.HinemosTime;
 
 
 /**
@@ -33,9 +37,10 @@ public class JobInfoEntity implements Serializable {
 	private JobInfoEntityPK id;
 	private String jobName						=	"";
 	private String description					=	"";
-	private Integer jobType						=	null;
-	private Timestamp regDate					=	new Timestamp(new Date().getTime());
-	private Timestamp updateDate				=	new Timestamp(new Date().getTime());
+	private Integer jobType					=	null;
+	private Boolean registeredModule			=	false;
+	private Long regDate					=	HinemosTime.currentTimeMillis();
+	private Long updateDate				=	HinemosTime.currentTimeMillis();
 	private String regUser						=	"";
 	private String updateUser					=	"";
 	// cc_job_command_info
@@ -44,64 +49,77 @@ public class JobInfoEntity implements Serializable {
 	private String startCommand					=	"";
 	private Integer stopType						= null;
 	private String stopCommand					=	"";
-	private Integer specifyUser					= YesNoConstant.TYPE_NO;
+	private Boolean specifyUser					= false;
 	private String effectiveUser				=	null;
-	private Integer messageRetryEndFlg			=	null;
+	private Boolean messageRetryEndFlg			=	null;
 	private Integer messageRetryEndValue		=	null;
-	private Integer commandRetryFlg				= 1;
+	private Boolean commandRetryFlg				= true;
+	private Integer commandRetryEndStatus			= 0;
+	private Boolean jobRetryFlg					= false;
+	private Integer jobRetryEndStatus				= 0;
 	private String argumentJobId				=	null;
 	private String argument						=	null;
 	private Integer messageRetry 				= null;
 	private Integer commandRetry 				= 10;
+	private Integer jobRetry 				= 0;
+	private Boolean managerDistribution		= false;
+	private String scriptName					= null;
+	private String scriptEncoding				= null;
+	private String scriptContent				= null;
 	// cc_job_start_info
 	private Integer conditionType				=	null;
-	private Integer suspend						=	YesNoConstant.TYPE_NO;
-	private Integer skip						=	YesNoConstant.TYPE_NO;
+	private Boolean suspend						=	false;
+	private Boolean skip						=	false;
 	private Integer skipEndStatus				=	0;
 	private Integer skipEndValue				=	0;
-	private Integer unmatchEndFlg				=	YesNoConstant.TYPE_NO;
+	private Boolean unmatchEndFlg				=	false;
 	private Integer unmatchEndStatus			=	0;
-	private Integer unmatchEndValue				=	null;
-	private Integer calendar					=	YesNoConstant.TYPE_NO;
+	private Integer unmatchEndValue			=	null;
+	private Boolean exclusiveBranchFlg			=	false;
+	private Integer exclusiveBranchEndStatus	=	0;
+	private Integer exclusiveBranchEndValue	=	null;
+	private Boolean calendar					=	false;
 	private String calendarId					=	"";
 	private Integer calendarEndStatus			=	0;
 	private Integer calendarEndValue			=	0;
-	private Integer startDelay					=	YesNoConstant.TYPE_NO;
-	private Integer startDelaySession			=	YesNoConstant.TYPE_NO;
+	private Boolean startDelay					=	false;
+	private Boolean startDelaySession			=	false;
 	private Integer startDelaySessionValue		=	1;
-	private Integer startDelayTime				=	YesNoConstant.TYPE_NO;
-	private Timestamp startDelayTimeValue			=	null;
-	private Integer startDelayConditionType		=	YesNoConstant.TYPE_NO;
-	private Integer startDelayNotify			=	YesNoConstant.TYPE_NO;
+	private Boolean startDelayTime				=	false;
+	private Long startDelayTimeValue			=	null;
+	private Integer startDelayConditionType		=	ConditionTypeConstant.TYPE_AND;
+	private Boolean startDelayNotify			=	false;
 	private Integer startDelayNotifyPriority	=	null;
-	private Integer startDelayOperation			=	YesNoConstant.TYPE_NO;
+	private Boolean startDelayOperation			=	false;
 	private Integer startDelayOperationType		=	null;
 	private Integer startDelayOperationEndStatus	=	0;
 	private Integer startDelayOperationEndValue	=	0;
-	private Integer endDelay					=	YesNoConstant.TYPE_NO;
-	private Integer endDelaySession				=	YesNoConstant.TYPE_NO;
+	private Boolean endDelay					=	false;
+	private Boolean endDelaySession				=	false;
 	private Integer endDelaySessionValue		=	1;
-	private Integer endDelayJob					=	YesNoConstant.TYPE_NO;
+	private Boolean endDelayJob					=	false;
 	private Integer endDelayJobValue			=	1;
-	private Integer endDelayTime				=	YesNoConstant.TYPE_NO;
-	private Timestamp endDelayTimeValue				=	null;
-	private Integer endDelayConditionType		=	YesNoConstant.TYPE_NO;
-	private Integer endDelayNotify				=	YesNoConstant.TYPE_NO;
+	private Boolean endDelayTime				=	false;
+	private Long endDelayTimeValue				=	null;
+	private Integer endDelayConditionType		=	ConditionTypeConstant.TYPE_AND;
+	private Boolean endDelayNotify				=	false;
 	private Integer endDelayNotifyPriority		=	null;
-	private Integer endDelayOperation			=	YesNoConstant.TYPE_NO;
+	private Boolean endDelayOperation			=	false;
 	private Integer endDelayOperationType		=	null;
 	private Integer endDelayOperationEndStatus	=	0;
 	private Integer endDelayOperationEndValue	=	0;
+	private Boolean endDelayChangeMount			=	false;
+	private Double endDelayChangeMountValue		=	1D;
 
 	// multiplicity
-	private Integer multiplicity_notify;
+	private Boolean multiplicity_notify;
 	private Integer multiplicity_notify_priority;
 	private Integer multiplicity_operation;
 	private Integer multiplicity_end_value;
 
 	// cc_job_file_info
-	private Integer checkFlg;
-	private Integer compressionFlg;
+	private Boolean checkFlg;
+	private Boolean compressionFlg;
 	private String destDirectory;
 	private String destWorkDir;
 	private String srcFile;
@@ -109,8 +127,10 @@ public class JobInfoEntity implements Serializable {
 	private String srcFacilityId;
 	private String destFacilityId;
 	// cc_job_start_time_info
-	private Timestamp startTime;
+	private Long startTime;
+	private String startTimeDescription;
 	private Integer startMinute;
+	private String startMinuteDescription;
 
 	//ジョブ通知関連
 	private String notifyGroupId = "";
@@ -119,11 +139,44 @@ public class JobInfoEntity implements Serializable {
 	private Integer warnPriority = 0;
 	private Integer abnormalPriority = 0;
 
+	// 終了値
+	private Integer normalEndValue		=	null;
+	private Integer normalEndValueFrom	=	null;
+	private Integer normalEndValueTo		=	null;
+	private Integer warnEndValue		=	null;
+	private Integer warnEndValueFrom	=	null;
+	private Integer warnEndValueTo		=	null;
+	private Integer abnormalEndValue		=	null;
+	private Integer abnormalEndValueFrom	=	null;
+	private Integer abnormalEndValueTo		=	null;
+	
+	//承認ジョブ情報
+	private String approvalReqRoleId		="";
+	private String approvalReqUserId		="";
+	private String approvalReqSentence		="";
+	private String approvalReqMailTitle	="";
+	private String approvalReqMailBody		="";
+	private Boolean useApprovalReqSentence	=false;
+
+	// アイコン情報
+	private String iconId		=	null;
+
+	// 監視ジョブ情報
+	private String monitorId;
+	private Integer monitorInfoEndValue;
+	private Integer monitorWarnEndValue;
+	private Integer monitorCriticalEndValue;
+	private Integer monitorUnknownEndValue;
+	private Integer monitorWaitTime;
+	private Integer monitorWaitEndValue;
 
 	private JobSessionJobEntity jobSessionJobEntity;
-	private List<JobEndInfoEntity> jobEndInfoEntities;
 	private List<JobParamInfoEntity> jobParamInfoEntities;
 	private List<JobStartJobInfoEntity> jobStartJobInfoEntities;
+	private List<JobCommandParamInfoEntity> jobCommandParamInfoEntities;
+	private List<JobEnvVariableInfoEntity> jobEnvVariableInfoEntities;
+	private List<JobStartParamInfoEntity> jobStartParamInfoEntities;
+	private List<JobNextJobOrderInfoEntity> jobNextJobOrderInfoEntities;
 
 	@Deprecated
 	public JobInfoEntity() {
@@ -132,9 +185,6 @@ public class JobInfoEntity implements Serializable {
 	public JobInfoEntity(JobInfoEntityPK pk,
 			JobSessionJobEntity jobSessionJobEntity) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
-		this.relateToJobSessionJobEntity(jobSessionJobEntity);
 	}
 
 	public JobInfoEntity(JobSessionJobEntity jobSessionJobEntity) {
@@ -155,7 +205,7 @@ public class JobInfoEntity implements Serializable {
 		this.id = id;
 	}
 
-
+	@Column(name="description")
 	public String getDescription() {
 		return this.description;
 	}
@@ -185,12 +235,22 @@ public class JobInfoEntity implements Serializable {
 	}
 
 
+	@Column(name="registered_module")
+	public Boolean isRegisteredModule() {
+		return registeredModule;
+	}
+
+	public void setRegisteredModule(Boolean regist) {
+		this.registeredModule = regist;
+	}
+
+
 	@Column(name="reg_date")
-	public Timestamp getRegDate() {
+	public Long getRegDate() {
 		return this.regDate;
 	}
 
-	public void setRegDate(Timestamp regDate) {
+	public void setRegDate(Long regDate) {
 		this.regDate = regDate;
 	}
 
@@ -206,11 +266,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="update_date")
-	public Timestamp getUpdateDate() {
+	public Long getUpdateDate() {
 		return this.updateDate;
 	}
 
-	public void setUpdateDate(Timestamp updateDate) {
+	public void setUpdateDate(Long updateDate) {
 		this.updateDate = updateDate;
 	}
 
@@ -226,6 +286,7 @@ public class JobInfoEntity implements Serializable {
 
 
 	// cc_job_command_info
+	@Column(name="argument")
 	public String getArgument() {
 		return this.argument;
 	}
@@ -246,11 +307,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="specify_user")
-	public Integer getSpecifyUser() {
+	public Boolean getSpecifyUser() {
 		return this.specifyUser;
 	}
 
-	public void setSpecifyUser(Integer specifyUser) {
+	public void setSpecifyUser(Boolean specifyUser) {
 		this.specifyUser = specifyUser;
 	}
 
@@ -266,11 +327,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="message_retry_end_flg")
-	public Integer getMessageRetryEndFlg() {
+	public Boolean getMessageRetryEndFlg() {
 		return this.messageRetryEndFlg;
 	}
 
-	public void setMessageRetryEndFlg(Integer messageRetryEndFlg) {
+	public void setMessageRetryEndFlg(Boolean messageRetryEndFlg) {
 		this.messageRetryEndFlg = messageRetryEndFlg;
 	}
 
@@ -286,14 +347,40 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="command_retry_flg")
-	public Integer getCommandRetryFlg() {
+	public Boolean getCommandRetryFlg() {
 		return this.commandRetryFlg;
 	}
 
-	public void setCommandRetryFlg(Integer commandRetryFlg) {
+	public void setCommandRetryFlg(Boolean commandRetryFlg) {
 		this.commandRetryFlg = commandRetryFlg;
 	}
 
+	@Column(name="command_retry_end_status")
+	public Integer getCommandRetryEndStatus() {
+		return commandRetryEndStatus;
+	}
+
+	public void setCommandRetryEndStatus(Integer commandRetryEndStatus) {
+		this.commandRetryEndStatus = commandRetryEndStatus;
+	}
+
+	@Column(name="job_retry_flg")
+	public Boolean getJobRetryFlg() {
+		return jobRetryFlg;
+	}
+
+	public void setJobRetryFlg(Boolean jobRetryFlg) {
+		this.jobRetryFlg = jobRetryFlg;
+	}
+
+	@Column(name="job_retry_end_status")
+	public Integer getJobRetryEndStatus() {
+		return jobRetryEndStatus;
+	}
+
+	public void setJobRetryEndStatus(Integer jobRetryEndStatus) {
+		this.jobRetryEndStatus = jobRetryEndStatus;
+	}
 
 	@Column(name="facility_id")
 	public String getFacilityId() {
@@ -360,12 +447,58 @@ public class JobInfoEntity implements Serializable {
 		this.commandRetry = commandRetry;
 	}
 
+	@Column(name="job_retry")
+	public Integer getJobRetry() {
+		return jobRetry;
+	}
+
+	public void setJobRetry(Integer jobRetry) {
+		this.jobRetry = jobRetry;
+	}
+
+	@Column(name="manager_distribution")
+	public Boolean getManagerDistribution() {
+		return this.managerDistribution;
+	}
+
+	public void setManagerDistribution(Boolean managerDistribution) {
+		this.managerDistribution = managerDistribution;
+	}
+
+	@Column(name="script_name")
+	public String getScriptName() {
+		return this.scriptName;
+	}
+
+	public void setScriptName(String scriptName) {
+		this.scriptName = scriptName;
+	}
+
+	@Column(name="script_encoding")
+	public String getScriptEncoding() {
+		return this.scriptEncoding;
+	}
+
+	public void setScriptEncoding(String scriptEncoding) {
+		this.scriptEncoding = scriptEncoding;
+	}
+	
+	@Column(name="script_content")
+	public String getScriptContent() {
+		return this.scriptContent;
+	}
+
+	public void setScriptContent(String scriptContent) {
+		this.scriptContent = scriptContent;
+	}
+	
 	// cc_job_start_info
-	public Integer getCalendar() {
+	@Column(name="calendar")
+	public Boolean getCalendar() {
 		return this.calendar;
 	}
 
-	public void setCalendar(Integer calendar) {
+	public void setCalendar(Boolean calendar) {
 		this.calendar = calendar;
 	}
 
@@ -411,11 +544,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="end_delay")
-	public Integer getEndDelay() {
+	public Boolean getEndDelay() {
 		return this.endDelay;
 	}
 
-	public void setEndDelay(Integer endDelay) {
+	public void setEndDelay(Boolean endDelay) {
 		this.endDelay = endDelay;
 	}
 
@@ -431,11 +564,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="end_delay_job")
-	public Integer getEndDelayJob() {
+	public Boolean getEndDelayJob() {
 		return this.endDelayJob;
 	}
 
-	public void setEndDelayJob(Integer endDelayJob) {
+	public void setEndDelayJob(Boolean endDelayJob) {
 		this.endDelayJob = endDelayJob;
 	}
 
@@ -451,11 +584,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="end_delay_notify")
-	public Integer getEndDelayNotify() {
+	public Boolean getEndDelayNotify() {
 		return this.endDelayNotify;
 	}
 
-	public void setEndDelayNotify(Integer endDelayNotify) {
+	public void setEndDelayNotify(Boolean endDelayNotify) {
 		this.endDelayNotify = endDelayNotify;
 	}
 
@@ -471,11 +604,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="end_delay_operation")
-	public Integer getEndDelayOperation() {
+	public Boolean getEndDelayOperation() {
 		return this.endDelayOperation;
 	}
 
-	public void setEndDelayOperation(Integer endDelayOperation) {
+	public void setEndDelayOperation(Boolean endDelayOperation) {
 		this.endDelayOperation = endDelayOperation;
 	}
 
@@ -500,6 +633,26 @@ public class JobInfoEntity implements Serializable {
 	}
 
 
+	@Column(name="end_delay_change_mount")
+	public Boolean getEndDelayChangeMount() {
+		return this.endDelayChangeMount;
+	}
+
+	public void setEndDelayChangeMount(Boolean endDelayChangeMount) {
+		this.endDelayChangeMount = endDelayChangeMount;
+	}
+
+
+	@Column(name="end_delay_change_mount_value")
+	public Double getEndDelayChangeMountValue() {
+		return this.endDelayChangeMountValue;
+	}
+
+	public void setEndDelayChangeMountValue(Double endDelayChangeMountValue) {
+		this.endDelayChangeMountValue = endDelayChangeMountValue;
+	}
+
+
 	@Column(name="end_delay_operation_type")
 	public Integer getEndDelayOperationType() {
 		return this.endDelayOperationType;
@@ -511,11 +664,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="end_delay_session")
-	public Integer getEndDelaySession() {
+	public Boolean getEndDelaySession() {
 		return this.endDelaySession;
 	}
 
-	public void setEndDelaySession(Integer endDelaySession) {
+	public void setEndDelaySession(Boolean endDelaySession) {
 		this.endDelaySession = endDelaySession;
 	}
 
@@ -531,31 +684,31 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="end_delay_time")
-	public Integer getEndDelayTime() {
+	public Boolean getEndDelayTime() {
 		return this.endDelayTime;
 	}
 
-	public void setEndDelayTime(Integer endDelayTime) {
+	public void setEndDelayTime(Boolean endDelayTime) {
 		this.endDelayTime = endDelayTime;
 	}
 
 
 	@Column(name="end_delay_time_value")
-	public Timestamp getEndDelayTimeValue() {
+	public Long getEndDelayTimeValue() {
 		return this.endDelayTimeValue;
 	}
 
-	public void setEndDelayTimeValue(Timestamp endDelayTimeValue) {
+	public void setEndDelayTimeValue(Long endDelayTimeValue) {
 		this.endDelayTimeValue = endDelayTimeValue;
 	}
 
 
 	@Column(name="multiplicity_notify")
-	public Integer getMultiplicityNotify() {
+	public Boolean getMultiplicityNotify() {
 		return this.multiplicity_notify;
 	}
 
-	public void setMultiplicityNotify(Integer multiplicity_notify) {
+	public void setMultiplicityNotify(Boolean multiplicity_notify) {
 		this.multiplicity_notify = multiplicity_notify;
 	}
 
@@ -590,11 +743,12 @@ public class JobInfoEntity implements Serializable {
 	}
 
 
-	public Integer getSkip() {
+	@Column(name="skip")
+	public Boolean getSkip() {
 		return this.skip;
 	}
 
-	public void setSkip(Integer skip) {
+	public void setSkip(Boolean skip) {
 		this.skip = skip;
 	}
 
@@ -620,11 +774,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="start_delay")
-	public Integer getStartDelay() {
+	public Boolean getStartDelay() {
 		return this.startDelay;
 	}
 
-	public void setStartDelay(Integer startDelay) {
+	public void setStartDelay(Boolean startDelay) {
 		this.startDelay = startDelay;
 	}
 
@@ -640,11 +794,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="start_delay_notify")
-	public Integer getStartDelayNotify() {
+	public Boolean getStartDelayNotify() {
 		return this.startDelayNotify;
 	}
 
-	public void setStartDelayNotify(Integer startDelayNotify) {
+	public void setStartDelayNotify(Boolean startDelayNotify) {
 		this.startDelayNotify = startDelayNotify;
 	}
 
@@ -660,11 +814,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="start_delay_operation")
-	public Integer getStartDelayOperation() {
+	public Boolean getStartDelayOperation() {
 		return this.startDelayOperation;
 	}
 
-	public void setStartDelayOperation(Integer startDelayOperation) {
+	public void setStartDelayOperation(Boolean startDelayOperation) {
 		this.startDelayOperation = startDelayOperation;
 	}
 
@@ -700,11 +854,11 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="start_delay_session")
-	public Integer getStartDelaySession() {
+	public Boolean getStartDelaySession() {
 		return this.startDelaySession;
 	}
 
-	public void setStartDelaySession(Integer startDelaySession) {
+	public void setStartDelaySession(Boolean startDelaySession) {
 		this.startDelaySession = startDelaySession;
 	}
 
@@ -720,40 +874,41 @@ public class JobInfoEntity implements Serializable {
 
 
 	@Column(name="start_delay_time")
-	public Integer getStartDelayTime() {
+	public Boolean getStartDelayTime() {
 		return this.startDelayTime;
 	}
 
-	public void setStartDelayTime(Integer startDelayTime) {
+	public void setStartDelayTime(Boolean startDelayTime) {
 		this.startDelayTime = startDelayTime;
 	}
 
 
 	@Column(name="start_delay_time_value")
-	public Timestamp getStartDelayTimeValue() {
+	public Long getStartDelayTimeValue() {
 		return this.startDelayTimeValue;
 	}
 
-	public void setStartDelayTimeValue(Timestamp startDelayTimeValue) {
+	public void setStartDelayTimeValue(Long startDelayTimeValue) {
 		this.startDelayTimeValue = startDelayTimeValue;
 	}
 
 
-	public Integer getSuspend() {
+	@Column(name="suspend")
+	public Boolean getSuspend() {
 		return this.suspend;
 	}
 
-	public void setSuspend(Integer suspend) {
+	public void setSuspend(Boolean suspend) {
 		this.suspend = suspend;
 	}
 
 
 	@Column(name="unmatch_end_flg")
-	public Integer getUnmatchEndFlg() {
+	public Boolean getUnmatchEndFlg() {
 		return this.unmatchEndFlg;
 	}
 
-	public void setUnmatchEndFlg(Integer unmatchEndFlg) {
+	public void setUnmatchEndFlg(Boolean unmatchEndFlg) {
 		this.unmatchEndFlg = unmatchEndFlg;
 	}
 
@@ -777,24 +932,50 @@ public class JobInfoEntity implements Serializable {
 		this.unmatchEndValue = unmatchEndValue;
 	}
 
+	@Column(name="exclusive_branch_flg")
+	public Boolean getExclusiveBranchFlg() {
+		return this.exclusiveBranchFlg;
+	}
+
+	public void setExclusiveBranchFlg(Boolean exclusiveBranchFlg) {
+		this.exclusiveBranchFlg = exclusiveBranchFlg;
+	}
+
+	@Column(name="exclusive_branch_end_status")
+	public Integer getExclusiveBranchEndStatus() {
+		return this.exclusiveBranchEndStatus;
+	}
+
+	public void setExclusiveBranchEndStatus(Integer exclusiveBranchEndStatus) {
+		this.exclusiveBranchEndStatus = exclusiveBranchEndStatus;
+	}
+
+	@Column(name="exclusive_branch_end_value")
+	public Integer getExclusiveBranchEndValue() {
+		return this.exclusiveBranchEndValue;
+	}
+
+	public void setExclusiveBranchEndValue(Integer exclusiveBranchEndValue) {
+		this.exclusiveBranchEndValue = exclusiveBranchEndValue;
+	}
 
 	// cc_job_file_info
 	@Column(name="check_flg")
-	public Integer getCheckFlg() {
+	public Boolean getCheckFlg() {
 		return this.checkFlg;
 	}
 
-	public void setCheckFlg(Integer checkFlg) {
+	public void setCheckFlg(Boolean checkFlg) {
 		this.checkFlg = checkFlg;
 	}
 
 
 	@Column(name="compression_flg")
-	public Integer getCompressionFlg() {
+	public Boolean getCompressionFlg() {
 		return this.compressionFlg;
 	}
 
-	public void setCompressionFlg(Integer compressionFlg) {
+	public void setCompressionFlg(Boolean compressionFlg) {
 		this.compressionFlg = compressionFlg;
 	}
 
@@ -861,12 +1042,21 @@ public class JobInfoEntity implements Serializable {
 
 	// cc_job_start_time_info
 	@Column(name="start_time")
-	public Timestamp getStartTime() {
+	public Long getStartTime() {
 		return this.startTime;
 	}
 
-	public void setStartTime(Timestamp startTime) {
+	public void setStartTime(Long startTime) {
 		this.startTime = startTime;
+	}
+
+	@Column(name="start_time_description")
+	public String getStartTimeDescription() {
+		return this.startTimeDescription;
+	}
+
+	public void setStartTimeDescription(String description) {
+		this.startTimeDescription = description;
 	}
 
 	@Column(name="start_minute")
@@ -876,6 +1066,15 @@ public class JobInfoEntity implements Serializable {
 
 	public void setStartMinute(Integer startMinute) {
 		this.startMinute = startMinute;
+	}
+
+	@Column(name="start_minute_description")
+	public String getStartMinuteDescription() {
+		return this.startMinuteDescription;
+	}
+
+	public void setStartMinuteDescription(String description) {
+		this.startMinuteDescription = description;
 	}
 
 	@Column(name="notify_group_id")
@@ -923,16 +1122,212 @@ public class JobInfoEntity implements Serializable {
 		this.abnormalPriority = abnormalPriority;
 	}
 
-	//bi-directional many-to-one association to JobEndInfoEntity
-	@OneToMany(mappedBy="jobInfoEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
-	public List<JobEndInfoEntity> getJobEndInfoEntities() {
-		return this.jobEndInfoEntities;
+	@Column(name="normal_end_value")
+	public Integer getNormalEndValue() {
+		return normalEndValue;
 	}
 
-	public void setJobEndInfoEntities(List<JobEndInfoEntity> jobEndInfoEntities) {
-		this.jobEndInfoEntities = jobEndInfoEntities;
+	public void setNormalEndValue(Integer normalEndValue) {
+		this.normalEndValue = normalEndValue;
 	}
 
+	@Column(name="normal_end_value_from")
+	public Integer getNormalEndValueFrom() {
+		return normalEndValueFrom;
+	}
+
+	public void setNormalEndValueFrom(Integer normalEndValueFrom) {
+		this.normalEndValueFrom = normalEndValueFrom;
+	}
+
+	@Column(name="normal_end_value_to")
+	public Integer getNormalEndValueTo() {
+		return normalEndValueTo;
+	}
+
+	public void setNormalEndValueTo(Integer normalEndValueTo) {
+		this.normalEndValueTo = normalEndValueTo;
+	}
+
+	@Column(name="warn_end_value")
+	public Integer getWarnEndValue() {
+		return warnEndValue;
+	}
+
+	public void setWarnEndValue(Integer warnEndValue) {
+		this.warnEndValue = warnEndValue;
+	}
+
+	@Column(name="warn_end_value_from")
+	public Integer getWarnEndValueFrom() {
+		return warnEndValueFrom;
+	}
+
+	public void setWarnEndValueFrom(Integer warnEndValueFrom) {
+		this.warnEndValueFrom = warnEndValueFrom;
+	}
+
+	@Column(name="warn_end_value_to")
+	public Integer getWarnEndValueTo() {
+		return warnEndValueTo;
+	}
+
+	public void setWarnEndValueTo(Integer warnEndValueTo) {
+		this.warnEndValueTo = warnEndValueTo;
+	}
+
+	@Column(name="abnormal_end_value")
+	public Integer getAbnormalEndValue() {
+		return abnormalEndValue;
+	}
+
+	public void setAbnormalEndValue(Integer abnormalEndValue) {
+		this.abnormalEndValue = abnormalEndValue;
+	}
+
+	@Column(name="abnormal_end_value_from")
+	public Integer getAbnormalEndValueFrom() {
+		return abnormalEndValueFrom;
+	}
+
+	public void setAbnormalEndValueFrom(Integer abnormalEndValueFrom) {
+		this.abnormalEndValueFrom = abnormalEndValueFrom;
+	}
+
+	@Column(name="abnormal_end_value_to")
+	public Integer getAbnormalEndValueTo() {
+		return abnormalEndValueTo;
+	}
+
+	public void setAbnormalEndValueTo(Integer abnormalEndValueTo) {
+		this.abnormalEndValueTo = abnormalEndValueTo;
+	}
+
+	@Column(name="icon_id")
+	public String getIconId() {
+		return iconId;
+	}
+
+	public void setIconId(String iconId) {
+		this.iconId = iconId;
+	}
+
+	@Column(name="approval_req_role_id")
+	public String getApprovalReqRoleId() {
+		return approvalReqRoleId;
+	}
+
+	public void setApprovalReqRoleId(String approvalReqRoleId) {
+		this.approvalReqRoleId = approvalReqRoleId;
+	}
+
+	@Column(name="approval_req_user_id")
+	public String getApprovalReqUserId() {
+		return approvalReqUserId;
+	}
+
+	public void setApprovalReqUserId(String approvalReqUserId) {
+		this.approvalReqUserId = approvalReqUserId;
+	}
+
+	@Column(name="approval_req_sentence")
+	public String getApprovalReqSentence() {
+		return approvalReqSentence;
+	}
+
+	public void setApprovalReqSentence(String approvalReqSentence) {
+		this.approvalReqSentence = approvalReqSentence;
+	}
+
+	@Column(name="approval_req_mail_title")
+	public String getApprovalReqMailTitle() {
+		return approvalReqMailTitle;
+	}
+
+	public void setApprovalReqMailTitle(String approvalReqMailTitle) {
+		this.approvalReqMailTitle = approvalReqMailTitle;
+	}
+
+	@Column(name="approval_req_mail_body")
+	public String getApprovalReqMailBody() {
+		return approvalReqMailBody;
+	}
+
+	public void setApprovalReqMailBody(String approvalReqMailBody) {
+		this.approvalReqMailBody = approvalReqMailBody;
+	}
+
+	@Column(name="use_approval_req_sentence")
+	public Boolean isUseApprovalReqSentence() {
+		return useApprovalReqSentence;
+	}
+
+	public void setUseApprovalReqSentence(Boolean useApprovalReqSentence) {
+		this.useApprovalReqSentence = useApprovalReqSentence;
+	}
+
+	@Column(name="monitor_id")
+	public String getMonitorId() {
+		return this.monitorId;
+	}
+
+	public void setMonitorId(String monitorId) {
+		this.monitorId = monitorId;
+	}
+
+	@Column(name="monitor_info_end_value")
+	public Integer getMonitorInfoEndValue() {
+		return this.monitorInfoEndValue;
+	}
+
+	public void setMonitorInfoEndValue(Integer monitorInfoEndValue) {
+		this.monitorInfoEndValue = monitorInfoEndValue;
+	}
+
+	@Column(name="monitor_warn_end_value")
+	public Integer getMonitorWarnEndValue() {
+		return this.monitorWarnEndValue;
+	}
+
+	public void setMonitorWarnEndValue(Integer monitorWarnEndValue) {
+		this.monitorWarnEndValue = monitorWarnEndValue;
+	}
+
+	@Column(name="monitor_critical_end_value")
+	public Integer getMonitorCriticalEndValue() {
+		return this.monitorCriticalEndValue;
+	}
+
+	public void setMonitorCriticalEndValue(Integer monitorCriticalEndValue) {
+		this.monitorCriticalEndValue = monitorCriticalEndValue;
+	}
+
+	@Column(name="monitor_unknown_end_value")
+	public Integer getMonitorUnknownEndValue() {
+		return this.monitorUnknownEndValue;
+	}
+
+	public void setMonitorUnknownEndValue(Integer monitorUnknownEndValue) {
+		this.monitorUnknownEndValue = monitorUnknownEndValue;
+	}
+
+	@Column(name="monitor_wait_time")
+	public Integer getMonitorWaitTime() {
+		return this.monitorWaitTime;
+	}
+
+	public void setMonitorWaitTime(Integer monitorWaitTime) {
+		this.monitorWaitTime = monitorWaitTime;
+	}
+
+	@Column(name="monitor_wait_end_value")
+	public Integer getMonitorWaitEndValue() {
+		return this.monitorWaitEndValue;
+	}
+
+	public void setMonitorWaitEndValue(Integer monitorWaitEndValue) {
+		this.monitorWaitEndValue = monitorWaitEndValue;
+	}
 
 	//bi-directional one-to-one association to JobSessionJobEntity
 	@OneToOne(fetch=FetchType.LAZY)
@@ -995,6 +1390,44 @@ public class JobInfoEntity implements Serializable {
 		this.jobStartJobInfoEntities = jobStartJobInfoEntities;
 	}
 
+	//bi-directional many-to-one association to jobCommandParamInfoEntity
+	@OneToMany(mappedBy="jobInfoEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobCommandParamInfoEntity> getJobCommandParamInfoEntities() {
+		return this.jobCommandParamInfoEntities;
+	}
+
+	public void setJobCommandParamInfoEntities(List<JobCommandParamInfoEntity> jobCommandParamInfoEntities) {
+		this.jobCommandParamInfoEntities = jobCommandParamInfoEntities;
+	}
+
+	//bi-directional many-to-one association to JobEnvVariableInfoEntity
+	@OneToMany(mappedBy="jobInfoEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobEnvVariableInfoEntity> getJobEnvVariableInfoEntities() {
+		return this.jobEnvVariableInfoEntities;
+	}
+
+	public void setJobEnvVariableInfoEntities(List<JobEnvVariableInfoEntity> jobEnvVariableInfoEntities) {
+		this.jobEnvVariableInfoEntities = jobEnvVariableInfoEntities;
+	}
+
+	//bi-directional many-to-one association to JobStartParamInfoEntity
+	@OneToMany(mappedBy="jobInfoEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobStartParamInfoEntity> getJobStartParamInfoEntities() {
+		return this.jobStartParamInfoEntities;
+	}
+
+	public void setJobStartParamInfoEntities(List<JobStartParamInfoEntity> jobStartParamInfoEntities) {
+		this.jobStartParamInfoEntities = jobStartParamInfoEntities;
+	}	
+	//bi-directional many-to-one association to JobStartParamInfoEntity
+	@OneToMany(mappedBy="jobInfoEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobNextJobOrderInfoEntity> getJobNextJobOrderInfoEntities() {
+		return this.jobNextJobOrderInfoEntities;
+	}
+
+	public void setJobNextJobOrderInfoEntities(List<JobNextJobOrderInfoEntity> jobNextJobOrderInfoEntities) {
+		this.jobNextJobOrderInfoEntities = jobNextJobOrderInfoEntities;
+	}	
 	/**
 	 * 削除前処理<BR>
 	 *

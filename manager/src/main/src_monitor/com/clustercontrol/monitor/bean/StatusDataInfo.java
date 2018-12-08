@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.monitor.bean;
 
 import java.io.Serializable;
@@ -23,7 +31,6 @@ public class StatusDataInfo implements Serializable {
 	private Integer expirationFlg = null;
 	private Long generationDate = null;
 	private String message = null;
-	private String messageId = null;
 	private Long outputDate = null;
 	private Integer priority = null;
 	private String facilityPath = null;
@@ -37,9 +44,8 @@ public class StatusDataInfo implements Serializable {
 			String pluginId, String monitorDetailId, String facilityId,
 			String application, Long expirationDate,
 			Integer expirationFlg, Long generationDate,
-			String message, String messageId,
-			Long outputDate, Integer priority,
-			String ownerRoleId) {
+			String message, Long outputDate,
+			Integer priority, String ownerRoleId) {
 		setMonitorId(monitorId);
 		setMonitorDetailId(monitorDetailId);
 		setPluginId(pluginId);
@@ -49,7 +55,6 @@ public class StatusDataInfo implements Serializable {
 		setExpirationFlg(expirationFlg);
 		setGenerationDate(generationDate);
 		setMessage(message);
-		setMessageId(messageId);
 		setOutputDate(outputDate);
 		setPriority(priority);
 		setOwnerRoleId(ownerRoleId);
@@ -65,7 +70,6 @@ public class StatusDataInfo implements Serializable {
 		setExpirationFlg(otherData.getExpirationFlg());
 		setGenerationDate(otherData.getGenerationDate());
 		setMessage(otherData.getMessage());
-		setMessageId(otherData.getMessageId());
 		setOutputDate(otherData.getOutputDate());
 		setPriority(otherData.getPriority());
 		setOwnerRoleId(otherData.getOwnerRoleId());
@@ -143,14 +147,6 @@ public class StatusDataInfo implements Serializable {
 		this.message = message;
 	}
 
-	public String getMessageId() {
-		return this.messageId;
-	}
-
-	public void setMessageId(String messageId) {
-		this.messageId = messageId;
-	}
-
 	public Long getOutputDate() {
 		return this.outputDate;
 	}
@@ -177,93 +173,122 @@ public class StatusDataInfo implements Serializable {
 				+ getExpirationDate() + " " + "expirationFlg="
 				+ getExpirationFlg() + " " + "generationDate="
 				+ getGenerationDate() + " " + "message=" + getMessage() + " "
-				+ "messageId=" + getMessageId() + " " + "outputDate="
-				+ getOutputDate() + " " + "priority=" + getPriority()
+				+ "outputDate=" + getOutputDate() + " " + "priority=" + getPriority()
 				+ " " + "ownerRoleID=" + getOwnerRoleId());
 		str.append('}');
 
 		return (str.toString());
 	}
 
+
+
 	@Override
-	public boolean equals(Object pOther) {
-		if (pOther instanceof StatusDataInfo) {
-			StatusDataInfo lTest = (StatusDataInfo) pOther;
-			boolean lEquals = true;
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((application == null) ? 0 : application.hashCode());
+		result = prime * result
+				+ ((expirationDate == null) ? 0 : expirationDate.hashCode());
+		result = prime * result
+				+ ((expirationFlg == null) ? 0 : expirationFlg.hashCode());
+		result = prime * result
+				+ ((facilityId == null) ? 0 : facilityId.hashCode());
+		result = prime * result
+				+ ((facilityPath == null) ? 0 : facilityPath.hashCode());
+		result = prime * result
+				+ ((generationDate == null) ? 0 : generationDate.hashCode());
+		result = prime * result + ((message == null) ? 0 : message.hashCode());
+		result = prime * result
+				+ ((monitorDetailId == null) ? 0 : monitorDetailId.hashCode());
+		result = prime * result
+				+ ((monitorId == null) ? 0 : monitorId.hashCode());
+		result = prime * result
+				+ ((outputDate == null) ? 0 : outputDate.hashCode());
+		result = prime * result
+				+ ((ownerRoleId == null) ? 0 : ownerRoleId.hashCode());
+		result = prime * result
+				+ ((pluginId == null) ? 0 : pluginId.hashCode());
+		result = prime * result
+				+ ((priority == null) ? 0 : priority.hashCode());
+		return result;
+	}
 
-			if (this.monitorId == null) {
-				lEquals = lEquals && (lTest.monitorId == null);
-			} else {
-				lEquals = lEquals && this.monitorId.equals(lTest.monitorId);
-			}
-			if (this.monitorDetailId == null) {
-				lEquals = lEquals && (lTest.monitorDetailId == null);
-			} else {
-				lEquals = lEquals && this.monitorDetailId.equals(lTest.monitorDetailId);
-			}
-			if (this.pluginId == null) {
-				lEquals = lEquals && (lTest.pluginId == null);
-			} else {
-				lEquals = lEquals && this.pluginId.equals(lTest.pluginId);
-			}
-			if (this.facilityId == null) {
-				lEquals = lEquals && (lTest.facilityId == null);
-			} else {
-				lEquals = lEquals && this.facilityId.equals(lTest.facilityId);
-			}
-			if (this.application == null) {
-				lEquals = lEquals && (lTest.application == null);
-			} else {
-				lEquals = lEquals && this.application.equals(lTest.application);
-			}
-			if (this.expirationDate == null) {
-				lEquals = lEquals && (lTest.expirationDate == null);
-			} else {
-				lEquals = lEquals
-						&& this.expirationDate.equals(lTest.expirationDate);
-			}
-			if (this.expirationFlg == null) {
-				lEquals = lEquals && (lTest.expirationFlg == null);
-			} else {
-				lEquals = lEquals
-						&& this.expirationFlg.equals(lTest.expirationFlg);
-			}
-			if (this.generationDate == null) {
-				lEquals = lEquals && (lTest.generationDate == null);
-			} else {
-				lEquals = lEquals
-						&& this.generationDate.equals(lTest.generationDate);
-			}
-			if (this.message == null) {
-				lEquals = lEquals && (lTest.message == null);
-			} else {
-				lEquals = lEquals && this.message.equals(lTest.message);
-			}
-			if (this.messageId == null) {
-				lEquals = lEquals && (lTest.messageId == null);
-			} else {
-				lEquals = lEquals && this.messageId.equals(lTest.messageId);
-			}
-			if (this.outputDate == null) {
-				lEquals = lEquals && (lTest.outputDate == null);
-			} else {
-				lEquals = lEquals && this.outputDate.equals(lTest.outputDate);
-			}
-			if (this.priority == null) {
-				lEquals = lEquals && (lTest.priority == null);
-			} else {
-				lEquals = lEquals && this.priority.equals(lTest.priority);
-			}
-			if (this.ownerRoleId == null) {
-				lEquals = lEquals && (lTest.ownerRoleId == null);
-			} else {
-				lEquals = lEquals && this.ownerRoleId.equals(lTest.ownerRoleId);
-			}
-
-			return lEquals;
-		} else {
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
 			return false;
-		}
+		if (getClass() != obj.getClass())
+			return false;
+		StatusDataInfo other = (StatusDataInfo) obj;
+		if (application == null) {
+			if (other.application != null)
+				return false;
+		} else if (!application.equals(other.application))
+			return false;
+		if (expirationDate == null) {
+			if (other.expirationDate != null)
+				return false;
+		} else if (!expirationDate.equals(other.expirationDate))
+			return false;
+		if (expirationFlg == null) {
+			if (other.expirationFlg != null)
+				return false;
+		} else if (!expirationFlg.equals(other.expirationFlg))
+			return false;
+		if (facilityId == null) {
+			if (other.facilityId != null)
+				return false;
+		} else if (!facilityId.equals(other.facilityId))
+			return false;
+		if (facilityPath == null) {
+			if (other.facilityPath != null)
+				return false;
+		} else if (!facilityPath.equals(other.facilityPath))
+			return false;
+		if (generationDate == null) {
+			if (other.generationDate != null)
+				return false;
+		} else if (!generationDate.equals(other.generationDate))
+			return false;
+		if (message == null) {
+			if (other.message != null)
+				return false;
+		} else if (!message.equals(other.message))
+			return false;
+		if (monitorDetailId == null) {
+			if (other.monitorDetailId != null)
+				return false;
+		} else if (!monitorDetailId.equals(other.monitorDetailId))
+			return false;
+		if (monitorId == null) {
+			if (other.monitorId != null)
+				return false;
+		} else if (!monitorId.equals(other.monitorId))
+			return false;
+		if (outputDate == null) {
+			if (other.outputDate != null)
+				return false;
+		} else if (!outputDate.equals(other.outputDate))
+			return false;
+		if (ownerRoleId == null) {
+			if (other.ownerRoleId != null)
+				return false;
+		} else if (!ownerRoleId.equals(other.ownerRoleId))
+			return false;
+		if (pluginId == null) {
+			if (other.pluginId != null)
+				return false;
+		} else if (!pluginId.equals(other.pluginId))
+			return false;
+		if (priority == null) {
+			if (other.priority != null)
+				return false;
+		} else if (!priority.equals(other.priority))
+			return false;
+		return true;
 	}
 
 	/**

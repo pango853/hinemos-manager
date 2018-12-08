@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2012 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.commons.bean;
@@ -28,13 +21,21 @@ import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * Manager外のコンポーネントが利用する設定情報の最終更新日時を保存するクラス
+ * 
+ * @version 6.1.0 バイナリ監視追加対応
  * @since 4.0
  */
 public class SettingUpdateInfo implements Serializable {
 	
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
 	private static final Log _log = LogFactory.getLog(SettingUpdateInfo.class);
 	
 	private static SettingUpdateInfo instance = new SettingUpdateInfo();
@@ -146,6 +147,23 @@ public class SettingUpdateInfo implements Serializable {
 		SettingUpdateTimestamp cache = getCache();
 		return cache.logFileMonitorUpdateTime;
 	}
+	
+	public void setBinaryMonitorUpdateTime(long time) {
+		try {
+			_lock.writeLock();
+
+			SettingUpdateTimestamp cache = getCache();
+			cache.binaryMonitorUpdateTime = time;
+			storeCache(cache);
+		} finally {
+			_lock.writeUnlock();
+		}
+	}
+	
+	public long getBinaryMonitorUpdateTime() {
+		SettingUpdateTimestamp cache = getCache();
+		return cache.binaryMonitorUpdateTime;
+	}
 
 	public void setSystemLogMonitorUpdateTime(long time) {
 		try {
@@ -214,23 +232,84 @@ public class SettingUpdateInfo implements Serializable {
 			_lock.writeUnlock();
 		}
 	}
+
+	public void setCustomTrapMonitorUpdateTime(long time) {
+		try {
+			_lock.writeLock();
+			
+			SettingUpdateTimestamp cache = getCache();
+			cache.customtrapMonitorUpdateTime = time;
+			storeCache(cache);
+		} finally {
+			_lock.writeUnlock();
+		}
+	}
+
+	public long getCustomTrapMonitorUpdateTime() {
+		SettingUpdateTimestamp cache = getCache();
+		return cache.customtrapMonitorUpdateTime;
+	}
+	
+	
+	
+	public long getHinemosTimeOffset() {
+		SettingUpdateTimestamp cache = getCache();
+		return cache.hinemosTimeOffset;
+	}
+
+	public void setHinemosTimeOffset(long offset) {
+		try {
+			_lock.writeLock();
+			
+			SettingUpdateTimestamp cache = getCache();
+			cache.hinemosTimeOffset = offset;
+			storeCache(cache);
+		} finally {
+			_lock.writeUnlock();
+		}
+	}
+
+	public int getHinemosTimeZoneOffset() {
+		SettingUpdateTimestamp cache = getCache();
+		return cache.hinemosTimeZoneOffset;
+	}
+
+	public void setHinemosTimeZoneOffset(int timeZoneOffset) {
+		try {
+			_lock.writeLock();
+			
+			SettingUpdateTimestamp cache = getCache();
+			cache.hinemosTimeZoneOffset = timeZoneOffset;
+			storeCache(cache);
+		} finally {
+			_lock.writeUnlock();
+		}
+	}
 	
 	private static class SettingUpdateTimestamp implements Serializable {
 		
-		private long calendarUpdateTime = System.currentTimeMillis();
-		private long repositoryUpdateTime = System.currentTimeMillis();
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = 1L;
+		private long calendarUpdateTime = HinemosTime.currentTimeMillis();
+		private long repositoryUpdateTime = HinemosTime.currentTimeMillis();
 
-		private long customMonitorUpdateTime = System.currentTimeMillis();
-		private long logFileMonitorUpdateTime = System.currentTimeMillis();
-		private long systemLogMonitorUpdateTime = System.currentTimeMillis();
-		private long snmptrapMonitorUpdateTime = System.currentTimeMillis();
-		private long winEventMonitorUpdateTime = System.currentTimeMillis();
-		private long jobFileCheckUpdateTime = System.currentTimeMillis();
+		private long customMonitorUpdateTime = HinemosTime.currentTimeMillis();
+		private long logFileMonitorUpdateTime = HinemosTime.currentTimeMillis();
+		private long binaryMonitorUpdateTime = HinemosTime.currentTimeMillis();
+		private long systemLogMonitorUpdateTime = HinemosTime.currentTimeMillis();
+		private long snmptrapMonitorUpdateTime = HinemosTime.currentTimeMillis();
+		private long winEventMonitorUpdateTime = HinemosTime.currentTimeMillis();
+		private long jobFileCheckUpdateTime = HinemosTime.currentTimeMillis();
+		private long customtrapMonitorUpdateTime = HinemosTime.currentTimeMillis();
+		private long hinemosTimeOffset = HinemosTime.getTimeOffsetMillis();
+		private int hinemosTimeZoneOffset = HinemosTime.getTimeZoneOffset();
 		
 	}
 	
 	public static void init() {
-		long now = System.currentTimeMillis();
+		long now = HinemosTime.currentTimeMillis();
 		
 		try {
 			_lock.writeLock();
@@ -241,10 +320,13 @@ public class SettingUpdateInfo implements Serializable {
 			cache.repositoryUpdateTime = now;
 			cache.customMonitorUpdateTime = now;
 			cache.logFileMonitorUpdateTime = now;
+			cache.binaryMonitorUpdateTime = now;
 			cache.systemLogMonitorUpdateTime = now;
 			cache.snmptrapMonitorUpdateTime = now;
 			cache.winEventMonitorUpdateTime = now;
 			cache.jobFileCheckUpdateTime = now;
+			cache.hinemosTimeOffset = HinemosTime.getTimeOffsetMillis();
+			cache.hinemosTimeZoneOffset = HinemosTime.getTimeZoneOffset();
 			
 			storeCache(cache);
 		} finally {

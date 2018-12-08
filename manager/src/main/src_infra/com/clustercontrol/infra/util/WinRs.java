@@ -1,24 +1,12 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
-package com.clustercontrol.infra.util;
-import intel.management.wsman.ManagedInstance;
-import intel.management.wsman.ManagedReference;
-import intel.management.wsman.WsmanConnection;
-import intel.management.wsman.WsmanException;
-import intel.management.wsman.WsmanUtils;
 
+package com.clustercontrol.infra.util;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -30,11 +18,18 @@ import javax.net.ssl.X509TrustManager;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+
+import intel.management.wsman.ManagedInstance;
+import intel.management.wsman.ManagedReference;
+import intel.management.wsman.WsmanConnection;
+import intel.management.wsman.WsmanException;
+import intel.management.wsman.WsmanUtils;
 
 public class WinRs {
 	private static final String NAMESPACE_SHELL = "http://schemas.microsoft.com/wbem/wsman/1/windows/shell";
@@ -159,8 +154,8 @@ public class WinRs {
 		conn.setUsername(username);
 		conn.setUserpassword(password);
 		conn.setTimeout(90000);
-
-		boolean sslTrustall = HinemosPropertyUtil.getHinemosPropertyBool("infra.winrm.ssl.trustall", true);
+		
+		boolean sslTrustall = HinemosPropertyCommon.infra_winrm_ssl_trustall.getBooleanValue();
 		if(sslTrustall) {
 			X509TrustManager tm = new X509TrustManager() {
 				@Override
@@ -180,19 +175,19 @@ public class WinRs {
 			};
 
 			conn.setTrustManager(tm);
-			conn.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+			conn.setHostnameVerifier(NoopHostnameVerifier.INSTANCE);
 		} else {
-			conn.setHostnameVerifier(SSLSocketFactory.STRICT_HOSTNAME_VERIFIER);
+			conn.setHostnameVerifier(SSLConnectionSocketFactory.getDefaultHostnameVerifier());
 		}
-		
+
 		return conn;
 	}
 	
 	private WinRsCommandOutput getCommandOutputFromResponse(String commandId,
 			ManagedInstance resp) {
 		
-		String stdout = "";
-		String stderr = "";
+		StringBuilder stdout = new StringBuilder();
+		StringBuilder stderr = new StringBuilder();
 		long exitCode = 0;
 		WinRsCommandState state = WinRsCommandState.Running;
 		
@@ -205,9 +200,9 @@ public class WinRs {
 
 			if ("Stream".equals(node.getLocalName())) {
 				if ("stdout".equals(node.getAttribute("Name"))) {
-					stdout += new String(Base64.decodeBase64(node.getTextContent()));
+					stdout.append(new String(Base64.decodeBase64(node.getTextContent())));
 				} else if ("stderr".equals(node.getAttribute("Name"))) {
-					stderr += new String(Base64.decodeBase64(node.getTextContent()));
+					stderr.append(new String(Base64.decodeBase64(node.getTextContent())));
 				}
 			} else if ("CommandState".equals(node.getLocalName())) {
 				if  (node.getAttribute("State").endsWith("Done")) {
@@ -221,6 +216,6 @@ public class WinRs {
 			}
 		}
 		
-		return new WinRsCommandOutput(stdout, stderr, exitCode, state);
+		return new WinRsCommandOutput(stdout.toString(), stderr.toString(), exitCode, state);
 	}
 }

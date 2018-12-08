@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.util;
@@ -18,6 +11,7 @@ package com.clustercontrol.notify.util;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
@@ -29,13 +23,12 @@ import com.clustercontrol.jobmanagement.bean.JobTriggerInfo;
 import com.clustercontrol.jobmanagement.bean.JobTriggerTypeConstant;
 import com.clustercontrol.jobmanagement.session.JobControllerBean;
 import com.clustercontrol.jobmanagement.util.JobValidator;
-import com.clustercontrol.monitor.bean.ConfirmConstant;
 import com.clustercontrol.notify.bean.ExecFacilityConstant;
 import com.clustercontrol.notify.bean.NotifyRequestMessage;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
 import com.clustercontrol.notify.entity.NotifyJobInfoData;
-import com.clustercontrol.notify.model.NotifyJobInfoEntity;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.notify.model.NotifyJobInfo;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -91,7 +84,7 @@ public class RunJob implements DependDbNotifier {
 		/*
 		 * 実行
 		 */
-		NotifyJobInfoEntity jobInfo = null;
+		NotifyJobInfo jobInfo = null;
 		try {
 			jobInfo = QueryUtil.getNotifyJobInfoPK(notifyId);
 
@@ -117,16 +110,15 @@ public class RunJob implements DependDbNotifier {
 					m_log.warn("unknown priority " + outputPriority);
 				}
 				
-				AplLogger apllog = new AplLogger("NOTIFY", "notify");
 				String[] args = { notifyId, outputInfo.getMonitorId(), getJobunitId(jobInfo, outputInfo.getPriority()), getJobId(jobInfo, outputInfo.getPriority()) };
-				apllog.put("SYS", "008", args, null, failurePriority);
+				AplLogger.put(failurePriority, HinemosModuleConstant.PLATFORM_NOTIFY, MessageConstant.MESSAGE_SYS_008_NOTIFY, args, null);
 				return;
 			}
 
 
 			// 通知設定が「固定スコープ」となっていた場合は、ジョブに渡すファシリティIDを変更する
 			if(jobInfo.getJobExecFacilityFlg() == ExecFacilityConstant.TYPE_FIX) {
-				outputInfo.setFacilityId(jobInfo.getJobExecFacilityId());
+				outputInfo.setFacilityId(jobInfo.getJobExecFacility());
 			}
 
 			// ジョブの実行契機を作成
@@ -151,37 +143,37 @@ public class RunJob implements DependDbNotifier {
 			}
 			if(jobInfo != null){
 				m_jobInfo = new NotifyJobInfoData(
-						jobInfo.getId().getNotifyId(),
+						jobInfo.getNotifyId(),
 						outputInfo.getPriority(),
 						getJobFailurePriority(jobInfo, outputInfo.getPriority()),
 						getJobunitId(jobInfo, outputInfo.getPriority()),
 						getJobId(jobInfo, outputInfo.getPriority()),
 						getJobRun(jobInfo, outputInfo.getPriority()),
 						jobInfo.getJobExecFacilityFlg(),
-						jobInfo.getJobExecFacilityId());
+						jobInfo.getJobExecFacility());
 			}
-			internalErrorNotify(notifyId, null, e.getMessage() + " : " + m_jobInfo);
+			internalErrorNotify(-1, notifyId, null, e.getMessage() + " : " + m_jobInfo);
 		}
 	}
 
-	private Integer getJobRun(NotifyJobInfoEntity jobInfo, int priority) {
+	private Boolean getJobRun(NotifyJobInfo jobInfo, int priority) {
 		switch (priority) {
 		case PriorityConstant.TYPE_INFO:
-			return jobInfo.getInfoJobRun();
+			return jobInfo.getInfoValidFlg();
 		case PriorityConstant.TYPE_WARNING:
-			return jobInfo.getWarnJobRun();
+			return jobInfo.getWarnValidFlg();
 		case PriorityConstant.TYPE_CRITICAL:
-			return jobInfo.getCriticalJobRun();
+			return jobInfo.getCriticalValidFlg();
 		case PriorityConstant.TYPE_UNKNOWN:
-			return jobInfo.getUnknownJobRun();
+			return jobInfo.getUnknownValidFlg();
 
 		default:
 			break;
 		}
-		return null;
+		return Boolean.FALSE;
 	}
 
-	private String getJobId(NotifyJobInfoEntity jobInfo, int priority) {
+	private String getJobId(NotifyJobInfo jobInfo, int priority) {
 		switch (priority) {
 		case PriorityConstant.TYPE_INFO:
 			return jobInfo.getInfoJobId();
@@ -198,7 +190,7 @@ public class RunJob implements DependDbNotifier {
 		return null;
 	}
 
-	private String getJobunitId(NotifyJobInfoEntity jobInfo, int priority) {
+	private String getJobunitId(NotifyJobInfo jobInfo, int priority) {
 		switch (priority) {
 		case PriorityConstant.TYPE_INFO:
 			return jobInfo.getInfoJobunitId();
@@ -215,7 +207,7 @@ public class RunJob implements DependDbNotifier {
 		return null;
 	}
 
-	private Integer getJobFailurePriority(NotifyJobInfoEntity jobInfo,
+	private Integer getJobFailurePriority(NotifyJobInfo jobInfo,
 			int priority) {
 		switch (priority) {
 		case PriorityConstant.TYPE_INFO:
@@ -237,23 +229,18 @@ public class RunJob implements DependDbNotifier {
 	 * 通知失敗時の内部エラー通知を定義します
 	 */
 	@Override
-	public void internalErrorNotify(String notifyId, String msgID, String detailMsg) {
+	public void internalErrorNotify(int priority, String notifyId, MessageConstant msgCode, String detailMsg) {
 		// FIXME
 		//ジョブ失敗時の重要度を設定
-		OutputBasicInfo outputInfo = new OutputBasicInfo();
+		String args;
 		if(m_jobInfo != null){
-			outputInfo.setPriority(m_jobInfo.getJobFailurePriority());
-			String[] args1 = { m_jobInfo.getJobId() };
-			outputInfo.setMessage(Messages.getString("message.monitor.41", args1));
+			priority = m_jobInfo.getJobFailurePriority();
+			args = m_jobInfo.getJobId();
 		} else {
-			outputInfo.setPriority(PriorityConstant.TYPE_CRITICAL);
-			String[] args1 = { "unknown job id." };
-			outputInfo.setMessage(Messages.getString("message.monitor.41", args1));
+			priority = PriorityConstant.TYPE_CRITICAL;
+			args = "unknown job id.";
 		}
-		outputInfo.setMessageId("200");	// FIXME メッセージIDを精査する
-		outputInfo.setMessageOrg(detailMsg);
-
-		new OutputEvent().insertEventLog(outputInfo, ConfirmConstant.TYPE_UNCONFIRMED);
+		AplLogger.put(priority, HinemosModuleConstant.JOB, MessageConstant.MESSAGE_FAILED_TO_START_JOB, new Object[]{args}, detailMsg);
 
 		m_jobInfo = null;
 	}

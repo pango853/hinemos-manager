@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.snmp.util;
@@ -32,7 +25,8 @@ import org.snmp4j.smi.VariableBinding;
 import org.snmp4j.util.DefaultPDUFactory;
 
 import com.clustercontrol.poller.impl.Snmp4jPollerImpl;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 // Snmp4jPollerImplと統合すること！
 public class RequestSnmp4j {
@@ -115,26 +109,26 @@ public class RequestSnmp4j {
 			snmp.listen();
 			ResponseEvent resp = snmp.get(pdu, target);
 
-			date = System.currentTimeMillis();
+			date = HinemosTime.currentTimeMillis();
 			PDU respPdu = resp.getResponse();
 			if (respPdu == null) {
 				log.info("snmpTimeoutError():" + ipAddress
 						+ " " + oidText
 						+ " polling failed at TimeoutError" );
-				message = Messages.getString("message.snmp.7") + " snmpTimeoutError." + ipAddress
+				message = MessageConstant.MESSAGE_COULD_NOT_GET_VALUE.getMessage() + " snmpTimeoutError." + ipAddress
 						+ " " + oidText;
 				return false;
 			}
 
 			if (respPdu.getErrorStatus() != SnmpConstants.SNMP_ERROR_SUCCESS) {
-				message = Messages.getString("message.snmp.7") + " Error Status:" + respPdu.getErrorStatus();
+				message = MessageConstant.MESSAGE_COULD_NOT_GET_VALUE.getMessage() + " Error Status:" + respPdu.getErrorStatus();
 				return false;
 			}
 
 			for (VariableBinding binding : respPdu.getVariableBindings()) {
 				Variable var = binding.getVariable();
 				if (var instanceof Null) {
-					message = Messages.getString("message.snmp.7") + " SnmpV2Error. Value:" + binding.toString();
+					message = MessageConstant.MESSAGE_COULD_NOT_GET_VALUE.getMessage() + " SnmpV2Error. Value:" + binding.toString();
 				} else {
 					value = var.toString();
 					type = binding.getVariable().getSyntax();
@@ -142,15 +136,15 @@ public class RequestSnmp4j {
 				break;
 			}
 		} catch (IOException e) {
-			log.error(e);
-			message = Messages.getString("message.snmp.7") + " (" + e.getMessage() + ")";
+			log.info("polling : class=" + e.getClass().getName() + ", message=" + e.getMessage() + ", ip=" + ipAddress);
+			message = MessageConstant.MESSAGE_COULD_NOT_GET_VALUE.getMessage() + " (" + e.getMessage() + ")";
 			return false;
 		} finally {
 			if (version == SnmpConstants.version3 && snmp != null) {
 				try {
 					snmp.close();
 				} catch (IOException e) {
-					log.warn(e);
+					log.warn("polling : " + e.getMessage());
 				}
 			}
 		}

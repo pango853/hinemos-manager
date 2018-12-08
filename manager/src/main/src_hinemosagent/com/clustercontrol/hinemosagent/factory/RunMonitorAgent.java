@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.hinemosagent.factory;
@@ -19,12 +12,11 @@ package com.clustercontrol.hinemosagent.factory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.hinemosagent.util.AgentConnectUtil;
-import com.clustercontrol.monitor.run.bean.MonitorJudgementInfo;
+import com.clustercontrol.monitor.run.bean.TruthConstant;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorTruthValueType;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * Hinemos Agent監視を実行するクラス<BR>
@@ -35,11 +27,6 @@ import com.clustercontrol.util.Messages;
 public class RunMonitorAgent extends RunMonitorTruthValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorAgent.class );
-
-	private static final String MESSAGE_ID_INFO = "001";
-	private static final String MESSAGE_ID_WARNING = "002";
-	private static final String MESSAGE_ID_CRITICAL = "003";
-	private static final String MESSAGE_ID_UNKNOWN = "004";
 
 	/** メッセージ */
 	private String m_message = null;
@@ -56,7 +43,7 @@ public class RunMonitorAgent extends RunMonitorTruthValueType {
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -88,15 +75,15 @@ public class RunMonitorAgent extends RunMonitorTruthValueType {
 		if(!duplication){
 			if(m_value){
 				//OK
-				m_message = Messages.getString("message.agent.1");
+				m_message = MessageConstant.MESSAGE_AGENT_IS_AVAILABLE.getMessage();
 			} else {
 				//NG
-				m_message = Messages.getString("message.agent.2");
+				m_message = MessageConstant.MESSAGE_AGENT_IS_NOT_AVAILABLE.getMessage();
 			}
 		} else {
 			//同一ファシリティのAgentの重複
 			String[] args = {facilityId};
-			m_message = Messages.getString("message.agent.3", args);
+			m_message = MessageConstant.MESSAGE_MULTIPLE_AGENTS_STARTED_SAME_FACILITY.getMessage(args);
 		}
 
 		return true;
@@ -108,29 +95,6 @@ public class RunMonitorAgent extends RunMonitorTruthValueType {
 	 */
 	@Override
 	protected void setCheckInfo() {
-	}
-
-	/* (non-Javadoc)
-	 * ノード用メッセージIDを取得
-	 * @see com.clustercontrol.monitor.run.factory.OperationMonitor#getMessageId(int)
-	 */
-	@Override
-	public String getMessageId(int id) {
-
-		MonitorJudgementInfo info = m_judgementInfoList.get(id);
-		if(info != null){
-			int priority = info.getPriority();
-			if(priority == PriorityConstant.TYPE_INFO){
-				return MESSAGE_ID_INFO;
-			}
-			else if(priority == PriorityConstant.TYPE_WARNING){
-				return MESSAGE_ID_WARNING;
-			}
-			else if(priority == PriorityConstant.TYPE_CRITICAL){
-				return MESSAGE_ID_CRITICAL;
-			}
-		}
-		return MESSAGE_ID_UNKNOWN;
 	}
 
 	/* (non-Javadoc)
@@ -149,5 +113,17 @@ public class RunMonitorAgent extends RunMonitorTruthValueType {
 	@Override
 	public String getMessageOrg(int id) {
 		return null;
+	}
+
+	@Override
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		if (m_monitorRunResultInfo != null
+				&& m_monitorRunResultInfo.getCheckResult() == TruthConstant.TYPE_TRUE) {
+			//OK
+			return MessageConstant.MESSAGE_AGENT_IS_AVAILABLE.getMessage();
+		} else {
+			//NG
+			return MessageConstant.MESSAGE_AGENT_IS_NOT_AVAILABLE.getMessage();
+		}
 	}
 }

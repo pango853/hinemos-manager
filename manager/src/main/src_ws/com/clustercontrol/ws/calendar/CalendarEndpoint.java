@@ -1,15 +1,11 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.calendar;
 
 import java.util.ArrayList;
@@ -23,11 +19,11 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.calendar.bean.CalendarDetailInfo;
-import com.clustercontrol.calendar.bean.CalendarInfo;
-import com.clustercontrol.calendar.bean.CalendarPatternInfo;
+import com.clustercontrol.calendar.model.CalendarDetailInfo;
+import com.clustercontrol.calendar.model.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarPatternInfo;
 import com.clustercontrol.calendar.session.CalendarControllerBean;
 import com.clustercontrol.fault.CalendarDuplicate;
 import com.clustercontrol.fault.CalendarNotFound;
@@ -171,7 +167,7 @@ public class CalendarEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", CalendarID=");
-			msg.append(info.getId());
+			msg.append(info.getCalendarId());
 		}
 
 		try {
@@ -212,7 +208,7 @@ public class CalendarEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", CalendarID=");
-			msg.append(info.getId());
+			msg.append(info.getCalendarId());
 		}
 
 		try {
@@ -242,7 +238,7 @@ public class CalendarEndpoint {
 	 * @throws InvalidRole
 	 * @throws InvalidUserPass
 	 */
-	public void deleteCalendar(List<String> idList) throws CalendarNotFound, HinemosUnknown, InvalidUserPass, InvalidRole {
+	public void deleteCalendar(List<String> idList) throws CalendarNotFound, HinemosUnknown, InvalidUserPass, InvalidRole, InvalidSetting {
 		m_log.debug("deleteCalendar " + idList);
 		ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
 		systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.CALENDAR, SystemPrivilegeMode.MODIFY));
@@ -409,7 +405,7 @@ public class CalendarEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", calendarPatternID=");
-			msg.append(info.getId());
+			msg.append(info.getCalPatternId());
 		}
 
 		try {
@@ -450,7 +446,7 @@ public class CalendarEndpoint {
 		StringBuffer msg = new StringBuffer();
 		if(info != null){
 			msg.append(", calendarPatternID=");
-			msg.append(info.getId());
+			msg.append(info.getCalPatternId());
 		}
 
 		try {

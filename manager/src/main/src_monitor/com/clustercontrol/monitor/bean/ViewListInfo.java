@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.bean;
@@ -31,11 +24,14 @@ public class ViewListInfo implements java.io.Serializable{
 
 	private static final long serialVersionUID = 859993588207224113L;
 
-	private Integer critical = new Integer(0);			//重要度:危険数
-	private Integer warning = new Integer(0);			//重要度:警告数
-	private Integer info = new Integer(0);				//重要度:通知数
-	private Integer unKnown = new Integer(0);			//重要度:不明数
-	private Integer total = new Integer(0);			//合計数
+	private Long fromOutputDate = null;
+	private Long toOutputDate = null;
+	
+	private Integer critical = 0;			//重要度:危険数
+	private Integer warning = 0;			//重要度:警告数
+	private Integer info = 0;				//重要度:通知数
+	private Integer unKnown = 0;			//重要度:不明数
+	private Integer total = 0;			//合計数
 
 	/**
 	 *
@@ -52,6 +48,34 @@ public class ViewListInfo implements java.io.Serializable{
 	 */
 	public ViewListInfo() {
 		super();
+	}
+
+	/**
+	 * @return the fromOutputDate
+	 */
+	public Long getFromOutputDate() {
+		return fromOutputDate;
+	}
+
+	/**
+	 * @param fromOutputDate the fromOutputDate to set
+	 */
+	public void setFromOutputDate(Long fromOutputDate) {
+		this.fromOutputDate = fromOutputDate;
+	}
+
+	/**
+	 * @return the toOutputDate
+	 */
+	public Long getToOutputDate() {
+		return toOutputDate;
+	}
+
+	/**
+	 * @param toOutputDate the toOutputDate to set
+	 */
+	public void setToOutputDate(Long toOutputDate) {
+		this.toOutputDate = toOutputDate;
 	}
 
 	/**

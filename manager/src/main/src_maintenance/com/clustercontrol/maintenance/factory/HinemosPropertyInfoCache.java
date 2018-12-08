@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2007 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.maintenance.factory;
@@ -24,14 +17,15 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.commons.util.AbstractCacheManager;
 import com.clustercontrol.commons.util.CacheManagerFactory;
+import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
 import com.clustercontrol.commons.util.ILockManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.commons.util.LockManagerFactory;
-import com.clustercontrol.maintenance.bean.HinemosPropertyInfo;
-import com.clustercontrol.maintenance.model.HinemosPropertyEntity;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.maintenance.model.HinemosPropertyInfo;
 import com.clustercontrol.maintenance.util.QueryUtil;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * 
@@ -89,22 +83,24 @@ public class HinemosPropertyInfoCache {
 		// 並列してキャッシュ更新処理が実行されている場合、更新処理完了を待機しない（更新前・後のどちらが取得されるか保証されない）
 		// (部分書き換えでなく全置換えのキャッシュ更新特性、ロックに伴う処理コストの観点から参照ロックは意図的に取得しない)
 		HashMap<String, HinemosPropertyInfo> cache = getCache();
-		return cache.get(key);
+		return cache == null ? null : cache.get(key);
 	}
 
 	/**
 	 * キャッシュを更新
 	 */
 	public static synchronized void refresh() {
-		try {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			_lock.writeLock();
 			
-			long startTime = System.currentTimeMillis();
+			long startTime = HinemosTime.currentTimeMillis();
 			
+			em.clear();
 			HashMap<String, HinemosPropertyInfo> cache = createHinemosPropertyInfoMap();
 			storeCache(cache);
 			
-			log.info(String.format("refresh: %dms", System.currentTimeMillis() - startTime));
+			log.info(String.format("refresh: %dms size=%d", HinemosTime.currentTimeMillis() - startTime, cache.size()));
 		} finally {
 			_lock.writeUnlock();
 		}
@@ -112,9 +108,9 @@ public class HinemosPropertyInfoCache {
 
 	private static HashMap<String, HinemosPropertyInfo> createHinemosPropertyInfoMap() {
 		HashMap<String, HinemosPropertyInfo> infoMap = new HashMap<String, HinemosPropertyInfo>();
-		List<HinemosPropertyEntity> entities = QueryUtil.getAllHinemosProperty_None();
-		for (HinemosPropertyEntity entity : entities) {
-			infoMap.put(entity.getKey(), HinemosPropertyUtil.createHinemosPropertyInfo(entity));
+		List<HinemosPropertyInfo> entities = QueryUtil.getAllHinemosProperty_None();
+		for (HinemosPropertyInfo entity : entities) {
+			infoMap.put(entity.getKey(), entity);
 		}
 		return infoMap;
 	}

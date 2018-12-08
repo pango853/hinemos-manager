@@ -1,34 +1,30 @@
 /*
-
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.selfcheck.monitor;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.bean.SnmpVersionConstant;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
-import com.clustercontrol.poller.SnmpPoller;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.poller.bean.PollerProtocolConstant;
 import com.clustercontrol.poller.impl.Snmp4jPollerImpl;
-import com.clustercontrol.sharedtable.DataTable;
-import com.clustercontrol.sharedtable.TableEntry;
+import com.clustercontrol.poller.util.DataTable;
+import com.clustercontrol.poller.util.TableEntry;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -44,7 +40,7 @@ public class RAMSwapOutMonitor extends SelfCheckMonitorBase {
 
 	public long intervalMSec;
 	public int snmpPort;
-	public String snmpVersion;
+	public int snmpVersion;
 	public String snmpCommunity;
 	public int snmpRetries;
 	public int snmpTimeout;
@@ -88,7 +84,7 @@ public class RAMSwapOutMonitor extends SelfCheckMonitorBase {
 	 */
 	@Override
 	public void execute() {
-		if(!HinemosPropertyUtil.getHinemosPropertyBool("selfcheck.monitoring.swapout", false)) {
+		if(!HinemosPropertyCommon.selfcheck_monitoring_swapout.getBooleanValue()) {
 			m_log.debug("skip");
 			return;
 		}
@@ -98,12 +94,13 @@ public class RAMSwapOutMonitor extends SelfCheckMonitorBase {
 		long lastUpdateTime = 0;
 		boolean warn = true;
 
-		this.intervalMSec = HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.interval", 150) * 1000;
-		this.snmpPort = HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.snmp.port", 161);
-		this.snmpVersion = HinemosPropertyUtil.getHinemosPropertyStr("selfcheck.snmp.version", "2c");
-		this.snmpCommunity = HinemosPropertyUtil.getHinemosPropertyStr("selfcheck.snmp.community", "public");
-		this.snmpRetries = HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.snmp.retries", 3);
-		this.snmpTimeout = HinemosPropertyUtil.getHinemosPropertyNum("selfcheck.snmp.timeout", 3000);
+		this.intervalMSec = HinemosPropertyCommon.selfcheck_interval.getNumericValue() * 1000;
+		this.snmpPort = HinemosPropertyCommon.selfcheck_snmp_port.getIntegerValue();
+		String snmpVersionStr = HinemosPropertyCommon.selfcheck_snmp_version.getStringValue();
+		this.snmpVersion = SnmpVersionConstant.stringToType(snmpVersionStr);
+		this.snmpCommunity = HinemosPropertyCommon.selfcheck_snmp_community.getStringValue();
+		this.snmpRetries = HinemosPropertyCommon.selfcheck_snmp_retries.getIntegerValue();
+		this.snmpTimeout = HinemosPropertyCommon.selfcheck_snmp_timeout.getIntegerValue();
 
 		/** メイン処理 */
 		if (m_log.isDebugEnabled()) m_log.debug("monitoring swap-out.");
@@ -130,9 +127,8 @@ public class RAMSwapOutMonitor extends SelfCheckMonitorBase {
 		if (!isNotify(subKey, warn)) {
 			return;
 		}
-		String[] msgAttr1 = { new Long(swapOutSize).toString() };
-		AplLogger aplLogger = new AplLogger(PLUGIN_ID, APL_ID);
-		aplLogger.put(MESSAGE_ID, "005", msgAttr1,
+		String[] msgAttr1 = { Long.toString(swapOutSize) };
+		AplLogger.put(PriorityConstant.TYPE_WARNING, PLUGIN_ID, MessageConstant.MESSAGE_SYS_005_SYS_SFC, msgAttr1,
 				"ram swap-out(" +
 						swapOutSize +
 						" [blocks]) occurred since " +
@@ -149,9 +145,7 @@ public class RAMSwapOutMonitor extends SelfCheckMonitorBase {
 	 */
 	private long getSwapOut(){
 		
-		/** ローカル変数 */
-		SnmpPoller poller = null;
-		List<String> oidList = null;
+		Snmp4jPollerImpl poller = null;
 		DataTable dataTable = null;
 		TableEntry entry = null;
 
@@ -166,19 +160,19 @@ public class RAMSwapOutMonitor extends SelfCheckMonitorBase {
 		/** メイン処理 */
 		try {
 			// 収集対象のOID
-			oidList = new ArrayList<String>();
-			oidList.add(POLLING_TARGET_OID);
+			Set<String> oidSet = new HashSet<String>();
+			oidSet.add(POLLING_TARGET_OID);
 
 			// ポーラを生成してポーリングを実行
 			poller = Snmp4jPollerImpl.getInstance();
 			dataTable = poller.polling(
 					SNMP_POLLING_IPADDRESS,
 					snmpPort,
-					SnmpVersionConstant.stringToSnmpType(snmpVersion),
+					snmpVersion,
 					snmpCommunity,
 					snmpRetries,
 					snmpTimeout,
-					oidList,
+					oidSet,
 					null,
 					null,
 					null,
@@ -190,7 +184,7 @@ public class RAMSwapOutMonitor extends SelfCheckMonitorBase {
 
 			// 前回収集値と比較する
 			if (previousMibValue != null) {
-				now = System.currentTimeMillis();
+				now = HinemosTime.currentTimeMillis();
 
 				// 前回収集からの経過時間を算出
 				lastUpdateTime = previousMibValue.getDate();

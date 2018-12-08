@@ -1,14 +1,9 @@
 /*
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.plugin.impl;
@@ -34,7 +29,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.plugin.api.HinemosPlugin;
 
 public class ProxyManagerPlugin implements HinemosPlugin {
@@ -51,18 +46,18 @@ public class ProxyManagerPlugin implements HinemosPlugin {
 	
 	static {
 		String proxyHost = null;
-		Integer port = null;
+		Long port = null;
 		String user = null;
 		String password = null;
 		String ignoreHostStr = null;
 		List<String> ignoreHostList = new ArrayList<String>();
 		
 		try {
-			proxyHost = HinemosPropertyUtil.getHinemosPropertyStr("http.proxy.host", null);
-			port = HinemosPropertyUtil.getHinemosPropertyNum("http.proxy.port", null);
-			user = HinemosPropertyUtil.getHinemosPropertyStr("http.proxy.user", null);
-			password = HinemosPropertyUtil.getHinemosPropertyStr("http.proxy.password", null);
-			ignoreHostStr = HinemosPropertyUtil.getHinemosPropertyStr("http.proxy.ignorehosts", null);
+			proxyHost = HinemosPropertyCommon.http_proxy_host.getStringValue();
+			port = HinemosPropertyCommon.http_proxy_port.getNumericValue();
+			user = HinemosPropertyCommon.http_proxy_user.getStringValue();
+			password = HinemosPropertyCommon.http_proxy_password.getStringValue();
+			ignoreHostStr = HinemosPropertyCommon.http_proxy_ignorehosts.getStringValue();
 			
 			if (proxyHost != null && port != null) {
 				log.info("initializing http proxy : proxyHost = " + proxyHost + ", port = " + port);
@@ -74,7 +69,7 @@ public class ProxyManagerPlugin implements HinemosPlugin {
 			log.warn("invalid proxy configuration.", t);
 		} finally {
 			_proxyHost = proxyHost;
-			_port = port;
+			_port = port == null ? null : port.intValue();
 			_user = user;
 			_password = password;
 			_ignoreHostList = ignoreHostList;
@@ -103,25 +98,25 @@ public class ProxyManagerPlugin implements HinemosPlugin {
 		
 		@Override
 		public List<Proxy> select(URI uri) {
-			if (_proxyHost == null || _port == null) {
-				return selector.select(uri);
-			}
-			
 			String host = uri.getHost();
 			// IPv6
 			// uri.getHost()=null, uri.toString()=socket://%5b2001:380:615:98:0:0:0:204%5d:22
 			// IPv4
 			// uri.getHost=127.0.0.1, uri.toString=socket://127.0.0.1:22
 			log.debug("uri.getHost=" + uri.getHost() + ", uri.toString=" + uri.toString());
+
 			if (host == null) {
 				Matcher m = Pattern.compile(".*%5b(.*)%5d.*", Pattern.DOTALL).matcher(uri.toString());
 				if (m.matches()) {
 					host = m.group(1);
 				}
+				log.debug("matched host=" + host);
 			}
+
 			if (host != null) {
 				ProxyEntry entry = _hostProxyMap.get(host);
 				if (entry != null) {
+					log.debug("Use HTTP proxy " + _proxyHost);
 					Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(entry.proxyHost, entry.port));
 					return Arrays.asList(proxy);
 				}
@@ -132,8 +127,14 @@ public class ProxyManagerPlugin implements HinemosPlugin {
 				}
 			}
 
-			Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(_proxyHost, _port));
-			return Arrays.asList(proxy);
+			if (_proxyHost == null || _port == null) {
+				log.debug("No proxy");
+				return selector.select(uri);
+			}else{
+				log.debug("Use HTTP proxy " + _proxyHost);
+				Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(_proxyHost, _port));
+				return Arrays.asList(proxy);
+			}
 		}
 
 		@Override
@@ -161,22 +162,29 @@ public class ProxyManagerPlugin implements HinemosPlugin {
 			}
 		}
 	}
-	
+
 	public static void addEntry(String proxyHost, int port, String user, String password, String... hosts) {
 		for (String host : hosts) {
+			log.debug("addEntry host=" + host + ", proxyHost=" + proxyHost);
 			_hostProxyMap.put(host, new ProxyEntry(proxyHost, port, user, password));
 		}
 	}
-	
+
 	public static void removeEntry(String... hosts) {
 		for (String host : hosts) {
+			log.debug("removeEntry host=" + host);
 			_hostProxyMap.remove(host);
 		}
 	}
-	
+
 	@Override
 	public Set<String> getDependency() {
 		return new HashSet<String>();
+	}
+
+	@Override
+	public Set<String> getRequiredKeys() {
+		return null;
 	}
 
 	@Override

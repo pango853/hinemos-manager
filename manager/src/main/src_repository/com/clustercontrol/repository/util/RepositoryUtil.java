@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2011 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.util;
@@ -26,11 +19,12 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.bean.SnmpVersionConstant;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.jobmanagement.bean.SystemParameterConstant;
-import com.clustercontrol.repository.bean.NodeInfo;
-import com.clustercontrol.repository.bean.NodeVariableInfo;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.NodeVariableInfo;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * リポジトリに関するUtilityクラス<br/>
@@ -73,7 +67,7 @@ public class RepositoryUtil {
 
 			param.put(SystemParameterConstant.SNMP_PORT, nodeInfo.getSnmpPort() == null ? null : nodeInfo.getSnmpPort().toString());
 			param.put(SystemParameterConstant.SNMP_COMMUNITY, nodeInfo.getSnmpCommunity());
-			param.put(SystemParameterConstant.SNMP_VERSION, nodeInfo.getSnmpVersion());
+			param.put(SystemParameterConstant.SNMP_VERSION, nodeInfo.getSnmpVersion() == null ? null : SnmpVersionConstant.typeToString(nodeInfo.getSnmpVersion()));
 			param.put(SystemParameterConstant.SNMP_TIMEOUT, nodeInfo.getSnmpTimeout() == null ? null : nodeInfo.getSnmpTimeout().toString());
 			param.put(SystemParameterConstant.SNMP_TRIES, nodeInfo.getSnmpRetryCount() == null ? null : nodeInfo.getSnmpRetryCount().toString());
 
@@ -176,7 +170,7 @@ public class RepositoryUtil {
 	 */
 	public static String bigIntToIpV6(BigInteger argInt) {
 
-		String str = new String();
+		StringBuilder str = new StringBuilder();
 		for (int i=15; i>=0; i--) {
 			int shift = 8 * i;
 			Integer n = 0xff;
@@ -186,13 +180,13 @@ public class RepositoryUtil {
 			if (s.length() < 2) {
 				s = "0" + s;
 			}
-			str += s;
+			str.append(s);
 			if (i > 0 && i < 15) {
-				float f = i % 2;
-				str += f == 0 ? ":" : "";
+				int f = i % 2;
+				str.append(f == 0 ? ":" : "");
 			}
 		}
-		return str;
+		return str.toString();
 	}
 
 	/**
@@ -223,7 +217,7 @@ public class RepositoryUtil {
 			int from = ipV4ToInt(strFrom);
 			int to = ipV4ToInt(strTo);
 			if(from > to) {
-				throw new HinemosUnknown(Messages.getString("message.repository.nodesearch.6"));
+				throw new HinemosUnknown(MessageConstant.MESSAGE_PLEASE_SET_CORRECT_RANGE_OF_IP_ADDRESSES.getMessage());
 			}
 			for (int i = from ; i <= to; i ++) {
 				list.add(intToIpV4(i));
@@ -233,7 +227,7 @@ public class RepositoryUtil {
 			BigInteger to = byteToBigIntV6(InetAddress.getByName(strTo).getAddress());
 
 			if(from.compareTo(to) > 0) {
-				throw new HinemosUnknown(Messages.getString("message.repository.nodesearch.6"));
+				throw new HinemosUnknown(MessageConstant.MESSAGE_PLEASE_SET_CORRECT_RANGE_OF_IP_ADDRESSES.getMessage());
 			} else if (from.compareTo(to) == 0) {
 				list.add(bigIntToIpV6(from));
 			} else {
@@ -250,5 +244,4 @@ public class RepositoryUtil {
 		}
 		return list;
 	}
-
 }

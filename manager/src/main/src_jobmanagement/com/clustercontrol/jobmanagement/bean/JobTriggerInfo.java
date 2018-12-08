@@ -1,21 +1,15 @@
 /*
-
-Copyright (C) 2008 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 
 import javax.xml.bind.annotation.XmlType;
 
@@ -69,6 +63,15 @@ public class JobTriggerInfo implements Serializable {
 	 * ジョブ起動コマンド置換の文字列。
 	 */
 	private String jobCommandText;
+
+	/**
+	 * ジョブ実行契機ID。
+	 */
+	private String jobkickId;
+
+
+	/** ランタイムジョブ変数情報 */
+	private ArrayList<JobRuntimeParam> jobRuntimeParamList;
 
 	/**
 	 * 実行契機種別を返す。
@@ -180,6 +183,41 @@ public class JobTriggerInfo implements Serializable {
 	 */
 	public String getJobCommandText() {
 		return jobCommandText;
+	}
+
+	/**
+	 * ランタイムジョブ変数のリストを設定する。
+	 * 
+	 * @param jobRuntimeParamList ランタイムジョブ変数リスト
+	 */
+	public void setJobRuntimeParamList(ArrayList<JobRuntimeParam> jobRuntimeParamList) {
+		this.jobRuntimeParamList = jobRuntimeParamList;
+	}
+
+	/**
+	 * ランタイムジョブ変数のリストを返す。
+	 * @return ランタイムジョブ変数リスト
+	 */
+	public ArrayList<JobRuntimeParam> getJobRuntimeParamList() {
+		return jobRuntimeParamList;
+	}
+
+
+	/**
+	 *ジョブ実行契機IDを設定する。
+	 *
+	 * @param jobkickId ジョブ実行契機ID
+	 */
+	public void setJobkickId(String jobkickId) {
+		this.jobkickId = jobkickId;
+	}
+
+	/**
+	 *ジョブ実行契機IDを返す。
+	 * @return ジョブ実行契機ID
+	 */
+	public String getJobkickId() {
+		return jobkickId;
 	}
 
 }

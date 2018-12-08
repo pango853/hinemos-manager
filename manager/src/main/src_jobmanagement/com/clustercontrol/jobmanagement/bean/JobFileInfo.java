@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -31,7 +24,7 @@ public class JobFileInfo implements Serializable {
 	private static final long serialVersionUID = 6448926354392693297L;
 
 	/** スコープ処理方法 */
-	private Integer m_processingMethod = new Integer(0);
+	private Integer m_processingMethod = 0;
 
 	/** 転送ファシリティID */
 	private String m_srcFacilityID;
@@ -58,65 +51,64 @@ public class JobFileInfo implements Serializable {
 	private String m_destWorkDir = "";
 
 	/** ファイル圧縮 */
-	private Integer m_compressionFlg = new Integer(0);
+	private Boolean m_compressionFlg = false;
 
 	/** ファイルチェック */
-	private Integer m_checkFlg = new Integer(0);
+	private Boolean m_checkFlg = false;
 
 	/** ユーザ種別 */
-	private Integer m_specifyUser = new Integer(0);
+	private Boolean m_specifyUser = false;
 
 	/** 実効ユーザ */
 	private String m_user;
 
 	/** リトライ回数 */
-	private Integer m_messageRetry = new Integer(0);
+	private Integer m_messageRetry = 0;
 	
 	/** コマンド実行失敗時終了フラグ */
-	private Integer m_messageRetryEndFlg = new Integer(0);
+	private Boolean m_messageRetryEndFlg = false;
 
 	/** コマンド実行失敗時終了値 */
-	private Integer m_messageRetryEndValue = new Integer(0);
+	private Integer m_messageRetryEndValue = 0;
 
-	/** 正常終了するまでリトライフラグ */
-	private Integer m_commandRetryFlg = new Integer(0);
+	/** 繰り返し実行フラグ */
+	private Boolean m_commandRetryFlg = false;
 
-	/** 正常終了するまでリトライ回数 */
+	/** 繰り返し実行回数 */
 	private Integer m_commandRetry;
+
+	/** 繰り返し実行完了状態 */
+	private Integer m_commandRetryEndStatus;
 
 	/**
 	 * ファイル圧縮をするかしないかを返す。<BR>
 	 * @return ファイル圧縮のするかしないか
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public Integer getCompressionFlg() {
+	public Boolean isCompressionFlg() {
 		return m_compressionFlg;
 	}
 
 	/**
 	 * ファイル圧縮をするかしないかを設定する。<BR>
 	 * @param compressionFlg ファイル圧縮をするかしないか
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public void setCompressionFlg(Integer compressionFlg) {
+	public void setCompressionFlg(Boolean compressionFlg) {
 		this.m_compressionFlg = compressionFlg;
 	}
 
 	/**
 	 * ファイルチェックをするかしないかを返す。<BR>
 	 * @return ファイルチェックをするかしないか
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public Integer getCheckFlg() {
+	public Boolean isCheckFlg() {
 		return m_checkFlg;
 	}
 
 	/**
 	 * ファイルチェックをするかしないかを設定する。<BR>
 	 * @param checkFlg ファイルチェックをするかしないか
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public void setCheckFlg(Integer checkFlg) {
+	public void setCheckFlg(Boolean checkFlg) {
 		this.m_checkFlg = checkFlg;
 	}
 
@@ -270,7 +262,7 @@ public class JobFileInfo implements Serializable {
 	 * ユーザ種別を返す。<BR>
 	 * @return ユーザ種別
 	 */
-	public Integer getSpecifyUser() {
+	public Boolean isSpecifyUser() {
 		return m_specifyUser;
 	}
 
@@ -278,8 +270,8 @@ public class JobFileInfo implements Serializable {
 	 * ユーザ種別を設定する。<BR>
 	 * @param userType ユーザ種別
 	 */
-	public void setSpecifyUser(Integer specifyUser) {
-		this.m_specifyUser = specifyUser;;
+	public void setSpecifyUser(Boolean specifyUser) {
+		this.m_specifyUser = specifyUser;
 	}
 
 	/**
@@ -317,18 +309,16 @@ public class JobFileInfo implements Serializable {
 	/**
 	 * コマンド実行失敗時終了フラグを返す。<BR>
 	 * @return コマンド実行失敗時終了フラグ
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public Integer getMessageRetryEndFlg() {
+	public Boolean isMessageRetryEndFlg() {
 		return m_messageRetryEndFlg;
 	}
 
 	/**
 	 * コマンド実行失敗時終了フラグを設定する。<BR>
 	 * @param errorEndFlg コマンド実行失敗時終了フラグ
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public void setMessageRetryEndFlg(Integer messageRetryEndFlg) {
+	public void setMessageRetryEndFlg(Boolean messageRetryEndFlg) {
 		this.m_messageRetryEndFlg = messageRetryEndFlg;
 	}
 
@@ -350,37 +340,108 @@ public class JobFileInfo implements Serializable {
 
 
 	/**
-	 * 正常終了するまでリトライフラグを返す。<BR>
-	 * @return 正常終了するまでリトライフラグ
+	 * 繰り返し実行フラグを返す。<BR>
+	 * @return 繰り返し実行フラグ
 	 */
-	public Integer getCommandRetryFlg() {
+	public Boolean isCommandRetryFlg() {
 		return m_commandRetryFlg;
 	}
 
 	/**
-	 * 正常終了するまでリトライフラグを設定する。<BR>
-	 * @param errorRetryFlg 正常終了するまでリトライフラグ
+	 * 繰り返し実行フラグを設定する。<BR>
+	 * @param commandRetryFlg 繰り返し実行フラグ
 	 */
-	public void setCommandRetryFlg(Integer commandRetryFlg) {
+	public void setCommandRetryFlg(Boolean commandRetryFlg) {
 		this.m_commandRetryFlg = commandRetryFlg;
 	}
 
 	/**
-	 * 正常終了するまでリトライ回数を返す。<BR>
-	 * @return 正常終了するまでリトライ回数
+	 * 繰り返し実行回数を返す。<BR>
+	 * @return 繰り返し実行回数
 	 */
 	public Integer getCommandRetry() {
 		return m_commandRetry;
 	}
 
 	/**
-	 * 正常終了するまでリトライ回数を設定する。<BR>
-	 * @param errorMessageRetry 正常終了するまでリトライ回数
+	 * 繰り返し実行回数を設定する。<BR>
+	 * @param commandRetry 繰り返し実行回数
 	 */
 	public void setCommandRetry(Integer commandRetry) {
 		this.m_commandRetry = commandRetry;
 	}
+	
+	/**
+	 * 繰り返し実行完了状態を返す。<BR>
+	 * @return 繰り返し実行完了状態
+	 */
+	public Integer getCommandRetryEndStatus() {
+		return m_commandRetryEndStatus;
+	}
 
+	/**
+	 * 繰り返し実行完了状態を設定する。<BR>
+	 * @param commandRetryEndStatus 繰り返し実行完了状態
+	 */
+	public void setCommandRetryEndStatus(Integer commandRetryEndStatus) {
+		this.m_commandRetryEndStatus = commandRetryEndStatus;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((m_checkFlg == null) ? 0 : m_checkFlg.hashCode());
+		result = prime * result
+				+ ((m_commandRetry == null) ? 0 : m_commandRetry.hashCode());
+		result = prime
+				* result
+				+ ((m_commandRetryFlg == null) ? 0 : m_commandRetryFlg
+						.hashCode());
+		result = prime
+				* result
+				+ ((m_commandRetryEndStatus == null) ? 0 : m_commandRetryEndStatus
+						.hashCode());
+		result = prime
+				* result
+				+ ((m_compressionFlg == null) ? 0 : m_compressionFlg.hashCode());
+		result = prime * result
+				+ ((m_destDirectory == null) ? 0 : m_destDirectory.hashCode());
+		result = prime
+				* result
+				+ ((m_destFacilityID == null) ? 0 : m_destFacilityID.hashCode());
+		result = prime * result
+				+ ((m_destScope == null) ? 0 : m_destScope.hashCode());
+		result = prime * result
+				+ ((m_destWorkDir == null) ? 0 : m_destWorkDir.hashCode());
+		result = prime * result
+				+ ((m_messageRetry == null) ? 0 : m_messageRetry.hashCode());
+		result = prime
+				* result
+				+ ((m_messageRetryEndFlg == null) ? 0 : m_messageRetryEndFlg
+						.hashCode());
+		result = prime
+				* result
+				+ ((m_messageRetryEndValue == null) ? 0
+						: m_messageRetryEndValue.hashCode());
+		result = prime
+				* result
+				+ ((m_processingMethod == null) ? 0 : m_processingMethod
+						.hashCode());
+		result = prime * result
+				+ ((m_specifyUser == null) ? 0 : m_specifyUser.hashCode());
+		result = prime * result
+				+ ((m_srcFacilityID == null) ? 0 : m_srcFacilityID.hashCode());
+		result = prime * result
+				+ ((m_srcFile == null) ? 0 : m_srcFile.hashCode());
+		result = prime * result
+				+ ((m_srcScope == null) ? 0 : m_srcScope.hashCode());
+		result = prime * result
+				+ ((m_srcWorkDir == null) ? 0 : m_srcWorkDir.hashCode());
+		result = prime * result + ((m_user == null) ? 0 : m_user.hashCode());
+		return result;
+	}
 
 	@Override
 	public boolean equals(Object o) {
@@ -391,19 +452,20 @@ public class JobFileInfo implements Serializable {
 		JobFileInfo o2 = (JobFileInfo)o;
 
 		boolean ret = false;
-		ret = 	equalsSub(o1.getCheckFlg(), o2.getCheckFlg()) &&
-				equalsSub(o1.getCompressionFlg(), o2.getCompressionFlg()) &&
+		ret = 	equalsSub(o1.isCheckFlg(), o2.isCheckFlg()) &&
+				equalsSub(o1.isCompressionFlg(), o2.isCompressionFlg()) &&
 				equalsSub(o1.getDestDirectory(), o2.getDestDirectory()) &&
 				equalsSub(o1.getDestFacilityID(), o2.getDestFacilityID()) &&
 				equalsSub(o1.getDestScope(), o2.getDestScope()) &&
 				equalsSub(o1.getDestWorkDir(), o2.getDestWorkDir()) &&
 				equalsSub(o1.getMessageRetry(), o2.getMessageRetry()) &&
-				equalsSub(o1.getMessageRetryEndFlg(), o2.getMessageRetryEndFlg()) &&
+				equalsSub(o1.isMessageRetryEndFlg(), o2.isMessageRetryEndFlg()) &&
 				equalsSub(o1.getMessageRetryEndValue(), o2.getMessageRetryEndValue()) &&
-				equalsSub(o1.getCommandRetryFlg(), o2.getCommandRetryFlg()) &&
+				equalsSub(o1.isCommandRetryFlg(), o2.isCommandRetryFlg()) &&
 				equalsSub(o1.getCommandRetry(), o2.getCommandRetry()) &&
+				equalsSub(o1.getCommandRetryEndStatus(), o2.getCommandRetryEndStatus()) &&
 				equalsSub(o1.getProcessingMethod(), o2.getProcessingMethod()) &&
-				equalsSub(o1.getSpecifyUser(), o2.getSpecifyUser()) &&
+				equalsSub(o1.isSpecifyUser(), o2.isSpecifyUser()) &&
 				equalsSub(o1.getSrcFacilityID(), o2.getSrcFacilityID()) &&
 				equalsSub(o1.getSrcFile(), o2.getSrcFile()) &&
 				equalsSub(o1.getSrcScope(), o2.getSrcScope()) &&
@@ -413,17 +475,13 @@ public class JobFileInfo implements Serializable {
 	}
 
 	private boolean equalsSub(Object o1, Object o2) {
-		if (o1 == null && o2 == null) {
+		if (o1 == o2)
 			return true;
-		}
-		if (o1 != null && o2 == null) {
+		
+		if (o1 == null)
 			return false;
-		}
-		if (o1 == null && o2 != null) {
-			return false;
-		}
-		boolean ret = o1.equals(o2);
-		return ret;
+		
+		return o1.equals(o2);
 	}
 
 	/**
@@ -466,10 +524,10 @@ public class JobFileInfo implements Serializable {
 			info2 = createSampleInfo();
 			switch (i) {
 			case 0 :
-				info2.setCheckFlg(1);
+				info2.setCheckFlg(true);
 				break;
 			case 1 :
-				info2.setCompressionFlg(1);
+				info2.setCompressionFlg(true);
 				break;
 			case 2 :
 				info2.setDestDirectory("/optopt/");
@@ -490,7 +548,7 @@ public class JobFileInfo implements Serializable {
 				info2.setProcessingMethod(1);
 				break;
 			case 8 :
-				info2.setSpecifyUser(1);
+				info2.setSpecifyUser(true);
 				break;
 			case 9 :
 				info2.setSrcFacilityID("srcFacility_Id");
@@ -507,6 +565,8 @@ public class JobFileInfo implements Serializable {
 			case 13 :
 				info2.setUser("admin");
 				break;
+			default:
+				break;
 			}
 			System.out.println("*** 「" + str[i] + "」 のみ違う*** \n⇒ false");
 			System.out.println("ressult : " + info1.equals(info2));
@@ -519,15 +579,15 @@ public class JobFileInfo implements Serializable {
 	 */
 	public static JobFileInfo createSampleInfo() {
 		JobFileInfo info = new JobFileInfo();
-		info.setCheckFlg(0);
-		info.setCompressionFlg(0);
+		info.setCheckFlg(false);
+		info.setCompressionFlg(false);
 		info.setDestDirectory("/opt/");
 		info.setDestFacilityID("facilityId");
 		info.setDestScope("scope");
 		info.setDestWorkDir("/opt/hinemos/");
 		info.setMessageRetry(0);
 		info.setProcessingMethod(0);
-		info.setSpecifyUser(0);
+		info.setSpecifyUser(false);
 		info.setSrcFacilityID("srcFacilityId");
 		info.setSrcFile("test.txt");
 		info.setSrcScope("node");

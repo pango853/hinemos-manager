@@ -1,17 +1,11 @@
 /*
-
- Copyright (C) 2013 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.winevent.model;
 
 import java.io.Serializable;
@@ -27,9 +21,6 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
-
 
 /**
  * The persistent class for the cc_monitor_winevent_log_info database table.
@@ -42,18 +33,14 @@ public class MonitorWinEventLogInfoEntity implements Serializable {
 	private static final long serialVersionUID = 1L;
 	private MonitorWinEventLogInfoEntityPK id;
 
-	private MonitorWinEventInfoEntity monitorWinEventInfoEntity;
+	private WinEventCheckInfo monitorWinEventInfoEntity;
 
 	@Deprecated
 	public MonitorWinEventLogInfoEntity() {
 	}
 
-	public MonitorWinEventLogInfoEntity(MonitorWinEventLogInfoEntityPK id,
-			MonitorWinEventInfoEntity monitorWinEventInfoEntity) {
+	public MonitorWinEventLogInfoEntity(MonitorWinEventLogInfoEntityPK id) {
 		this.setId(id);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
-		this.relateToMonitorWinEventInfoEntity(monitorWinEventInfoEntity);
 	}
 
 	@EmbeddedId
@@ -65,22 +52,22 @@ public class MonitorWinEventLogInfoEntity implements Serializable {
 		this.id = id;
 	}
 
-	//bi-directional many-to-one association to MonitorInfoEntity
+	//bi-directional many-to-one association to WinEventCheckInfo
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="monitor_id", insertable=false, updatable=false)
-	public MonitorWinEventInfoEntity getMonitorWinEventInfoEntity() {
+	public WinEventCheckInfo getMonitorWinEventInfoEntity() {
 		return this.monitorWinEventInfoEntity;
 	}
 
 	@Deprecated
-	public void setMonitorWinEventInfoEntity(MonitorWinEventInfoEntity monitorWinEventInfoEntity) {
+	public void setMonitorWinEventInfoEntity(WinEventCheckInfo monitorWinEventInfoEntity) {
 		this.monitorWinEventInfoEntity = monitorWinEventInfoEntity;
 	}
 
 	/**
-	 * MonitorInfoEntityオブジェクト参照設定<BR>
+	 * WinEventCheckInfoオブジェクト参照設定<BR>
 	 * 
-	 * MonitorInfoEntity設定時はSetterに代わりこちらを使用すること。
+	 * WinEventCheckInfo設定時はSetterに代わりこちらを使用すること。
 	 * 
 	 * JPAの仕様(JSR 220)では、データ更新に伴うrelationshipの管理はユーザに委ねられており、
 	 * INSERTやDELETE時に、そのオブジェクトに対する参照をメンテナンスする処理を実装する。
@@ -93,7 +80,7 @@ public class MonitorWinEventLogInfoEntity implements Serializable {
 	 * held on the owning side and those held on the inverse side consistent
 	 * with each other when they change.
 	 */
-	public void relateToMonitorWinEventInfoEntity(MonitorWinEventInfoEntity monitorWinEventInfoEntity) {
+	public void relateToMonitorWinEventInfoEntity(WinEventCheckInfo monitorWinEventInfoEntity) {
 		this.setMonitorWinEventInfoEntity(monitorWinEventInfoEntity);
 		if (monitorWinEventInfoEntity != null) {
 			List<MonitorWinEventLogInfoEntity> list = monitorWinEventInfoEntity.getMonitorWinEventLogInfoEntities();

@@ -1,7 +1,14 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.jobmanagement.model;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 import java.util.List;
 
 import javax.persistence.CascadeType;
@@ -11,9 +18,6 @@ import javax.persistence.FetchType;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
-
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
 
 
 /**
@@ -28,10 +32,11 @@ public class JobSessionEntity implements Serializable {
 	private String jobId;
 	private String jobunitId;
 	private Integer operationFlg;
-	private Timestamp scheduleDate;
+	private Long scheduleDate;
 	private String triggerInfo;
 	private Integer triggerType;
 	private List<JobSessionJobEntity> jobSessionJobEntities;
+	private Long position;
 
 	@Deprecated
 	public JobSessionEntity() {
@@ -39,8 +44,6 @@ public class JobSessionEntity implements Serializable {
 
 	public JobSessionEntity(String sessionId) {
 		this.setSessionId(sessionId);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
 	}
 
 
@@ -86,11 +89,11 @@ public class JobSessionEntity implements Serializable {
 
 
 	@Column(name="schedule_date")
-	public Timestamp getScheduleDate() {
+	public Long getScheduleDate() {
 		return this.scheduleDate;
 	}
 
-	public void setScheduleDate(Timestamp scheduleDate) {
+	public void setScheduleDate(Long scheduleDate) {
 		this.scheduleDate = scheduleDate;
 	}
 
@@ -124,5 +127,12 @@ public class JobSessionEntity implements Serializable {
 	public void setJobSessionJobEntities(List<JobSessionJobEntity> jobSessionJobEntities) {
 		this.jobSessionJobEntities = jobSessionJobEntities;
 	}
-
+	
+	@Column(name="position", insertable=false)
+	public Long getPosition(){
+		return this.position;
+	}
+	public void setPosition(Long position){
+		this.position = position;
+	}
 }

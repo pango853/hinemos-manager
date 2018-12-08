@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) 2013 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.jobmanagement.factory;
 
 import java.io.Serializable;
@@ -25,12 +19,13 @@ import javax.xml.bind.annotation.XmlType;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.calendar.bean.CalendarInfo;
 import com.clustercontrol.calendar.factory.SelectCalendar;
+import com.clustercontrol.calendar.model.CalendarInfo;
 import com.clustercontrol.calendar.util.CalendarUtil;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.CalendarNotFound;
 import com.clustercontrol.fault.InvalidRole;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.util.HinemosTime;
 
 
 /**
@@ -206,11 +201,13 @@ public class JobPlanSchedule implements Serializable{
 			SelectCalendar select = new SelectCalendar();
 			m_log.debug(year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second);
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+			sdf.setTimeZone(HinemosTime.getTimeZone());
 			Date date = null;
 			try {
 				date = sdf.parse(year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second);
 			} catch (ParseException e1) {
 				m_log.warn("ParseException : " + e1.getMessage(), e1);
+				return null;
 			}
 			m_log.debug("Date : " + date);
 
@@ -257,7 +254,7 @@ public class JobPlanSchedule implements Serializable{
 	 * 日、月、年を進める
 	 */
 	private boolean next() {
-		int maxYear = HinemosPropertyUtil.getHinemosPropertyNum("job.schedule.plan.max", 2030);
+		int maxYear = HinemosPropertyCommon.job_schedule_plan_max.getIntegerValue();
 		if (maxYear < year) {
 			return false;
 		}
@@ -358,7 +355,7 @@ public class JobPlanSchedule implements Serializable{
 	 * @return キックすべき日であればtrue そうでなければfalse
 	 */
 	private boolean isFireDayOfWeek() {
-		Calendar calendar = Calendar.getInstance();
+		Calendar calendar = HinemosTime.getCalendarInstance();
 		calendar.set(year, month - 1, day);
 		if (calendar.get(Calendar.DAY_OF_WEEK) == weekCalendar) {
 			return true;
@@ -376,7 +373,7 @@ public class JobPlanSchedule implements Serializable{
 	 */
 	private boolean isDate(int year, int month, int day) {
 		boolean ret = false;
-		Calendar cal = Calendar.getInstance();
+		Calendar cal = HinemosTime.getCalendarInstance();
 		cal.setLenient( true );
 		cal.set(year, month - 1, day);
 		ret = cal.get(Calendar.MONTH) == (month - 1) % 12;
@@ -394,22 +391,27 @@ public class JobPlanSchedule implements Serializable{
 		Date date = new Date(now);
 		m_log.trace("date= " + date);
 		SimpleDateFormat sdfYear = new SimpleDateFormat("yyyy");
+		sdfYear.setTimeZone(HinemosTime.getTimeZone());
 		String strYear = sdfYear.format(date);
 		this.year = Integer.parseInt(strYear);
 
 		SimpleDateFormat sdfMonth = new SimpleDateFormat("MM");
+		sdfMonth.setTimeZone(HinemosTime.getTimeZone());
 		String strMonth = sdfMonth.format(date);
 		this.month = Integer.parseInt(strMonth);
 
 		SimpleDateFormat sdfDay = new SimpleDateFormat("dd");
+		sdfDay.setTimeZone(HinemosTime.getTimeZone());
 		String strDay = sdfDay.format(date);
 		this.day = Integer.parseInt(strDay);
 
 		SimpleDateFormat sdfHour = new SimpleDateFormat("HH");
+		sdfHour.setTimeZone(HinemosTime.getTimeZone());
 		String strHour = sdfHour.format(date);
 		this.hour = Integer.parseInt(strHour);
 
 		SimpleDateFormat sdfMinute = new SimpleDateFormat("mm");
+		sdfMinute.setTimeZone(HinemosTime.getTimeZone());
 		String strMinute = sdfMinute.format(date);
 		this.minute = Integer.parseInt(strMinute);
 		m_log.trace("year=" + year + ",month=" + month + ",day=" + day);

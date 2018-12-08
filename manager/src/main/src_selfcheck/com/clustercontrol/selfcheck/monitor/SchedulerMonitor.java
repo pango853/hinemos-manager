@@ -1,28 +1,27 @@
 /*
-
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.selfcheck.monitor;
 
 import java.util.Date;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.bean.PriorityConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.plugin.impl.SchedulerInfo;
+import com.clustercontrol.plugin.impl.SchedulerPlugin;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.SchedulerType;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 import com.clustercontrol.util.apllog.AplLogger;
 
 /**
@@ -75,7 +74,7 @@ public class SchedulerMonitor extends SelfCheckMonitorBase {
 	 */
 	@Override
 	public void execute() {
-		if (!HinemosPropertyUtil.getHinemosPropertyBool("selfcheck.monitoring.scheduler.delay", true)) {
+		if (!HinemosPropertyCommon.selfcheck_monitoring_scheduler_delay.getBooleanValue()) {
 			m_log.debug("skip");
 			return;
 		}
@@ -85,19 +84,17 @@ public class SchedulerMonitor extends SelfCheckMonitorBase {
 		String nextFireTimeStr = null;
 		boolean warn = true;
 
-		thresholdSec = HinemosPropertyUtil.getHinemosPropertyNum(
-				"selfcheck.monitoring.scheduler.delay.threshold",
-				300);
+		thresholdSec = HinemosPropertyCommon.selfcheck_monitoring_scheduler_delay_threshold.getIntegerValue();
 
 		/** メイン処理 */
 		if (m_log.isDebugEnabled()) m_log.debug("monitoring a quartz scheduler. ");
 
-		now = new Date();
+		now = HinemosTime.getDateInstance();
 
 		nextFireTimeStr = String.format("%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS", trigger.nextFireTime);
 
-		if (trigger.nextFireTime != null) {
-			if (now.getTime() - trigger.nextFireTime.getTime() <= thresholdSec * 1000) {
+		if (trigger.nextFireTime >= 0) {
+			if (now.getTime() - trigger.nextFireTime <= thresholdSec * 1000) {
 				m_log.debug("scheduler is running without delay. (triggerName = " + trigger.name + ", triggerGroupName = " + trigger.group + ", nextFireTime = " + nextFireTimeStr + ")");
 				warn = false;
 			}
@@ -112,9 +109,8 @@ public class SchedulerMonitor extends SelfCheckMonitorBase {
 		if (!isNotify(subKey, warn)) {
 			return;
 		}
-		String[] msgAttr1 = { type.toString(), trigger.name, trigger.group, nextFireTimeStr, new Integer(thresholdSec).toString() };
-		AplLogger aplLogger = new AplLogger(PLUGIN_ID, APL_ID);
-		aplLogger.put(MESSAGE_ID, "004", msgAttr1,
+		String[] msgAttr1 = { type.toString(), trigger.name, trigger.group, nextFireTimeStr, Integer.toString(thresholdSec) };
+		AplLogger.put(PriorityConstant.TYPE_WARNING, PLUGIN_ID, MessageConstant.MESSAGE_SYS_004_SYS_SFC, msgAttr1,
 				"scheduler （" +
 						type +
 						":" +
@@ -127,6 +123,27 @@ public class SchedulerMonitor extends SelfCheckMonitorBase {
 						thresholdSec +
 				" [sec].");
 		return;
+	}
+	
+	/**
+	 * スケジューラ情報の遅延時間を返す。
+	 * 
+	 * @param type スケジューラ情報の保持種別(RAM : オンメモリで管理、DBMS : DBで永続化管理)
+	 * @return 指定したスケジューラ種別の最も遅延している時間
+	 * @throws HinemosUnknown
+	 */
+	public static long getSchedulerDelayTime(SchedulerType type) throws HinemosUnknown {
+		long delayMillisec = 0L;
+		
+		// 指定したスケジューラの中で、最も遅延しているものを取得
+		List<SchedulerInfo> triggerList = SchedulerPlugin.getSchedulerList(type);
+		for (SchedulerInfo schedulerInfo : triggerList) {
+			long tempDelayMillisec = schedulerInfo.nextFireTime - HinemosTime.currentTimeMillis();
+			if (tempDelayMillisec > delayMillisec) {
+				delayMillisec = tempDelayMillisec;
+			}
+		}
+		return delayMillisec;
 	}
 
 }

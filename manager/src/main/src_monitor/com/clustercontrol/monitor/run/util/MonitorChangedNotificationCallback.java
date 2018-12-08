@@ -1,27 +1,23 @@
 /*
-
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.run.util;
 
 import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.binary.session.BinaryControllerBean;
+import com.clustercontrol.binary.util.BinaryManagerUtil;
 import com.clustercontrol.commons.bean.SettingUpdateInfo;
 import com.clustercontrol.commons.util.JpaTransactionCallback;
 import com.clustercontrol.custom.factory.SelectCustom;
 import com.clustercontrol.custom.util.CustomManagerUtil;
 import com.clustercontrol.logfile.session.MonitorLogfileControllerBean;
 import com.clustercontrol.logfile.util.LogfileManagerUtil;
+import com.clustercontrol.util.HinemosTime;
 import com.clustercontrol.winevent.session.MonitorWinEventControllerBean;
 import com.clustercontrol.winevent.util.WinEventManagerUtil;
 
@@ -33,12 +29,6 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 		this.monitorTypeId = monitorTypeId;
 	}
 	
-	@Override
-	public void preBegin() { }
-
-	@Override
-	public void postBegin() { }
-
 	@Override
 	public void preFlush() { }
 
@@ -53,23 +43,40 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 		
 		switch (monitorTypeId) {
 		case HinemosModuleConstant.MONITOR_SYSTEMLOG :
-			SettingUpdateInfo.getInstance().setSystemLogMonitorUpdateTime(System.currentTimeMillis());
+			SettingUpdateInfo.getInstance().setSystemLogMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			break;
 		case HinemosModuleConstant.MONITOR_SNMPTRAP :
-			SettingUpdateInfo.getInstance().setSnmptrapMonitorUpdateTime(System.currentTimeMillis());
+			SettingUpdateInfo.getInstance().setSnmptrapMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			break;
 		case HinemosModuleConstant.MONITOR_LOGFILE :
 			MonitorLogfileControllerBean.refreshCache();
 			
-			SettingUpdateInfo.getInstance().setLogFileMonitorUpdateTime(System.currentTimeMillis());
+			SettingUpdateInfo.getInstance().setLogFileMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			
 			// 接続中のHinemosAgentに対する更新通知
 			LogfileManagerUtil.broadcastConfigured();
 			break;
-		case HinemosModuleConstant.MONITOR_CUSTOM :
+		case HinemosModuleConstant.MONITOR_BINARYFILE_BIN:
+		case HinemosModuleConstant.MONITOR_PCAP_BIN:
+			BinaryControllerBean.refreshCache();
+
+			SettingUpdateInfo.getInstance().setBinaryMonitorUpdateTime(HinemosTime.currentTimeMillis());
+			
+			// 接続中のHinemosAgentに対する更新通知
+			BinaryManagerUtil.broadcastConfigured();
+			break;
+		case HinemosModuleConstant.MONITOR_CUSTOM_N :
 			SelectCustom.refreshCache();
 			
-			SettingUpdateInfo.getInstance().setCustomMonitorUpdateTime(System.currentTimeMillis());
+			SettingUpdateInfo.getInstance().setCustomMonitorUpdateTime(HinemosTime.currentTimeMillis());
+			
+			// 接続中のHinemosAgentに対する更新通知
+			CustomManagerUtil.broadcastConfigured();
+			break;
+		case HinemosModuleConstant.MONITOR_CUSTOM_S :
+			SelectCustom.refreshCache();
+			
+			SettingUpdateInfo.getInstance().setCustomMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			
 			// 接続中のHinemosAgentに対する更新通知
 			CustomManagerUtil.broadcastConfigured();
@@ -77,10 +84,14 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 		case HinemosModuleConstant.MONITOR_WINEVENT :
 			MonitorWinEventControllerBean.refreshCache();
 			
-			SettingUpdateInfo.getInstance().setWinEventMonitorUpdateTime(System.currentTimeMillis());
+			SettingUpdateInfo.getInstance().setWinEventMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			
 			// 接続中のHinemosAgentに対する更新通知
 			WinEventManagerUtil.broadcastConfigured();
+			break;
+		case HinemosModuleConstant.MONITOR_CUSTOMTRAP_N :
+		case HinemosModuleConstant.MONITOR_CUSTOMTRAP_S :
+			SettingUpdateInfo.getInstance().setCustomTrapMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			break;
 		default :
 		}

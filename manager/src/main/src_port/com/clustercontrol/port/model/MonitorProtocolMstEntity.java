@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.port.model;
 
 import java.io.Serializable;
@@ -10,9 +18,6 @@ import javax.persistence.FetchType;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
-
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
 
 
 
@@ -30,17 +35,10 @@ public class MonitorProtocolMstEntity implements Serializable {
 	private Integer defaultPortNumber;
 	private String description;
 	private String serviceName;
-	private List<MonitorPortInfoEntity> monitorPortInfoEntities;
+	private List<PortCheckInfo> monitorPortInfoEntities;
 
 	@Deprecated
 	public MonitorProtocolMstEntity() {
-	}
-
-
-	public MonitorProtocolMstEntity(String serviceId) {
-		this.setServiceId(serviceId);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
 	}
 
 	@Id
@@ -73,7 +71,7 @@ public class MonitorProtocolMstEntity implements Serializable {
 		this.defaultPortNumber = defaultPortNumber;
 	}
 
-
+	@Column(name="description")
 	public String getDescription() {
 		return this.description;
 	}
@@ -95,11 +93,11 @@ public class MonitorProtocolMstEntity implements Serializable {
 
 	//bi-directional many-to-one association to MonitorPortInfoEntity
 	@OneToMany(mappedBy="monitorProtocolMstEntity", fetch=FetchType.LAZY)
-	public List<MonitorPortInfoEntity> getMonitorPortInfoEntities() {
+	public List<PortCheckInfo> getMonitorPortInfoEntities() {
 		return this.monitorPortInfoEntities;
 	}
 
-	public void setMonitorPortInfoEntities(List<MonitorPortInfoEntity> monitorPortInfoEntities) {
+	public void setMonitorPortInfoEntities(List<PortCheckInfo> monitorPortInfoEntities) {
 		this.monitorPortInfoEntities = monitorPortInfoEntities;
 	}
 

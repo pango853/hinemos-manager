@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.snmptrap.util;
 
 import java.nio.charset.Charset;
@@ -7,9 +15,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.monitor.run.bean.MonitorInfo;
-import com.clustercontrol.snmptrap.bean.MonitorTrapConstant;
-import com.clustercontrol.snmptrap.bean.TrapCheckInfo;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
+import com.clustercontrol.snmptrap.model.TrapCheckInfo;
 
 public class CharsetUtil {
 
@@ -33,7 +40,7 @@ public class CharsetUtil {
 		}
 
 		// 変換しない場合はreturn
-		if (trapInfo.getCharsetConvert() == MonitorTrapConstant.CHARSET_CONVERT_OFF) {
+		if (!trapInfo.getCharsetConvert()) {
 			m_log.debug("checkCharset() : start monitorId = " + info.getMonitorId() + " CHARSET_CONVERT_OFF");
 			return;
 		}

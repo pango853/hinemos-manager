@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.monitor.plugin.model;
 
 import java.io.Serializable;
@@ -35,7 +43,7 @@ public class MonitorPluginStringInfoEntityPK implements Serializable {
 		this.monitorId = monitorId;
 	}
 
-	@Column(name="key")
+	@Column(name="property_key")
 	public String getKey() {
 		return key;
 	}

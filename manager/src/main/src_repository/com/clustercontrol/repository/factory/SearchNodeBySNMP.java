@@ -1,17 +1,9 @@
-
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.factory;
@@ -23,35 +15,35 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.SnmpVersionConstant;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.SnmpResponseError;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.poller.bean.PollerProtocolConstant;
 import com.clustercontrol.poller.impl.Snmp4jPollerImpl;
+import com.clustercontrol.poller.util.DataTable;
+import com.clustercontrol.poller.util.TableEntry;
 import com.clustercontrol.repository.bean.DeviceTypeConstant;
-import com.clustercontrol.repository.bean.NodeCpuInfo;
-import com.clustercontrol.repository.bean.NodeDeviceInfo;
-import com.clustercontrol.repository.bean.NodeDiskInfo;
-import com.clustercontrol.repository.bean.NodeFilesystemInfo;
-import com.clustercontrol.repository.bean.NodeHostnameInfo;
-import com.clustercontrol.repository.bean.NodeInfo;
-import com.clustercontrol.repository.bean.NodeMemoryInfo;
-import com.clustercontrol.repository.bean.NodeNetworkInterfaceInfo;
 import com.clustercontrol.repository.model.CollectorPlatformMstEntity;
+import com.clustercontrol.repository.model.NodeCpuInfo;
+import com.clustercontrol.repository.model.NodeDeviceInfo;
+import com.clustercontrol.repository.model.NodeDiskInfo;
+import com.clustercontrol.repository.model.NodeFilesystemInfo;
+import com.clustercontrol.repository.model.NodeHostnameInfo;
+import com.clustercontrol.repository.model.NodeInfo;
+import com.clustercontrol.repository.model.NodeMemoryInfo;
+import com.clustercontrol.repository.model.NodeNetworkInterfaceInfo;
 import com.clustercontrol.repository.util.QueryUtil;
 import com.clustercontrol.repository.util.SearchDeviceProperties;
-import com.clustercontrol.sharedtable.DataTable;
-import com.clustercontrol.sharedtable.TableEntry;
+import com.clustercontrol.util.HinemosTime;
 
 /**
  * SNMPでノードのデータを作成するクラス<BR>
@@ -89,7 +81,7 @@ public class SearchNodeBySNMP {
 	 * @throws UnknownHostException
 	 */
 	public static NodeInfo searchNode(String ipAddress, int port,
-			String community, String version, String facilityId,
+			String community, int version, String facilityId,
 			String securityLevel, String user, String authPass,
 			String privPass, String authProtocol, String privProtocol)
 			throws UnknownHostException, SnmpResponseError, HinemosUnknown,
@@ -103,16 +95,16 @@ public class SearchNodeBySNMP {
 		
 		DataTable ret = new DataTable();
 
-		ArrayList<String> oidList = pollingProp.getOidList();
+		Set<String> oidSet = pollingProp.getOidSet();
 			//pollingします。
 		m_log.debug("searchNode() polling start ipAddress = " + ipAddress);
 		DataTable tmpDataTable = Snmp4jPollerImpl.getInstance().polling(ipAddress,
 				port,
-				SnmpVersionConstant.stringToSnmpType(version),
+				version,
 				community,
 				retries,
 				timeout,
-				oidList,
+				oidSet,
 				securityLevel,
 				user,
 				authPass,
@@ -122,9 +114,10 @@ public class SearchNodeBySNMP {
 		m_log.debug("searchNode() polling stop ipAddress = " + ipAddress);
 
 		// 応答がない場合エラーを返す
-		if (tmpDataTable.keySet().size() == 0) {
-			m_log.info("searchNode: no response ipAddress = " + ipAddress);
-			throw new SnmpResponseError();
+		if (!tmpDataTable.isNoneError()) {
+			// MultipleOidsUtilsでログを出力しているためDEBUGにする
+			m_log.debug("searchNode: no response ipAddress = " + ipAddress);
+			throw new SnmpResponseError("no response");
 		}
 		
 		//　取得したデータを詰め替える
@@ -154,11 +147,12 @@ public class SearchNodeBySNMP {
 	 * @return
 	 * @throws UnknownHostException
 	 */
-	private static NodeInfo stractProperty(String ipAddress, int port, String community, String version,
+	private static NodeInfo stractProperty(String ipAddress, int port, String community, int version,
 			String securityLevel, String user, String authPass, String privPass, 
 			String authProtocol, String privProtocol, DataTable ret) throws UnknownHostException {
 
 		NodeInfo property = new NodeInfo();
+		String facilityId = null;
 
 		/*
 		 * hinemos.propertiesにrepository.device.search.verbose=trueと書くと、
@@ -166,15 +160,15 @@ public class SearchNodeBySNMP {
 		 * デフォルトはfalseであり、0のものはsearch対象から外れる。
 		 * since 3.2.0
 		 */
-		boolean verbose = HinemosPropertyUtil.getHinemosPropertyBool("repository.device.search.verbose", false);
+		boolean verbose = HinemosPropertyCommon.repository_device_search_verbose.getBooleanValue();
 
 		//ノード情報"説明"の生成
-		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())) != null){
+		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())) != null
+				&& ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())).getValue() != null){
 			if(((String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())).getValue()).length() !=0){
-				property.setDescription("Auto detect at " + (new Date()).toString());
+				property.setDescription("Auto detect at " + HinemosTime.getDateString());
 			}
 		}
-
 
 		int ipAddressVersion = 0;
 		try {
@@ -193,7 +187,7 @@ public class SearchNodeBySNMP {
 			}
 
 			//IPアドレスのバージョン
-			property.setIpAddressVersion(new Integer(ipAddressVersion));
+			property.setIpAddressVersion(ipAddressVersion);
 		} catch (UnknownHostException e) {
 			m_log.info("stractProperty() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage());
@@ -213,28 +207,33 @@ public class SearchNodeBySNMP {
 		property.setSnmpPrivProtocol(privProtocol);
 
 		//hostname の設定
-		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidName())) != null){
+		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidName())) != null
+				&& ret.getValue(getEntryKey(SearchDeviceProperties.getOidName())).getValue() != null){
 			String hostname = (String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidName())).getValue();
+			m_log.debug("hostname=" + hostname);
 			if(hostname.length() != 0){
 				//hosname.domainであればhostnameだけを入力
-				if(hostname.indexOf(".") != -1){
-					hostname = hostname.substring(0,hostname.indexOf("."));
-				}
+				hostname = getShortName(hostname);
+
 				//ファシリティID、ファシリティ名
+				facilityId = hostname;
 				property.setFacilityId(hostname);
 				property.setFacilityName(hostname);
 				
 				//ホスト名、ノード名にそれぞれ設定
 				ArrayList<NodeHostnameInfo> list = new ArrayList<NodeHostnameInfo> ();
-				list.add(new NodeHostnameInfo(hostname));
+				list.add(new NodeHostnameInfo(property.getFacilityId(), hostname));
 				property.setNodeHostnameInfo(list);
 				property.setNodeName(hostname);
 			}
+		} else {
+			m_log.info("hostname is null");
 		}
 
 
 		//連絡先はsnmpd.confに書かれている内容を設定する。
-		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidContact())) != null){
+		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidContact())) != null
+				&& ret.getValue(getEntryKey(SearchDeviceProperties.getOidContact())).getValue() != null){
 			if(((String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidContact())).getValue()).length() != 0){
 				property.setAdministrator((String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidContact())).getValue());
 			}
@@ -242,7 +241,8 @@ public class SearchNodeBySNMP {
 
 		//プラットフォーム名は、Windows, Linux, Solaris以外はOtherとする
 		String platform = "OTHER";
-		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())) != null){
+		if(ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())) != null
+				&& ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())).getValue() != null){
 			String description = ((String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidDescr())).getValue());
 			if(description.length() != 0){
 				String OsName = "";
@@ -295,23 +295,22 @@ public class SearchNodeBySNMP {
 			}
 			// SearchDeviceProperties.getOidDISK_INDEX=".1.3.6.1.4.1.2021.13.15.1.1.1";
 			// SearchDeviceProperties.getOidDISK_NAME =".1.3.6.1.4.1.2021.13.15.1.1.2";
-			if( ret.getValue(fullOid) == null){
-				continue;
-			}
-			if(((Long)ret.getValue(fullOid).getValue()) == 0 ){
+			if(ret.getValue(fullOid) == null ||
+					ret.getValue(fullOid).getValue() == null ||
+					((Long)ret.getValue(fullOid).getValue()) == 0 ){
 				continue;
 			}
 			m_log.debug("Find Disk : fullOid = " + fullOid);
 
 			String i = fullOid.substring(fullOid.lastIndexOf(".") + 1);
 			String disk = (String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskName()+"."+i)).getValue();
-			Long ionRead = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIonRead() + "." + i)) == null ? 0 :
+			Long ionRead = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIonRead() + "." + i)) == null ? Long.valueOf(0) :
 				(Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIonRead() + "." + i)).getValue();
-			Long ionWrite = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIonWrite() + "." + i)) == null ? 0 :
+			Long ionWrite = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIonWrite() + "." + i)) == null ? Long.valueOf(0) :
 				(Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIonWrite() + "." + i)).getValue();
-			Long ioRead = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIoRead() + "." + i)) == null ? 0 :
+			Long ioRead = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIoRead() + "." + i)) == null ? Long.valueOf(0) :
 				(Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIoRead() + "." + i)).getValue();
-			Long ioWrite = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIoWrite() + "." + i)) == null ? 0 :
+			Long ioWrite = ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIoWrite() + "." + i)) == null ? Long.valueOf(0) :
 				(Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidDiskIoWrite() + "." + i)).getValue();
 			//DISK_IOが0の物は除外します。
 			if(verbose ||
@@ -322,15 +321,10 @@ public class SearchNodeBySNMP {
 					disk = disk + "(" + i + ")";
 				}
 
-				NodeDiskInfo diskInfo = new NodeDiskInfo();
+				NodeDiskInfo diskInfo = new NodeDiskInfo(facilityId,
+						((Long)ret.getValue(fullOid).getValue()).intValue(), DeviceTypeConstant.DEVICE_DISK, disk);
 				// デバイス表示名
 				diskInfo.setDeviceDisplayName(disk);
-				// デバイス名
-				diskInfo.setDeviceName(disk);
-				// デバイスインデックス
-				diskInfo.setDeviceIndex(((Long)ret.getValue(fullOid).getValue()).intValue());
-				// デバイス種別
-				diskInfo.setDeviceType(DeviceTypeConstant.DEVICE_DISK);
 				// デバイス回転数(デフォルト0)
 				diskInfo.setDiskRpm(0);
 				deviceCount++;
@@ -362,7 +356,9 @@ public class SearchNodeBySNMP {
 			}
 			String tmpIndex = fullOid.substring(fullOid.lastIndexOf(".") + 1);
 			String deviceName = "";
-			if( ((Long)ret.getValue(fullOid).getValue()) == 0 ){
+			if(ret.getValue(fullOid) == null ||
+				ret.getValue(fullOid).getValue() == null ||
+				((Long)ret.getValue(fullOid).getValue()) == 0){
 				continue;
 			}
 			m_log.debug("Find Nic : fullOid = " + fullOid);
@@ -451,30 +447,29 @@ public class SearchNodeBySNMP {
 			// NICのIN/OUTが0のものは除外する。
 			String key = "";
 			key = getEntryKey(SearchDeviceProperties.getOidNicInOctet() + "." + tmpIndex);
-			Long inOctet = ret.getValue(key) == null ? 0 : (Long)ret.getValue(key).getValue();
+			Long inOctet = ret.getValue(key) == null ? Long.valueOf(0) : (Long)ret.getValue(key).getValue();
 			key = getEntryKey(SearchDeviceProperties.getOidNicOutOctet() + "." + tmpIndex);
-			Long outOctet = ret.getValue(key) == null ? 0 : (Long)ret.getValue(key).getValue();
+			Long outOctet = ret.getValue(key) == null ? Long.valueOf(0) : (Long)ret.getValue(key).getValue();
 			if (!verbose && inOctet == 0 && outOctet == 0) {
 				continue;
 			}
-			NodeNetworkInterfaceInfo nicInfo = new NodeNetworkInterfaceInfo();
 			// デバイス名が重複している場合は、(OIDインデックス)をつける
 			if (nicNameDuplicateSet != null && nicNameDuplicateSet.get(deviceName) != null && nicNameDuplicateSet.get(deviceName)){
 				deviceName = deviceName + "(." + tmpIndex + ")";
 			}
+			Long deviceIndex = (Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidNicIndex() + "." + tmpIndex)).getValue();
+			NodeNetworkInterfaceInfo nicInfo = new NodeNetworkInterfaceInfo(facilityId, deviceIndex.intValue(), DeviceTypeConstant.DEVICE_NIC, deviceName);
 			// デバイス表示名
 			nicInfo.setDeviceDisplayName(deviceName);
 			// デバイス名の設定
+			if (deviceName.length() > 128) {
+				deviceName = deviceName.substring(0, 128);
+			}
 			nicInfo.setDeviceName(deviceName);
 			// MACアドレスの設定
 			nicInfo.setNicMacAddress(nicMacAddress);
 			// IPアドレスの設定
 			nicInfo.setNicIpAddress(nicIpAddress);
-			// デバイスINDEXの設定
-			Long deviceIndex = (Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidNicIndex() + "." + tmpIndex)).getValue();
-			nicInfo.setDeviceIndex(deviceIndex.intValue());
-			// デバイスTypeの設定
-			nicInfo.setDeviceType(DeviceTypeConstant.DEVICE_NIC);
 			deviceCount++;
 			nicList.add(nicInfo);
 		}
@@ -502,10 +497,9 @@ public class SearchNodeBySNMP {
 			if(!fullOid.startsWith(getEntryKey(SearchDeviceProperties.getOidFilesystemIndex()) + ".")){
 				continue;
 			}
-			if( ret.getValue(fullOid) == null){
-				continue;
-			}
-			if( ((Long)ret.getValue(fullOid).getValue()) == 0 ){
+			if(ret.getValue(fullOid) == null ||
+				ret.getValue(fullOid).getValue() == null || 
+				((Long)ret.getValue(fullOid).getValue()) == 0 ){
 				continue;
 			}
 			m_log.debug("Find FileSystem : fullOid = " + fullOid);
@@ -517,17 +511,20 @@ public class SearchNodeBySNMP {
 
 			if(strageType.equals(".1.3.6.1.2.1.25.2.1.4")){
 
-				NodeFilesystemInfo filesystem = new NodeFilesystemInfo();
+				//hrStorageSizeが0のものは除外する。
+				String hrStorageSize = getEntryKey(SearchDeviceProperties.getOidFilesystemSize()+"."+i);
+				Long storageSize = ret.getValue(hrStorageSize) == null ? Long.valueOf(0) : (Long)ret.getValue(hrStorageSize).getValue();
+				if (!verbose && storageSize == 0) {
+					continue;
+				}
+
+				NodeFilesystemInfo filesystem = new NodeFilesystemInfo(facilityId,
+						((Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidFilesystemIndex()+"."+i)).getValue()).intValue(),
+						DeviceTypeConstant.DEVICE_FILESYSTEM,
+						((String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidFilesystemName()+"."+i)).getValue()));
 
 				//表示名
 				filesystem.setDeviceDisplayName(convStringFilessystem(((String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidFilesystemName()+"."+i)).getValue())));
-				//デバイス名
-				filesystem.setDeviceName(((String)ret.getValue(getEntryKey(SearchDeviceProperties.getOidFilesystemName()+"."+i)).getValue()));
-				//デバイスINDEX
-				filesystem.setDeviceIndex(((Long)ret.getValue(getEntryKey(SearchDeviceProperties.getOidFilesystemIndex()+"."+i)).getValue()).intValue());
-				//デバイス種別
-				filesystem.setDeviceType(DeviceTypeConstant.DEVICE_FILESYSTEM);
-
 				deviceCount++;
 				filesystemList.add(filesystem);
 			}
@@ -551,21 +548,17 @@ public class SearchNodeBySNMP {
 		ArrayList<NodeCpuInfo> cpuList = new ArrayList<NodeCpuInfo> ();
 		for(String fullOid : ret.keySet()) {
 			// SearchDeviceProperties.getOidCPU_INDEX=".1.3.6.1.2.1.25.3.3.1.2";
-			if(!fullOid.startsWith(getEntryKey(SearchDeviceProperties.getOidCpuIndex()) + ".")){
-				continue;
-			}
-			if( ret.getValue(fullOid) == null){
+			if(!fullOid.startsWith(getEntryKey(SearchDeviceProperties.getOidCpuIndex()) + ".") ||
+				ret.getValue(fullOid) == null){
 				continue;
 			}
 			m_log.debug("Find Cpu : fullOid = " + fullOid);
 
 			String indexStr = fullOid.replaceFirst(getEntryKey(SearchDeviceProperties.getOidCpuIndex()) + ".","");
 			m_log.debug("cpu fullOid = " + fullOid + ", index = " + indexStr);
-			NodeCpuInfo cpu = new NodeCpuInfo();
+			NodeCpuInfo cpu = new NodeCpuInfo(facilityId, Integer.valueOf(indexStr), DeviceTypeConstant.DEVICE_CPU, indexStr);
 			cpu.setDeviceDisplayName(DeviceTypeConstant.DEVICE_CPU + deviceCount);
-			cpu.setDeviceIndex(Integer.valueOf(indexStr));
 			cpu.setDeviceName(indexStr);
-			cpu.setDeviceType(DeviceTypeConstant.DEVICE_CPU);
 
 			cpuList.add(cpu);
 			deviceCount++;
@@ -707,5 +700,13 @@ public class SearchNodeBySNMP {
 		}
 
 		return ret;
+	}
+	
+	public static String getShortName (String fqdn) {
+		String hostname = fqdn;
+		if(!HinemosPropertyCommon.repository_nodename_fqdn.getBooleanValue() && hostname.indexOf(".") != -1){
+			hostname = hostname.substring(0,hostname.indexOf("."));
+		}
+		return hostname;
 	}
 }

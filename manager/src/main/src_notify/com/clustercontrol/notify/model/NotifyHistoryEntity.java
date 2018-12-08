@@ -1,16 +1,20 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.notify.model;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 
 import javax.persistence.Cacheable;
 import javax.persistence.Column;
 import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
 import javax.persistence.Table;
-
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
 
 
 /**
@@ -23,7 +27,7 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 public class NotifyHistoryEntity implements Serializable {
 	private static final long serialVersionUID = 1L;
 	private NotifyHistoryEntityPK id;
-	private Timestamp lastNotify;
+	private Long lastNotify;
 	private Integer priority;
 
 	@Deprecated
@@ -32,8 +36,6 @@ public class NotifyHistoryEntity implements Serializable {
 
 	public NotifyHistoryEntity(NotifyHistoryEntityPK pk) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
 	}
 
 	public NotifyHistoryEntity(
@@ -60,15 +62,16 @@ public class NotifyHistoryEntity implements Serializable {
 
 
 	@Column(name="last_notify")
-	public Timestamp getLastNotify() {
+	public Long getLastNotify() {
 		return this.lastNotify;
 	}
 
-	public void setLastNotify(Timestamp lastNotify) {
+	public void setLastNotify(Long lastNotify) {
 		this.lastNotify = lastNotify;
 	}
 
 
+	@Column(name="priority")
 	public Integer getPriority() {
 		return this.priority;
 	}

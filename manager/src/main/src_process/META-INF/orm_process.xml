@@ -7,7 +7,7 @@
 	<named-query name="MonitorProcessInfoEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM MonitorProcessInfoEntity a
+				SELECT a FROM ProcessCheckInfo a
 				ORDER BY a.monitorId
 			]]>
 		</query>

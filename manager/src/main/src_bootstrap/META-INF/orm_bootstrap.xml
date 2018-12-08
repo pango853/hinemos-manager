@@ -11,4 +11,12 @@
 			]]>
 		</query>
 	</named-query>
+	<named-query name="DbmsSchedulerEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM DbmsSchedulerEntity a
+				ORDER BY a.id.jobGroup, a.id.jobId
+			]]>
+		</query>
+	</named-query>
 </entity-mappings>

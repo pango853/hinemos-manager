@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.port.factory;
@@ -18,21 +11,21 @@ package com.clustercontrol.port.factory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
 import com.clustercontrol.monitor.run.factory.RunMonitor;
 import com.clustercontrol.monitor.run.factory.RunMonitorNumericValueType;
 import com.clustercontrol.port.bean.PortRunCountConstant;
 import com.clustercontrol.port.bean.PortRunIntervalConstant;
-import com.clustercontrol.port.model.MonitorPortInfoEntity;
+import com.clustercontrol.port.bean.ProtocolConstant;
 import com.clustercontrol.port.model.MonitorProtocolMstEntity;
+import com.clustercontrol.port.model.PortCheckInfo;
 import com.clustercontrol.port.protocol.ReachAddressProtocol;
 import com.clustercontrol.port.util.QueryUtil;
-import com.clustercontrol.repository.bean.NodeInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * port監視クラス
@@ -44,16 +37,8 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 
 	private static Log m_log = LogFactory.getLog( RunMonitorPort.class );
 
-	private static final String MESSAGE_ID_INFO = "001"; // 通知
-
-	private static final String MESSAGE_ID_WARNING = "002"; // 警告
-
-	private static final String MESSAGE_ID_CRITICAL = "003"; // 危険
-
-	private static final String MESSAGE_ID_UNKNOWN = "004"; // 不明
-
 	/** port監視情報 */
-	private MonitorPortInfoEntity m_port = null;
+	private PortCheckInfo m_port = null;
 
 	/** ポート番号 */
 	private int m_portNo;
@@ -98,7 +83,7 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 	 * マルチスレッドを実現するCallableTaskに渡すためのインスタンスを作成するメソッド
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#runMonitorInfo()
-	 * @see com.clustercontrol.monitor.run.util.CallableTask
+	 * @see com.clustercontrol.monitor.run.util.MonitorExecuteTask
 	 */
 	@Override
 	protected RunMonitor createMonitorInstance() {
@@ -141,6 +126,7 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 				m_reachability.setSentInterval(m_runInterval);
 				m_reachability.setTimeout(m_portTimeout);
 			} catch (MonitorNotFound e) {
+				m_log.debug(e.getMessage(), e);
 			} catch (java.lang.ClassNotFoundException e) {
 				m_log.info("collect() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
@@ -151,6 +137,9 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 				m_log.info("collect() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage());
 			}
+
+			if (m_reachability == null)
+				throw new HinemosUnknown("ReachAddressProtocol is null, serviceId : " + m_serviceId);
 		}
 
 		// ノードの属性取得
@@ -165,7 +154,7 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 		m_messageOrg = m_reachability.getMessageOrg();
 		if (result) {
 			m_response = m_reachability.getResponse();
-			m_value = m_response;
+			m_value = (double) m_response;
 		}
 
 		return result;
@@ -180,11 +169,15 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 	protected void setCheckInfo() throws MonitorNotFound {
 
 		// port監視情報を取得
-		m_port = QueryUtil.getMonitorPortInfoPK(m_monitorId);
+		if (!m_isMonitorJob) {
+			m_port = QueryUtil.getMonitorPortInfoPK(m_monitorId);
+		} else {
+			m_port = QueryUtil.getMonitorPortInfoPK(m_monitor.getMonitorId());
+		}
 
 		// port監視情報を設定
-		if (m_port.getPortNumber() != null)
-			m_portNo = m_port.getPortNumber().intValue();
+		if (m_port.getPortNo() != null)
+			m_portNo = m_port.getPortNo().intValue();
 		if (m_port.getRunCount() != null)
 			m_runCount = m_port.getRunCount().intValue();
 		if (m_port.getRunInterval() != null)
@@ -207,25 +200,6 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 	}
 
 	/*
-	 * (非 Javadoc) ノード用メッセージIDを取得
-	 * 
-	 * @see com.clustercontrol.monitor.run.factory.OperationMonitor#getMessageId(int)
-	 */
-	@Override
-	public String getMessageId(int id) {
-
-		if (id == PriorityConstant.TYPE_INFO) {
-			return MESSAGE_ID_INFO;
-		} else if (id == PriorityConstant.TYPE_WARNING) {
-			return MESSAGE_ID_WARNING;
-		} else if (id == PriorityConstant.TYPE_CRITICAL) {
-			return MESSAGE_ID_CRITICAL;
-		} else {
-			return MESSAGE_ID_UNKNOWN;
-		}
-	}
-
-	/*
 	 * (非 Javadoc) ノード用メッセージを取得
 	 * 
 	 * @see com.clustercontrol.monitor.run.factory.OperationMonitor#getMessage(int)
@@ -245,42 +219,45 @@ public class RunMonitorPort extends RunMonitorNumericValueType {
 		return m_messageOrg;
 	}
 
-	/*
-	 * (非 Javadoc) スコープ用メッセージIDを取得
-	 * 
-	 * @see com.clustercontrol.monitor.run.factory.RunMonitor#getMessageIdForScope(int)
-	 */
 	@Override
-	protected String getMessageIdForScope(int priority) {
-
-		if (priority == PriorityConstant.TYPE_INFO) {
-			return MESSAGE_ID_INFO;
-		} else if (priority == PriorityConstant.TYPE_WARNING) {
-			return MESSAGE_ID_WARNING;
-		} else if (priority == PriorityConstant.TYPE_CRITICAL) {
-			return MESSAGE_ID_CRITICAL;
-		} else {
-			return MESSAGE_ID_UNKNOWN;
+	protected String makeJobOrgMessage(String orgMsg, String msg) {
+		if (m_monitor == null || m_monitor.getPortCheckInfo() == null) {
+			return "";
 		}
-	}
-
-	/**
-	 * トランザクションを開始し、引数で指定された監視情報の監視を実行します。
-	 * 
-	 * @param monitorTypeId
-	 *            監視対象ID
-	 * @param monitorId
-	 *            監視項目ID
-	 * @throws MonitorNotFound
-	 * @throws FacilityNotFound
-	 * @throws InvalidRole
-	 * @throws HinemosUnknown
-	 * 
-	 * @see #runMonitorInfo()
-	 */
-	@Override
-	public void run(String monitorTypeId, String monitorId) throws MonitorNotFound, FacilityNotFound, InvalidRole, HinemosUnknown {
-
-		super.run(monitorTypeId, monitorId);
+		String type = m_monitor.getPortCheckInfo().getServiceId();
+		String typeStr = "";
+		if (type.equals(ProtocolConstant.TYPE_PROTOCOL_TCP)) {
+			typeStr = MessageConstant.TCP_CONNECT_ONLY.getMessage();
+		} else {
+			String subTypeStr = "";
+			if (type.equals(ProtocolConstant.TYPE_PROTOCOL_FTP)) {
+				subTypeStr = MessageConstant.PROTOCOL_FTP.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_SMTP)) {
+				subTypeStr = MessageConstant.PROTOCOL_SMTP.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_SMTPS)) {
+				subTypeStr = MessageConstant.PROTOCOL_SMTPS.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_POP3)) {
+				subTypeStr = MessageConstant.PROTOCOL_POP3.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_POP3S)) {
+				subTypeStr = MessageConstant.PROTOCOL_POP3S.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_IMAP)) {
+				subTypeStr = MessageConstant.PROTOCOL_IMAP.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_IMAPS)) {
+				subTypeStr = MessageConstant.PROTOCOL_IMAPS.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_NTP)) {
+				subTypeStr = MessageConstant.PROTOCOL_NTP.getMessage();
+			} else if (type.equals(ProtocolConstant.TYPE_PROTOCOL_DNS)) {
+				subTypeStr = MessageConstant.PROTOCOL_DNS.getMessage();
+			}
+			typeStr = MessageConstant.SERVICE_PROTOCOL.getMessage(new String[]{subTypeStr});
+		}
+		String[] args = {
+				typeStr,
+				String.valueOf(m_monitor.getPortCheckInfo().getPortNo()),
+				String.valueOf(m_monitor.getPortCheckInfo().getRunCount()),
+				String.valueOf(m_monitor.getPortCheckInfo().getRunInterval()),
+				String.valueOf(m_monitor.getPortCheckInfo().getTimeout())};
+		return MessageConstant.MESSAGE_JOB_MONITOR_ORGMSG_PORT.getMessage(args)
+				+ "\n" + orgMsg;
 	}
 }

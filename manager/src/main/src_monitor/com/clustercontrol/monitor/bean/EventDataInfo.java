@@ -1,17 +1,11 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.monitor.bean;
 
 import java.io.Serializable;
@@ -30,13 +24,14 @@ public class EventDataInfo implements Serializable {
 	private Integer priority = null;			//重要度
 	private Long outputDate = null;				//受信日時
 	private Long generationDate = null;			//出力日時
+	private Long predictGenerationDate = null;	//将来予測出力日時(性能グラフで使用)
 	private String pluginId = null;				//プラグインID
 	private String monitorId = null;			//監視項目ID
 	private String monitorDetailId = null;			//監視詳細
+	private String parentMonitorDetailId = null;	//変化量、将来予測の親の監視詳細(性能グラフで使用)
 	private String facilityId = null;			//ファシリティID
 	private String scopeText = null;			//スコープ
 	private String application = null;			//アプリケーション
-	private String messageId = null;			//メッセージID
 	private String message = null;				//メッセージ
 	private String messageOrg = null;			//オリジナルメッセージ
 	private Integer confirmed = null;			//確認
@@ -46,6 +41,7 @@ public class EventDataInfo implements Serializable {
 	private String comment = null;				//コメント
 	private Long commentDate = null;			//コメント確認日時
 	private String commentUser = null;			//コメント確認ユーザ
+	private Boolean collectGraphFlg = null;	//蓄積グラフ用フラグ
 	private String ownerRoleId = null;			//オーナーロールID
 	private String managerName = null;			//マネージャ名
 
@@ -74,6 +70,12 @@ public class EventDataInfo implements Serializable {
 	public Long getGenerationDate() {
 		return generationDate;
 	}
+	public void setPredictGenerationDate(Long predictGenerationDate) {
+		this.predictGenerationDate = predictGenerationDate;
+	}
+	public Long getPredictGenerationDate() {
+		return predictGenerationDate;
+	}
 	public void setPluginId(String pluginId) {
 		this.pluginId = pluginId;
 	}
@@ -92,6 +94,12 @@ public class EventDataInfo implements Serializable {
 	public void setMonitorDetailId(String monitorDetailId) {
 		this.monitorDetailId = monitorDetailId;
 	}
+	public String getParentMonitorDetailId() {
+		return parentMonitorDetailId;
+	}
+	public void setParentMonitorDetailId(String parentMonitorDetailId) {
+		this.parentMonitorDetailId = parentMonitorDetailId;
+	}
 	public void setFacilityId(String facilityId) {
 		this.facilityId = facilityId;
 	}
@@ -109,12 +117,6 @@ public class EventDataInfo implements Serializable {
 	}
 	public String getApplication() {
 		return application;
-	}
-	public void setMessageId(String messageId) {
-		this.messageId = messageId;
-	}
-	public String getMessageId() {
-		return messageId;
 	}
 	public void setMessage(String message) {
 		this.message = message;
@@ -169,6 +171,12 @@ public class EventDataInfo implements Serializable {
 	}
 	public String getCommentUser(){
 		return commentUser;
+	}
+	public void setCollectGraphFlg(Boolean collectGraphFlg) {
+		this.collectGraphFlg = collectGraphFlg;
+	}
+	public Boolean getCollectGraphFlg() {
+		return collectGraphFlg;
 	}
 	public String getOwnerRoleId() {
 		return ownerRoleId;

@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2006 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.performance.util.code;
@@ -29,7 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.YesNoConstant;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
@@ -40,13 +32,13 @@ import com.clustercontrol.performance.monitor.entity.CollectorCategoryMstData;
 import com.clustercontrol.performance.monitor.entity.CollectorItemCodeMstData;
 import com.clustercontrol.performance.monitor.model.CollectorCategoryCollectMstEntity;
 import com.clustercontrol.performance.monitor.model.CollectorItemCalcMethodMstEntity;
+import com.clustercontrol.performance.monitor.util.QueryUtil;
 import com.clustercontrol.performance.util.CollectorMasterCache;
 import com.clustercontrol.performance.util.PollingDataManager;
-import com.clustercontrol.performance.monitor.util.QueryUtil;
-import com.clustercontrol.repository.bean.NodeDeviceInfo;
-import com.clustercontrol.repository.bean.NodeInfo;
 import com.clustercontrol.repository.factory.FacilitySelector;
 import com.clustercontrol.repository.factory.NodeProperty;
+import com.clustercontrol.repository.model.NodeDeviceInfo;
+import com.clustercontrol.repository.model.NodeInfo;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
 
 /**
@@ -75,24 +67,21 @@ public class CollectorItemCodeTable {
 			HashMap<String, CollectorItemTreeItem> categoryTable =
 					new HashMap<String, CollectorItemTreeItem>();
 
-			// カテゴリ情報の読み込み
-			Collection<CollectorCategoryMstData> cate = null;
 			try {
-				cate = new OperateCollectCategoryMaster().findAll();
+				// カテゴリ情報の読み込み
+				Collection<CollectorCategoryMstData> cate = new OperateCollectCategoryMaster().findAll();
+				
+				for(CollectorCategoryMstData category : cate) {
+					CollectorItemTreeItem categoryItem =
+							new CollectorItemTreeItem(null, null, category, null, null);  // 親の要素はないためnull
+
+					// カテゴリコードにマッピングするようにカテゴリ情報を登録
+					categoryTable.put(category.getCategoryCode(), categoryItem);
+				}
 			} catch (Exception e) {
 				m_log.warn("static() : "
 						+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 			}
-
-			for(CollectorCategoryMstData category : cate) {
-				CollectorItemTreeItem categoryItem =
-						new CollectorItemTreeItem(null, null, category, null, null);  // 親の要素はないためnull
-
-				// カテゴリコードにマッピングするようにカテゴリ情報を登録
-				categoryTable.put(category.getCategoryCode(), categoryItem);
-			}
-
-
 
 			try {
 				// 収集項目コードの読み込み
@@ -106,8 +95,8 @@ public class CollectorItemCodeTable {
 						continue;
 					}
 
-					if(itemCode != null && codeData.getCategoryCode() != null
-							&& codeData.getDeviceSupport() != null && codeData.getGraphRange() != null){
+					if(codeData.getCategoryCode() != null
+							&& codeData.isDeviceSupport() != null && codeData.isGraphRange() != null){
 
 						// カテゴリ名を調べます
 						CollectorItemTreeItem categoryTreeItem = categoryTable.get(codeData.getCategoryCode());
@@ -115,7 +104,7 @@ public class CollectorItemCodeTable {
 						// 親のオブジェクトを取得（存在しない場合はnull）
 						CollectorItemTreeItem parentItem = null;
 						if (codeData.getParentItemCode() != null) {
-							m_codeTable.get(codeData.getParentItemCode());
+							parentItem = m_codeTable.get(codeData.getParentItemCode());
 						}
 
 						// 親のコードが存在しない場合はカテゴリの直下の要素とする
@@ -161,42 +150,38 @@ public class CollectorItemCodeTable {
 		}
 
 		@Override
-		public boolean equals(Object other) {
-			if (other instanceof PlatformIdAndSubPlatformId) {
-				PlatformIdAndSubPlatformId info = (PlatformIdAndSubPlatformId)other;
-
-				if (this.m_platformId == null && this.m_subPlatformId == null){
-					if (info.m_platformId == null && info.m_subPlatformId == null){
-						return true;
-					}
-				} else if (this.m_platformId == null && this.m_subPlatformId != null){
-					if (info.m_platformId == null && this.m_subPlatformId.equals(info.m_subPlatformId)){
-						return true;
-					}
-				} else if (this.m_platformId != null && this.m_subPlatformId == null){
-					if (this.m_platformId.equals(info.m_platformId) && info.m_subPlatformId == null){
-						return true;
-					}
-				} else {
-					if (this.m_platformId.equals(info.m_platformId)){
-						return this.m_subPlatformId.equals(info.m_subPlatformId);
-					}
-				}
-				return false;
-			} else {
-				return false;
-			}
+		public int hashCode() {
+			final int prime = 31;
+			int result = 1;
+			result = prime * result
+					+ ((m_platformId == null) ? 0 : m_platformId.hashCode());
+			result = prime
+					* result
+					+ ((m_subPlatformId == null) ? 0 : m_subPlatformId
+							.hashCode());
+			return result;
 		}
 
 		@Override
-		public int hashCode() {
-			int result = 17;
-
-			result = 37 * result + ((this.m_platformId != null) ? this.m_platformId.hashCode() : 0);
-
-			result = 37 * result + ((this.m_subPlatformId != null) ? this.m_subPlatformId.hashCode() : 0);
-
-			return result;
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			PlatformIdAndSubPlatformId other = (PlatformIdAndSubPlatformId) obj;
+			if (m_platformId == null) {
+				if (other.m_platformId != null)
+					return false;
+			} else if (!m_platformId.equals(other.m_platformId))
+				return false;
+			if (m_subPlatformId == null) {
+				if (other.m_subPlatformId != null)
+					return false;
+			} else if (!m_subPlatformId.equals(other.m_subPlatformId))
+				return false;
+			return true;
 		}
 	}
 
@@ -321,6 +306,11 @@ public class CollectorItemCodeTable {
 					try {
 						m_log.debug("getEnableCodeSet() search itemCode = " + calcBean.getId().getItemCode());
 						codeBean = CollectorMasterCache.getCategoryCodeMst(calcBean.getId().getItemCode());
+						if (codeBean == null) {
+							// ここは通らないはず
+							m_log.warn("getEnableCodeSet() codeBean is null. id = " + calcBean.getId());
+							return null;
+						}
 					} catch (Exception e) {
 						m_log.warn("getEnableCodeSet() : "
 								+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
@@ -338,9 +328,9 @@ public class CollectorItemCodeTable {
 								codeBean.getParentItemCode(),
 								codeBean.getItemName(),
 								codeBean.getMeasure(),
-								codeBean.getDeviceSupport(),
+								codeBean.isDeviceSupport(),
 								codeBean.getDeviceType(),
-								codeBean.getGraphRange()
+								codeBean.isGraphRange()
 								);
 						m_log.debug("getEnableCodeSet() add itemCode = " + calcBean.getId().getItemCode());
 						enableItemCodeSetByPlatform.add(codeData);
@@ -361,7 +351,9 @@ public class CollectorItemCodeTable {
 			}
 
 		} catch (FacilityNotFound e) {
+			m_log.debug("getEnableCodeSet " + facilityId);
 		} catch (HinemosUnknown e) {
+			throw e;
 		} catch (Exception e) {
 			m_log.warn("getEnableCodeSet() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
@@ -402,13 +394,12 @@ public class CollectorItemCodeTable {
 		List<CollectorItemInfo> list = new ArrayList<CollectorItemInfo>();
 
 		for(CollectorItemCodeMstData itemCode : itemCodeSet){
-			m_log.debug("getAvailableCollectorItemList() facilityId = " + facilityId + ", itemCode = " + itemCode.getItemCode() + ", deviceSupport = " + itemCode.getDeviceSupport().intValue());
+			m_log.debug("getAvailableCollectorItemList() facilityId = " + facilityId + ", itemCode = " + itemCode.getItemCode() + ", deviceSupport = " + itemCode.isDeviceSupport().booleanValue());
 
 			CollectorItemInfo itemInfo = null;
 
-			switch (itemCode.getDeviceSupport().intValue()) {
-			//デバイスサポートあり
-			case YesNoConstant.TYPE_YES:
+			if (itemCode.isDeviceSupport().booleanValue()) {
+				//デバイスサポートあり
 				for(NodeDeviceInfo deviceInfo : deviceSet){
 					if(itemCode.getDeviceType() != null && itemCode.getDeviceType().equals(deviceInfo.getDeviceType())){
 						itemInfo = new CollectorItemInfo(null, itemCode.getItemCode(), deviceInfo.getDeviceDisplayName());//collectorId is null
@@ -422,19 +413,13 @@ public class CollectorItemCodeTable {
 				m_log.debug("getAvailableCollectorItemList() facilityId = " + facilityId + ", itemCode = " + itemCode.getItemCode() + ", deviceDisplayName = " + PollingDataManager.ALL_DEVICE_NAME);
 				itemInfo = new CollectorItemInfo(null, itemCode.getItemCode(), PollingDataManager.ALL_DEVICE_NAME);//collectorId is null
 				list.add(itemInfo);
-
-				break;
-
+			
+			} else {
 				//デバイスサポートなし
-			case YesNoConstant.TYPE_NO:
 				itemInfo = new CollectorItemInfo(null, itemCode.getItemCode(), "");//collectorId is null
 
 				m_log.debug("getAvailableCollectorItemList() facilityId = " + facilityId + ", itemCode = " + itemCode.getItemCode());
 				list.add(itemInfo);
-				break;
-
-			default:
-				break;
 			}
 		}
 
@@ -534,7 +519,7 @@ public class CollectorItemCodeTable {
 		try {
 			CollectorItemCodeMstData bean = CollectorMasterCache.getCategoryCodeMst(itemCode);
 			String itemName = bean.getItemName();
-			if(bean.getDeviceSupport().intValue() == YesNoConstant.TYPE_YES){
+			if(bean.isDeviceSupport().booleanValue()){
 				itemName = itemName + "[" + displayName + "]";
 			}
 

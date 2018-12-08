@@ -1,17 +1,11 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be
- useful, but WITHOUT ANY WARRANTY; without even the implied
- warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.infra.util;
 
 import java.io.File;
@@ -22,19 +16,19 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.Hashtable;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.HinemosUnknown;
-import com.clustercontrol.infra.bean.CommandModuleInfo;
-import com.clustercontrol.infra.bean.FileTransferModuleInfo;
 import com.clustercontrol.infra.bean.ModuleNodeResult;
 import com.clustercontrol.infra.bean.OkNgConstant;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.infra.model.CommandModuleInfo;
+import com.clustercontrol.infra.model.FileTransferModuleInfo;
+import com.clustercontrol.util.HinemosTime;
 import com.clustercontrol.util.XMLUtil;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.JSch;
@@ -44,7 +38,7 @@ import com.jcraft.jsch.Session;
 /**
  * Jsch 関連のユーティリティクラス
  *
- * @version 5.0.0
+ * @version 6.0.1
  * @since 5.0.0
  */
 public class JschUtil {
@@ -115,8 +109,8 @@ public class JschUtil {
 			
 			String err = "err=" + new String(getByteArray(channel, errIn, maxSize, timeout)).trim();
 			
-			String msg = String.format("command=%s\n", command);
-			msg = msg + String.format("exitCode=%d\n", channel.getExitStatus());
+			String msg = String.format("command=%s%n", command);
+			msg = msg + String.format("exitCode=%d%n", channel.getExitStatus());
 			msg = msg + std.substring(0, Math.min(std.length(), (maxSize - msg.length() - 1) - Math.min((maxSize - msg.length() - 1) / 2, err.length()))) + "\n";
 			msg = msg + err.substring(0, Math.min(err.length(), (maxSize - msg.length() - 1) / 2));
 
@@ -146,7 +140,7 @@ public class JschUtil {
 		byte [] buffer = new byte[maxSize];
 		boolean loop = true;
 		
-		long start  = System.currentTimeMillis();
+		long start  = HinemosTime.currentTimeMillis();
 		while (loop) {
 			while(in.available() > 0 && pos < maxSize) {
 				int len = in.read(buffer, pos, maxSize - pos);
@@ -155,7 +149,7 @@ public class JschUtil {
 					break;
 				}
 				pos += len;
-				start  = System.currentTimeMillis();
+				start  = HinemosTime.currentTimeMillis();
 			}
 			
 			if (pos >= maxSize) {
@@ -165,7 +159,7 @@ public class JschUtil {
 					loop = false;
 				}
 			} else {
-				if ((System.currentTimeMillis() - start) > timeout)
+				if ((HinemosTime.currentTimeMillis() - start) > timeout)
 					throw new HinemosUnknown("Jsch command is spent too much time.");
 					
 				try { Thread.sleep(500); } catch (Exception ee) {}
@@ -208,8 +202,18 @@ public class JschUtil {
 			}
 			session.connect(timeout);
 		
+			/**
+			 * ここのsrcFilePathには、File.separatorを使用しないこと。
+			 * 
+			 * File.separatorは、javaが実行されるプラットフォームの情報から選別される。
+			 * 環境構築機能はマネージャのプラットフォームで実行されるため、
+			 * 宛先のパスにFileTransferModuleInfo.SEPARATOR(File.separator)を
+			 * 使用してしまうと不適正なセパレータが使用されてしまう場合がある。
+			 * 例えば、マネージャのプラットフォームがWindowsで、対象サーバがLinuxの場合、
+			 * Linux用のファイルセパレータを指定したいのに、Windowsのセパレータである「\」を指定してしまう。
+			 */
 			// exec 'scp -f rfile' remotely
-			String srcFilePath = srcDir + FileTransferModuleInfo.SEPARATOR + srcFilename;
+			String srcFilePath = srcDir + "/" + srcFilename;
 			String command = "scp -f " + srcFilePath;
 			channel = (ChannelExec)session.openChannel("exec");
 			channel.setCommand(command);
@@ -227,13 +231,16 @@ public class JschUtil {
 			out.write(buf, 0, 1);
 			out.flush();
 			
+			String header = "C0644";
+			
 			while(true){
 				ModuleNodeResult ack = checkAck(channel, in, timeout);
 				if (ack.getStatusCode() != 'C') {
 					return ack;
 				}
 				// read "C0644 "
-				in.read(buf, 0, 5);
+				if (in.read(buf, 0, header.length()) != header.length())
+					return new ModuleNodeResult(OkNgConstant.TYPE_NG, -1, "don't read \"C0644\"");
 		
 				long filesize = 0L;
 				while(true){
@@ -248,7 +255,9 @@ public class JschUtil {
 				}
 
 				for (int i = 0;; i++) {
-					in.read(buf, i, 1);
+					if (in.read(buf, i, 1) != 1)
+						return new ModuleNodeResult(OkNgConstant.TYPE_NG, -1, "read error");
+						
 					if (buf[i] == (byte) 0x0a) {
 						break;
 					}
@@ -356,15 +365,24 @@ public class JschUtil {
 				session.setPassword(password);
 			}
 			session.connect(timeout);
-			
-			String dstFilePath = dstDir + FileTransferModuleInfo.SEPARATOR + dstFilename;
+			/**
+			 * ここのdstFilePathには、File.separatorを使用しないこと。
+			 * 
+			 * File.separatorは、javaが実行されるプラットフォームの情報から選別される。
+			 * 環境構築機能はマネージャのプラットフォームで実行されるため、
+			 * 宛先のパスにFileTransferModuleInfo.SEPARATOR(File.separator)を
+			 * 使用してしまうと不適正なセパレータが使用されてしまう場合がある。
+			 * 例えば、マネージャのプラットフォームがWindowsで、対象サーバがLinuxの場合、
+			 * Linux用のファイルセパレータを指定したいのに、Windowsのセパレータである「\」を指定してしまう。
+			 */
+			String dstFilePath = dstDir + "/" + dstFilename;
 
 			if (isBackupIfExistFlg) {
 				// ファイルが存在する場合は、
 				ModuleNodeResult result = execCommand2(session, "test -e %s", timeout, dstFilePath);
 				// mvコマンドで複製する
 				if (result.getResult() == OkNgConstant.TYPE_OK) {
-					Calendar now = Calendar.getInstance(); 
+					Calendar now = HinemosTime.getCalendarInstance(); 
 					result = execCommand2(
 							session,
 							"mv %s %s.%04d%02d%02d%02d%02d%02d",
@@ -398,7 +416,7 @@ public class JschUtil {
 				return ack;
 			}
 			// send "C0644 filesize filename", where filename should not include '/'
-			String C0644 = String.format("C0644 %d %s\n", srcFile.length(), srcFile.getName());
+			String C0644 = String.format("C0644 %d %s%n", srcFile.length(), srcFile.getName());
 			out.write(C0644.getBytes());
 			out.flush();
 			ack = checkAck(channel, in, timeout);
@@ -493,9 +511,18 @@ public class JschUtil {
 			srcFis = new FileInputStream(srcFile);
 			String srcMd5 = DigestUtils.md5Hex(srcFis);
 			m_log.debug("srcMd5: " + srcMd5);
-			
-			String dstFilePath = dstDir + FileTransferModuleInfo.SEPARATOR + dstFilename;
-			String md5command = HinemosPropertyUtil.getHinemosPropertyStr("infra.command.md5", "md5sum \"%s\" | awk '{print $1}'");
+			/**
+			 * ここのdstFilePathには、File.separatorを使用しないこと。
+			 * 
+			 * File.separatorは、javaが実行されるプラットフォームの情報から選別される。
+			 * 環境構築機能はマネージャのプラットフォームで実行されるため、
+			 * 宛先のパスにFileTransferModuleInfo.SEPARATOR(File.separator)を
+			 * 使用してしまうと不適正なセパレータが使用されてしまう場合がある。
+			 * 例えば、マネージャのプラットフォームがWindowsで、対象サーバがLinuxの場合、
+			 * Linux用のファイルセパレータを指定したいのに、Windowsのセパレータである「\」を指定してしまう。
+			 */
+			String dstFilePath = dstDir + "/" + dstFilename;
+			String md5command = HinemosPropertyCommon.infra_command_md5.getStringValue();
 			String dstMd5 = execCommandWithStdOut(session, String.format(md5command, dstFilePath), timeout);
 			m_log.debug("dstMd5: " + dstMd5);
 			
@@ -522,6 +549,9 @@ public class JschUtil {
 					srcFis.close();
 				} catch (IOException e) {
 				}
+			}
+			if (session != null) {
+				session.disconnect();
 			}
 		}
 		
@@ -552,7 +582,7 @@ public class JschUtil {
 		} else {
 			// エラーの場合は切断する
 			channel.disconnect();
-			String message = String.format("exitCode=%d\nerr = %s", ret,
+			String message = String.format("exitCode=%d%nerr = %s", ret,
 					new String(JschUtil.getByteArray(channel, in, BUFF_SIZE, timeout)));
 			m_log.warn("checkAck : " + message);
 			return new ModuleNodeResult(OkNgConstant.TYPE_NG, ret, message);
@@ -571,39 +601,39 @@ public class JschUtil {
 		int timeout = 5 * 1000;
 		
 		// コマンド実行
-		System.out.println(new Date() + " === exec command ===");
+		System.out.println(HinemosTime.getDateString() + " === exec command ===");
 		result = execCommand(user, pass, host, port, timeout, "hostname", CommandModuleInfo.MESSAGE_SIZE, keypath, passphrase);
-		System.out.println(new Date() + " result, ok/ng=" + (result.getResult() == OkNgConstant.TYPE_OK ? "OK" : "NG") +  
+		System.out.println(HinemosTime.getDateString() + " result, ok/ng=" + (result.getResult() == OkNgConstant.TYPE_OK ? "OK" : "NG") +  
 				", message=" + result.getMessage());
 		
 		// ファイル配布
-		System.out.println(new Date() + " === send file ===");
+		System.out.println(HinemosTime.getDateString() + " === send file ===");
 		String remoteFilename = orgFilename + ".remoteaaa";
 		result = sendFile(user, pass, host, port, timeout, ".", orgFilename, ".", remoteFilename, "hinemos", "0644", true, keypath, passphrase);
-		System.out.println(new Date() + " result, ok/ng=" + (result.getResult() == OkNgConstant.TYPE_OK ? "OK" : "NG") +  
+		System.out.println(HinemosTime.getDateString() + " result, ok/ng=" + (result.getResult() == OkNgConstant.TYPE_OK ? "OK" : "NG") +  
 				", message=" + result.getMessage());
 		
 		// ファイル受信
-		System.out.println(new Date() + " === receive file ===");
+		System.out.println(HinemosTime.getDateString() + " === receive file ===");
 		String localFilename = orgFilename + ".local";
 		result = recvFile(user, pass, host, port, timeout, ".", remoteFilename, ".", localFilename, "hinemos", "0644", keypath, passphrase);
-		System.out.println(new Date() + " result, ok/ng=" + (result.getResult() == OkNgConstant.TYPE_OK ? "OK" : "NG") +  
+		System.out.println(HinemosTime.getDateString() + " result, ok/ng=" + (result.getResult() == OkNgConstant.TYPE_OK ? "OK" : "NG") +  
 				", message=" + result.getMessage());
 		
 		// ファイルサイズとMD5Sumのチェック
-		System.out.println(new Date() + " === compare ===");
+		System.out.println(HinemosTime.getDateString() + " === compare ===");
 		long orgFilesize = new File(orgFilename).length();
 		long newfilesize = new File(localFilename).length();
 		if (orgFilesize == newfilesize) {
 			String orgCheckSum = FileTransferModuleInfo.getCheckSum(orgFilename);
 			String newCheckSum = FileTransferModuleInfo.getCheckSum(localFilename);
 			if (orgCheckSum.equals(newCheckSum)) {
-				System.out.println(new Date() + " result, ok/ng=OK, size=" + orgFilesize);
+				System.out.println(HinemosTime.getDateString() + " result, ok/ng=OK, size=" + orgFilesize);
 			} else {
-				System.out.println(new Date() + " result, ok/ng=NG, org.checksum=" + orgCheckSum + ", new.checksum=" + newCheckSum);
+				System.out.println(HinemosTime.getDateString() + " result, ok/ng=NG, org.checksum=" + orgCheckSum + ", new.checksum=" + newCheckSum);
 			}
 		} else {
-			System.out.println(new Date() + " result, ok/ng=NG, org.size=" + orgFilesize + ", new.size=" + newfilesize);
+			System.out.println(HinemosTime.getDateString() + " result, ok/ng=NG, org.size=" + orgFilesize + ", new.size=" + newfilesize);
 		}
 	}
 }

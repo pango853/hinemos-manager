@@ -1,17 +1,11 @@
 /*
-
-Copyright (C) 2014 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.mbean;
 
 import com.clustercontrol.fault.HinemosUnknown;
@@ -23,18 +17,6 @@ public interface ManagerMXBean {
 	 * @return エージェントの管理情報文字列
 	 */
 	public String getValidAgentStr();
-
-	/**
-	 * Pollerの管理情報を文字列で返す。<br/>
-	 * @return Pollerの管理情報文字列
-	 */
-	public String getPollerInfoStr();
-
-	/**
-	 * SharedTableの管理情報を文字列で返す。<br/>
-	 * @return SharedTableの管理情報文字列
-	 */
-	public String getSharedTableInfoStr();
 
 	/**
 	 * 管理しているスケジューラ情報を文字列で返す。
@@ -75,13 +57,18 @@ public interface ManagerMXBean {
 	 */
 	public String resetNotificationLogger() throws HinemosUnknown;
 
-
 	/**
 	 * ジョブ多重度のキューの状態を出力する。
 	 * @return
 	 */
 	public String getJobQueueStr();
-	
+
+	/**
+	 * DBコネクションのプール情報を文字列で返す。<br/>
+	 * @return DBコネクションのプール情報文字列
+	 */
+	public String getDBConnectionPoolInfoStr();
+
 	/**
 	 * 実行中のジョブセッションレコード数を取得
 	 * @return 実行中のジョブセッションレコード数
@@ -92,27 +79,44 @@ public interface ManagerMXBean {
 	 * snmptrapの処理待ち数を取得
 	 * @return snmptrapの処理待ち数
 	 */
-	public int getSnmpTrapQueueSize();
+	public int getSnmpTrapQueueCount();
 	
 	/**
 	 * syslogの処理待ち数を取得
 	 * @return syslogの処理待ち数
 	 */
-	public int getSyslogQueueSize();
+	public int getSyslogQueueCount();
 	
 	/**
 	 * WSのQueueサイズを取得
 	 * @return WSのQueueサイズ
 	 */
-	public int getWebServiceQueueSize();
+	public int getWebServiceQueueCount();
+	
+	/**
+	 * WS(ForAgent)のQueueサイズを取得
+	 * @return WSのQueueサイズ
+	 */
+	public int getWebServiceForAgentQueueCount();
+	
+	/**
+	 * WS(ForAgentHub)のQueueサイズを取得
+	 * @return WSのQueueサイズ
+	 */
+	public int getWebServiceForAgentHubQueueCount();
+
+	/**
+	 * WS(ForAgentBinary)のQueueサイズを取得
+	 * 
+	 * @return WSのQueueサイズ
+	 */
+	public int getWebServiceForAgentBinaryQueueCount();
 	
 	/**
 	 * テーブルの物理サイズ（Byte）を取得
-	 * @param tableName テーブル名
-	 *  
 	 * @return テーブルの物理サイズ（Byte）
 	 */
-	public long getTablePhysicalSize(String tableName);
+	public TablePhysicalSizes getTablePhysicalSize();
 	
 	/**
 	 * テーブルのレコード数を取得
@@ -136,4 +140,56 @@ public interface ManagerMXBean {
 	 * リポジトリのキャッシュ情報をリフレッシュする
 	 */
 	public void refreshFacilityTreeCache();
+
+	/**
+	 * データベースのコネクション数を返す</br>
+	 * 
+	 * @return データベースのコネクション数
+	 */
+	public int getDBConnectionCount();
+	
+	/**
+	 * 非同期タスクの蓄積数を返す。<br/>
+	 * 
+	 * @return 非同期タスクの蓄積数
+	 * @throws HinemosUnknown
+	 */
+	public AsyncTaskQueueCounts getAsyncTaskQueueCount() throws HinemosUnknown;
+
+	/**
+	 * データベースのロングトランザクションを返す。<br/>
+	 * 
+	 * @return 最も時間のかかっているクエリーの時間
+	 */
+	public double getDBLongTransactionTime();
+
+	/**
+	 * 利用可能なヒープ容量をMByte単位で取得する。<br/>
+	 * 
+	 * @return 利用可能なヒープ容量
+	 */
+	public int getJVMHeapSize();
+
+	/**
+	 * スケジューラ情報の遅延時間を返す。<br/>
+	 * 
+	 * @return 指定したスケジューラ種別の最も遅延している時間
+	 * @throws HinemosUnknown
+	 */
+	public SchedulerDelayTimes getSchedulerDelayTime() throws HinemosUnknown;
+	/*
+	public void startHinemosSchedulerTest();
+	public void startHinemosSchedulerStressTest();
+	public void stopHinemosSchedulerTest();
+	*/
+	
+	/**
+	 * ノードのキャッシュ情報を初期化する
+	 */
+	public void initNodeCache();
+	
+	/**
+	 * ジョブのキャッシュ情報を初期化する
+	 */
+	public void initJobCache();
 }

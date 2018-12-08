@@ -1,25 +1,19 @@
 /*
-
-Copyright (C) 2013 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 
 import javax.xml.bind.annotation.XmlType;
 
-import com.clustercontrol.calendar.bean.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarInfo;
 
 
 /**
@@ -34,7 +28,7 @@ public class JobKick implements Serializable {
 
 	/**
 	 * 実行契機種別
-	 * スケジュール or ファイルチェック*/
+	 */
 	protected int m_type;
 
 	/** 実行契機ID */
@@ -52,12 +46,6 @@ public class JobKick implements Serializable {
 	/** ジョブユニットID */
 	private String m_jobunitId;
 
-	/** カレンダID */
-	private String m_calendarId;
-
-	/** カレンダ(エージェントに渡すとき以外はnull) */
-	private CalendarInfo m_calendarInfo;
-
 	/** オーナーロールID */
 	private String m_ownerRoleId;
 
@@ -74,7 +62,20 @@ public class JobKick implements Serializable {
 	private Long m_updateTime;
 
 	/** 有効/無効 */
-	private Integer m_valid = new Integer(0);
+	private Boolean m_valid = false;
+
+	/** カレンダID */
+	private String m_calendarId;
+
+	/** カレンダ(エージェントに渡すとき以外はnull) */
+	private CalendarInfo m_calendarInfo;
+
+	/** ランタイムジョブ変数情報 */
+	private ArrayList<JobRuntimeParam> m_jobRuntimeParamList;
+
+	public JobKick() {
+		this.m_type = JobKickConstant.TYPE_MANUAL;
+	}
 
 	/**
 	 * 実行契機種別を返す<BR>
@@ -158,50 +159,17 @@ public class JobKick implements Serializable {
 	/**
 	 * 有効/無効を返す<BR>
 	 * @return 有効/無効
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public Integer getValid() {
+	public Boolean isValid() {
 		return m_valid;
 	}
 
 	/**
 	 * 有効/無効を設定する<BR>
 	 * @param valid 有効/無効
-	 * @see com.clustercontrol.bean.YesNoConstant
 	 */
-	public void setValid(Integer valid) {
+	public void setValid(Boolean valid) {
 		this.m_valid = valid;
-	}
-
-	/**
-	 * 作成日時を返す<BR>
-	 * @return 作成日時
-	 */
-	public Long getCreateTime() {
-		return m_createTime;
-	}
-
-	/**
-	 * 作成日時を設定する<BR>
-	 * @param createTime 作成日時
-	 */
-	public void setCreateTime(Long createTime) {
-		this.m_createTime = createTime;
-	}
-	/**
-	 * 最新更新日時を返す<BR>
-	 * @return 最新更新日時
-	 */
-	public Long getUpdateTime() {
-		return m_updateTime;
-	}
-
-	/**
-	 * 最新更新日時を設定する<BR>
-	 * @param updateTime 最新更新日時
-	 */
-	public void setUpdateTime(Long updateTime) {
-		this.m_updateTime = updateTime;
 	}
 
 	/**
@@ -234,6 +202,37 @@ public class JobKick implements Serializable {
 	 */
 	public void setCalendarInfo(CalendarInfo calendarInfo) {
 		this.m_calendarInfo = calendarInfo;
+	}
+
+	/**
+	 * 作成日時を返す<BR>
+	 * @return 作成日時
+	 */
+	public Long getCreateTime() {
+		return m_createTime;
+	}
+
+	/**
+	 * 作成日時を設定する<BR>
+	 * @param createTime 作成日時
+	 */
+	public void setCreateTime(Long createTime) {
+		this.m_createTime = createTime;
+	}
+	/**
+	 * 最新更新日時を返す<BR>
+	 * @return 最新更新日時
+	 */
+	public Long getUpdateTime() {
+		return m_updateTime;
+	}
+
+	/**
+	 * 最新更新日時を設定する<BR>
+	 * @param updateTime 最新更新日時
+	 */
+	public void setUpdateTime(Long updateTime) {
+		this.m_updateTime = updateTime;
 	}
 
 	/**
@@ -298,5 +297,13 @@ public class JobKick implements Serializable {
 	 */
 	public void setOwnerRoleId(String ownerRoleId) {
 		this.m_ownerRoleId = ownerRoleId;
+	}
+
+	public ArrayList<JobRuntimeParam> getJobRuntimeParamList() {
+		return m_jobRuntimeParamList;
+	}
+
+	public void setJobRuntimeParamList(ArrayList<JobRuntimeParam> jobRuntimeParamList) {
+		this.m_jobRuntimeParamList = jobRuntimeParamList;
 	}
 }

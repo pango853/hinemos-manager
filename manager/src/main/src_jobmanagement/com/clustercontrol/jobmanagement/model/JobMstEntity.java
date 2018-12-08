@@ -1,6 +1,13 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.jobmanagement.model;
 
-import java.sql.Timestamp;
 import java.util.List;
 
 import javax.persistence.AttributeOverride;
@@ -14,13 +21,8 @@ import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
 import com.clustercontrol.accesscontrol.annotation.HinemosObjectPrivilege;
-import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.ObjectPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.RoleIdConstant;
-import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetEntity;
+import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.commons.util.HinemosEntityManager;
-import com.clustercontrol.commons.util.JpaTransactionManager;
-import com.clustercontrol.jobmanagement.bean.JobConstant;
 
 
 
@@ -36,77 +38,91 @@ import com.clustercontrol.jobmanagement.bean.JobConstant;
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="jobunit_id", insertable=false, updatable=false))
-public class JobMstEntity extends ObjectPrivilegeTargetEntity {
+public class JobMstEntity extends ObjectPrivilegeTargetInfo {
 	private static final long serialVersionUID = 1L;
 	private JobMstEntityPK id;
 	private String description;
 	private String jobName;
 	private Integer jobType;
-	private Timestamp regDate;
+	private Long regDate;
 	private String regUser;
-	private Timestamp updateDate;
+	private Long updateDate;
 	private String updateUser;
+	private Boolean registeredModule;
 	// cc_job_command_mst
 	private String argument;
 	private String argumentJobId;
-	private Integer specifyUser;
+	private Boolean specifyUser;
 	private String effectiveUser;
-	private Integer messageRetryEndFlg;
+	private Boolean messageRetryEndFlg;
 	private Integer messageRetryEndValue;
-	private Integer commandRetryFlg;
+	private Boolean commandRetryFlg;
+	private Integer commandRetryEndStatus;
+	private Boolean jobRetryFlg;
+	private Integer jobRetryEndStatus;
 	private String facilityId;
 	private Integer processMode;
 	private String startCommand;
 	private Integer stopType;
 	private String stopCommand;
+	private Boolean managerDistribution;
+	private String scriptName;
+	private String scriptEncoding;
+	private String scriptContent;
 	// cc_job_start_mst
-	private Integer calendar;
+	private Boolean calendar;
 	private Integer calendarEndStatus;
 	private Integer calendarEndValue;
 	private Integer conditionType;
-	private Integer endDelay;
+	private Boolean endDelay;
 	private Integer endDelayConditionType;
-	private Integer endDelayJob;
+	private Boolean endDelayJob;
 	private Integer endDelayJobValue;
-	private Integer endDelayNotify;
+	private Boolean endDelayNotify;
 	private Integer endDelayNotifyPriority;
-	private Integer endDelayOperation;
+	private Boolean endDelayOperation;
 	private Integer endDelayOperationEndStatus;
 	private Integer endDelayOperationEndValue;
 	private Integer endDelayOperationType;
-	private Integer endDelaySession;
+	private Boolean endDelaySession;
 	private Integer endDelaySessionValue;
-	private Integer endDelayTime;
-	private Timestamp endDelayTimeValue;
-	private Integer multiplicity_notify;
+	private Boolean endDelayTime;
+	private Long endDelayTimeValue;
+	private Boolean endDelayChangeMount;
+	private Double endDelayChangeMountValue;
+	private Boolean multiplicity_notify;
 	private Integer multiplicity_notify_priority;
 	private Integer multiplicity_operation;
 	private Integer multiplicity_end_value;
 	private Integer messageRetry;
 	private Integer commandRetry;
-	private Integer skip;
+	private Integer jobRetry;
+	private Boolean skip;
 	private Integer skipEndStatus;
 	private Integer skipEndValue;
-	private Integer startDelay;
+	private Boolean startDelay;
 	private Integer startDelayConditionType;
-	private Integer startDelayNotify;
+	private Boolean startDelayNotify;
 	private Integer startDelayNotifyPriority;
-	private Integer startDelayOperation;
+	private Boolean startDelayOperation;
 	private Integer startDelayOperationEndStatus;
 	private Integer startDelayOperationEndValue;
 	private Integer startDelayOperationType;
-	private Integer startDelaySession;
+	private Boolean startDelaySession;
 	private Integer startDelaySessionValue;
-	private Integer startDelayTime;
-	private Timestamp startDelayTimeValue;
-	private Integer suspend;
-	private Integer unmatchEndFlg;
+	private Boolean startDelayTime;
+	private Long startDelayTimeValue;
+	private Boolean suspend;
+	private Boolean unmatchEndFlg;
 	private Integer unmatchEndStatus;
 	private Integer unmatchEndValue;
+	private Boolean exclusiveBranchFlg;
+	private Integer exclusiveBranchEndStatus;
+	private Integer exclusiveBranchEndValue;
 	private String calendarId;
 	// cc_job_file_mst
-	private Integer checkFlg;
-	private Integer compressionFlg;
+	private Boolean checkFlg;
+	private Boolean compressionFlg;
 	private String destDirectory;
 	private String destWorkDir;
 	private String srcFile;
@@ -114,8 +130,10 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 	private String srcFacilityId;
 	private String destFacilityId;
 	// cc_job_start_time_mst
-	private Timestamp startTime;
+	private Long startTime;
+	private String startTimeDescription;
 	private Integer startMinute;
+	private String startMinuteDescription;
 
 	//ジョブ通知関連
 	private String notifyGroupId;
@@ -124,14 +142,46 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 	private Integer warnPriority;
 	private Integer abnormalPriority;
 
-	private List<JobEndMstEntity> jobEndMstEntities;
+	// 終了値
+	private Integer normalEndValue;
+	private Integer normalEndValueFrom;
+	private Integer normalEndValueTo;
+	private Integer warnEndValue;
+	private Integer warnEndValueFrom;
+	private Integer warnEndValueTo;
+	private Integer abnormalEndValue;
+	private Integer abnormalEndValueFrom;
+	private Integer abnormalEndValueTo;
+
 	private List<JobParamMstEntity> jobParamMstEntities;
 	private List<JobStartJobMstEntity> jobStartJobMstEntities;
+	private List<JobCommandParamMstEntity> jobCommandParamEntities;
+	private List<JobEnvVariableMstEntity> jobEnvVariableMstEntities;
+	private List<JobStartParamMstEntity> jobStartParamMstEntities;
+	private List<JobNextJobOrderMstEntity> jobNextJobOrderMstEntities;
 	private String parentJobunitId;
 	private String parentJobId;
 
 	private String referJobUnitId;
 	private String referJobId;
+	private Integer referJobSelectType;
+
+	private String iconId;
+	
+	private String approvalReqRoleId;
+	private String approvalReqUserId;
+	private String approvalReqSentence;
+	private String approvalReqMailTitle;
+	private String approvalReqMailBody;
+	private Boolean useApprovalReqSentence;
+
+	private String monitorId;
+	private Integer monitorInfoEndValue;
+	private Integer monitorWarnEndValue;
+	private Integer monitorCriticalEndValue;
+	private Integer monitorUnknownEndValue;
+	private Integer monitorWaitTime;
+	private Integer monitorWaitEndValue;
 
 	@Deprecated
 	public JobMstEntity() {
@@ -139,22 +189,8 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 	public JobMstEntity(JobMstEntityPK pk, Integer jobType) {
 		this.setId(pk);
-		HinemosEntityManager em = new JpaTransactionManager().getEntityManager();
-		em.persist(this);
 		this.jobType = jobType;
 		this.setObjectId(this.getId().getJobunitId());
-
-		// JOBUNIT以外は、JOBUNITのowner_role_idを設定する
-		if (this.getJobType() != null && this.getJobType() != JobConstant.TYPE_JOBUNIT) {
-			JobMstEntity jobMstEntity
-			= em.find(JobMstEntity.class,
-					new JobMstEntityPK(this.getId().getJobunitId(), this.getId().getJobunitId()), ObjectPrivilegeMode.NONE);
-			if (jobMstEntity != null && jobMstEntity.getOwnerRoleId() != null) {
-				this.setOwnerRoleId(jobMstEntity.getOwnerRoleId());
-			} else {
-				this.setOwnerRoleId(RoleIdConstant.INTERNAL);
-			}
-		}
 	}
 
 	public JobMstEntity(String jobunitId, String jobId, Integer jobType) {
@@ -172,6 +208,7 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 	}
 
 
+	@Column(name="description")
 	public String getDescription() {
 		return this.description;
 	}
@@ -202,11 +239,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="reg_date")
-	public Timestamp getRegDate() {
+	public Long getRegDate() {
 		return this.regDate;
 	}
 
-	public void setRegDate(Timestamp regDate) {
+	public void setRegDate(Long regDate) {
 		this.regDate = regDate;
 	}
 
@@ -222,11 +259,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="update_date")
-	public Timestamp getUpdateDate() {
+	public Long getUpdateDate() {
 		return this.updateDate;
 	}
 
-	public void setUpdateDate(Timestamp updateDate) {
+	public void setUpdateDate(Long updateDate) {
 		this.updateDate = updateDate;
 	}
 
@@ -241,7 +278,18 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 	}
 
 
+	@Column(name="registered_module")
+	public Boolean isRegisteredModule() {
+		return registeredModule;
+	}
+
+	public void setRegisteredModule(Boolean regist) {
+		this.registeredModule = regist;
+	}
+
+
 	// cc_job_command_mst
+	@Column(name="argument")
 	public String getArgument() {
 		return this.argument;
 	}
@@ -262,11 +310,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="specify_user")
-	public Integer getSpecifyUser() {
+	public Boolean getSpecifyUser() {
 		return this.specifyUser;
 	}
 
-	public void setSpecifyUser(Integer specifyUser) {
+	public void setSpecifyUser(Boolean specifyUser) {
 		this.specifyUser = specifyUser;
 	}
 
@@ -282,11 +330,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="message_retry_end_flg")
-	public Integer getMessageRetryEndFlg() {
+	public Boolean getMessageRetryEndFlg() {
 		return this.messageRetryEndFlg;
 	}
 
-	public void setMessageRetryEndFlg(Integer messageRetryEndFlg) {
+	public void setMessageRetryEndFlg(Boolean messageRetryEndFlg) {
 		this.messageRetryEndFlg = messageRetryEndFlg;
 	}
 
@@ -302,14 +350,40 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="command_retry_flg")
-	public Integer getCommandRetryFlg() {
+	public Boolean getCommandRetryFlg() {
 		return this.commandRetryFlg;
 	}
 
-	public void setCommandRetryFlg(Integer commandRetryFlg) {
+	public void setCommandRetryFlg(Boolean commandRetryFlg) {
 		this.commandRetryFlg = commandRetryFlg;
 	}
 
+	@Column(name="command_retry_end_status")
+	public Integer getCommandRetryEndStatus() {
+		return commandRetryEndStatus;
+	}
+
+	public void setCommandRetryEndStatus(Integer commandRetryEndStatus) {
+		this.commandRetryEndStatus = commandRetryEndStatus;
+	}
+
+	@Column(name="job_retry_flg")
+	public Boolean getJobRetryFlg() {
+		return jobRetryFlg;
+	}
+
+	public void setJobRetryFlg(Boolean jobRetryFlg) {
+		this.jobRetryFlg = jobRetryFlg;
+	}
+
+	@Column(name="job_retry_end_status")
+	public Integer getJobRetryEndStatus() {
+		return jobRetryEndStatus;
+	}
+
+	public void setJobRetryEndStatus(Integer jobRetryEndStatus) {
+		this.jobRetryEndStatus = jobRetryEndStatus;
+	}
 
 	@Column(name="facility_id")
 	public String getFacilityId() {
@@ -358,14 +432,51 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 		this.stopCommand = stopCommand;
 	}
 
+	@Column(name="manager_distribution")
+	public Boolean getManagerDistribution() {
+		return this.managerDistribution;
+	}
+
+	public void setManagerDistribution(Boolean managerDistribution) {
+		this.managerDistribution = managerDistribution;
+	}
+
+	@Column(name="script_name")
+	public String getScriptName() {
+		return this.scriptName;
+	}
+
+	public void setScriptName(String scriptName) {
+		this.scriptName = scriptName;
+	}
+
+	@Column(name="script_encoding")
+	public String getScriptEncoding() {
+		return this.scriptEncoding;
+	}
+
+	public void setScriptEncoding(String scriptEncoding) {
+		this.scriptEncoding = scriptEncoding;
+	}
+	
+	@Column(name="script_content")
+	public String getScriptContent() {
+		return this.scriptContent;
+	}
+
+	public void setScriptContent(String scriptContent) {
+		this.scriptContent = scriptContent;
+	}
+	
 	// cc_job_start_mst
 
 
-	public Integer getCalendar() {
+	@Column(name="calendar")
+	public Boolean getCalendar() {
 		return this.calendar;
 	}
 
-	public void setCalendar(Integer calendar) {
+	public void setCalendar(Boolean calendar) {
 		this.calendar = calendar;
 	}
 
@@ -401,11 +512,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="end_delay")
-	public Integer getEndDelay() {
+	public Boolean getEndDelay() {
 		return this.endDelay;
 	}
 
-	public void setEndDelay(Integer endDelay) {
+	public void setEndDelay(Boolean endDelay) {
 		this.endDelay = endDelay;
 	}
 
@@ -421,11 +532,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="end_delay_job")
-	public Integer getEndDelayJob() {
+	public Boolean getEndDelayJob() {
 		return this.endDelayJob;
 	}
 
-	public void setEndDelayJob(Integer endDelayJob) {
+	public void setEndDelayJob(Boolean endDelayJob) {
 		this.endDelayJob = endDelayJob;
 	}
 
@@ -441,11 +552,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="end_delay_notify")
-	public Integer getEndDelayNotify() {
+	public Boolean getEndDelayNotify() {
 		return this.endDelayNotify;
 	}
 
-	public void setEndDelayNotify(Integer endDelayNotify) {
+	public void setEndDelayNotify(Boolean endDelayNotify) {
 		this.endDelayNotify = endDelayNotify;
 	}
 
@@ -461,11 +572,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="end_delay_operation")
-	public Integer getEndDelayOperation() {
+	public Boolean getEndDelayOperation() {
 		return this.endDelayOperation;
 	}
 
-	public void setEndDelayOperation(Integer endDelayOperation) {
+	public void setEndDelayOperation(Boolean endDelayOperation) {
 		this.endDelayOperation = endDelayOperation;
 	}
 
@@ -501,11 +612,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="end_delay_session")
-	public Integer getEndDelaySession() {
+	public Boolean getEndDelaySession() {
 		return this.endDelaySession;
 	}
 
-	public void setEndDelaySession(Integer endDelaySession) {
+	public void setEndDelaySession(Boolean endDelaySession) {
 		this.endDelaySession = endDelaySession;
 	}
 
@@ -521,22 +632,40 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="end_delay_time")
-	public Integer getEndDelayTime() {
+	public Boolean getEndDelayTime() {
 		return this.endDelayTime;
 	}
 
-	public void setEndDelayTime(Integer endDelayTime) {
+	public void setEndDelayTime(Boolean endDelayTime) {
 		this.endDelayTime = endDelayTime;
 	}
 
 
 	@Column(name="end_delay_time_value")
-	public Timestamp getEndDelayTimeValue() {
+	public Long getEndDelayTimeValue() {
 		return this.endDelayTimeValue;
 	}
 
-	public void setEndDelayTimeValue(Timestamp endDelayTimeValue) {
+	public void setEndDelayTimeValue(Long endDelayTimeValue) {
 		this.endDelayTimeValue = endDelayTimeValue;
+	}
+
+	@Column(name="end_delay_change_mount")
+	public Boolean getEndDelayChangeMount() {
+		return this.endDelayChangeMount;
+	}
+
+	public void setEndDelayChangeMount(Boolean endDelayChangeMount) {
+		this.endDelayChangeMount = endDelayChangeMount;
+	}
+
+	@Column(name="end_delay_change_mount_value")
+	public Double getEndDelayChangeMountValue() {
+		return this.endDelayChangeMountValue;
+	}
+
+	public void setEndDelayChangeMountValue(Double endDelayChangeMountValue) {
+		this.endDelayChangeMountValue = endDelayChangeMountValue;
 	}
 
 	@Column(name="message_retry")
@@ -557,12 +686,21 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 		this.commandRetry = commandRetry;
 	}
 
+	@Column(name="job_retry")
+	public Integer getJobRetry() {
+		return jobRetry;
+	}
+
+	public void setJobRetry(Integer jobRetry) {
+		this.jobRetry = jobRetry;
+	}
+
 	@Column(name="multiplicity_notify")
-	public Integer getMultiplicityNotify() {
+	public Boolean getMultiplicityNotify() {
 		return this.multiplicity_notify;
 	}
 
-	public void setMultiplicityNotify(Integer multiplicity_notify) {
+	public void setMultiplicityNotify(Boolean multiplicity_notify) {
 		this.multiplicity_notify = multiplicity_notify;
 	}
 
@@ -593,11 +731,12 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 		this.multiplicity_end_value = multiplicity_end_value;
 	}
 
-	public Integer getSkip() {
+	@Column(name="skip")
+	public Boolean getSkip() {
 		return this.skip;
 	}
 
-	public void setSkip(Integer skip) {
+	public void setSkip(Boolean skip) {
 		this.skip = skip;
 	}
 
@@ -623,11 +762,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="start_delay")
-	public Integer getStartDelay() {
+	public Boolean getStartDelay() {
 		return this.startDelay;
 	}
 
-	public void setStartDelay(Integer startDelay) {
+	public void setStartDelay(Boolean startDelay) {
 		this.startDelay = startDelay;
 	}
 
@@ -643,11 +782,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="start_delay_notify")
-	public Integer getStartDelayNotify() {
+	public Boolean getStartDelayNotify() {
 		return this.startDelayNotify;
 	}
 
-	public void setStartDelayNotify(Integer startDelayNotify) {
+	public void setStartDelayNotify(Boolean startDelayNotify) {
 		this.startDelayNotify = startDelayNotify;
 	}
 
@@ -663,11 +802,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="start_delay_operation")
-	public Integer getStartDelayOperation() {
+	public Boolean getStartDelayOperation() {
 		return this.startDelayOperation;
 	}
 
-	public void setStartDelayOperation(Integer startDelayOperation) {
+	public void setStartDelayOperation(Boolean startDelayOperation) {
 		this.startDelayOperation = startDelayOperation;
 	}
 
@@ -703,11 +842,11 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="start_delay_session")
-	public Integer getStartDelaySession() {
+	public Boolean getStartDelaySession() {
 		return this.startDelaySession;
 	}
 
-	public void setStartDelaySession(Integer startDelaySession) {
+	public void setStartDelaySession(Boolean startDelaySession) {
 		this.startDelaySession = startDelaySession;
 	}
 
@@ -723,40 +862,41 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 
 	@Column(name="start_delay_time")
-	public Integer getStartDelayTime() {
+	public Boolean getStartDelayTime() {
 		return this.startDelayTime;
 	}
 
-	public void setStartDelayTime(Integer startDelayTime) {
+	public void setStartDelayTime(Boolean startDelayTime) {
 		this.startDelayTime = startDelayTime;
 	}
 
 
 	@Column(name="start_delay_time_value")
-	public Timestamp getStartDelayTimeValue() {
+	public Long getStartDelayTimeValue() {
 		return this.startDelayTimeValue;
 	}
 
-	public void setStartDelayTimeValue(Timestamp startDelayTimeValue) {
+	public void setStartDelayTimeValue(Long startDelayTimeValue) {
 		this.startDelayTimeValue = startDelayTimeValue;
 	}
 
 
-	public Integer getSuspend() {
+	@Column(name="suspend")
+	public Boolean getSuspend() {
 		return this.suspend;
 	}
 
-	public void setSuspend(Integer suspend) {
+	public void setSuspend(Boolean suspend) {
 		this.suspend = suspend;
 	}
 
 
 	@Column(name="unmatch_end_flg")
-	public Integer getUnmatchEndFlg() {
+	public Boolean getUnmatchEndFlg() {
 		return this.unmatchEndFlg;
 	}
 
-	public void setUnmatchEndFlg(Integer unmatchEndFlg) {
+	public void setUnmatchEndFlg(Boolean unmatchEndFlg) {
 		this.unmatchEndFlg = unmatchEndFlg;
 	}
 
@@ -779,7 +919,32 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 	public void setUnmatchEndValue(Integer unmatchEndValue) {
 		this.unmatchEndValue = unmatchEndValue;
 	}
+	@Column(name="exclusive_branch_flg")
+	public Boolean getExclusiveBranchFlg() {
+		return this.exclusiveBranchFlg;
+	}
 
+	public void setExclusiveBranchFlg(Boolean exclusiveBranchFlg) {
+		this.exclusiveBranchFlg = exclusiveBranchFlg;
+	}
+
+	@Column(name="exclusive_branch_end_status")
+	public Integer getExclusiveBranchEndStatus() {
+		return this.exclusiveBranchEndStatus;
+	}
+
+	public void setExclusiveBranchEndStatus(Integer exclusiveBranchEndStatus) {
+		this.exclusiveBranchEndStatus = exclusiveBranchEndStatus;
+	}
+
+	@Column(name="exclusive_branch_end_value")
+	public Integer getExclusiveBranchEndValue() {
+		return this.exclusiveBranchEndValue;
+	}
+
+	public void setExclusiveBranchEndValue(Integer exclusiveBranchEndValue) {
+		this.exclusiveBranchEndValue = exclusiveBranchEndValue;
+	}
 
 	@Column(name="calendar_id")
 	public String getCalendarId() {
@@ -793,21 +958,21 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 	// cc_job_file_mst
 	@Column(name="check_flg")
-	public Integer getCheckFlg() {
+	public Boolean getCheckFlg() {
 		return this.checkFlg;
 	}
 
-	public void setCheckFlg(Integer checkFlg) {
+	public void setCheckFlg(Boolean checkFlg) {
 		this.checkFlg = checkFlg;
 	}
 
 
 	@Column(name="compression_flg")
-	public Integer getCompressionFlg() {
+	public Boolean getCompressionFlg() {
 		return this.compressionFlg;
 	}
 
-	public void setCompressionFlg(Integer compressionFlg) {
+	public void setCompressionFlg(Boolean compressionFlg) {
 		this.compressionFlg = compressionFlg;
 	}
 
@@ -874,12 +1039,21 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 	// cc_job_start_time_mst
 	@Column(name="start_time")
-	public Timestamp getStartTime() {
+	public Long getStartTime() {
 		return this.startTime;
 	}
 
-	public void setStartTime(Timestamp startTime) {
+	public void setStartTime(Long startTime) {
 		this.startTime = startTime;
+	}
+
+	@Column(name="start_time_description")
+	public String getStartTimeDescription() {
+		return this.startTimeDescription;
+	}
+
+	public void setStartTimeDescription(String description) {
+		this.startTimeDescription = description;
 	}
 
 	@Column(name="start_minute")
@@ -889,6 +1063,15 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 	public void setStartMinute(Integer startMinute) {
 		this.startMinute = startMinute;
+	}
+
+	@Column(name="start_minute_description")
+	public String getStartMinuteDescription() {
+		return this.startMinuteDescription;
+	}
+
+	public void setStartMinuteDescription(String description) {
+		this.startMinuteDescription = description;
 	}
 
 	@Column(name="parent_jobunit_id")
@@ -925,6 +1108,15 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 	public void setReferJobId(String referJobId) {
 		this.referJobId = referJobId;
+	}
+
+	@Column(name="refer_job_select_type")
+	public Integer getReferJobSelectType() {
+		return referJobSelectType;
+	}
+
+	public void setReferJobSelectType(Integer referJobSelectType) {
+		this.referJobSelectType = referJobSelectType;
 	}
 
 	@Column(name="notify_group_id")
@@ -972,14 +1164,211 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 		this.abnormalPriority = abnormalPriority;
 	}
 
-	//bi-directional many-to-one association to JobEndMstEntity
-	@OneToMany(mappedBy="jobMstEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
-	public List<JobEndMstEntity> getJobEndMstEntities() {
-		return this.jobEndMstEntities;
+	@Column(name="normal_end_value")
+	public Integer getNormalEndValue() {
+		return normalEndValue;
 	}
 
-	public void setJobEndMstEntities(List<JobEndMstEntity> jobEndMstEntities) {
-		this.jobEndMstEntities = jobEndMstEntities;
+	public void setNormalEndValue(Integer normalEndValue) {
+		this.normalEndValue = normalEndValue;
+	}
+
+	@Column(name="normal_end_value_from")
+	public Integer getNormalEndValueFrom() {
+		return normalEndValueFrom;
+	}
+
+	public void setNormalEndValueFrom(Integer normalEndValueFrom) {
+		this.normalEndValueFrom = normalEndValueFrom;
+	}
+
+	@Column(name="normal_end_value_to")
+	public Integer getNormalEndValueTo() {
+		return normalEndValueTo;
+	}
+
+	public void setNormalEndValueTo(Integer normalEndValueTo) {
+		this.normalEndValueTo = normalEndValueTo;
+	}
+
+	@Column(name="warn_end_value")
+	public Integer getWarnEndValue() {
+		return warnEndValue;
+	}
+
+	public void setWarnEndValue(Integer warnEndValue) {
+		this.warnEndValue = warnEndValue;
+	}
+
+	@Column(name="warn_end_value_from")
+	public Integer getWarnEndValueFrom() {
+		return warnEndValueFrom;
+	}
+
+	public void setWarnEndValueFrom(Integer warnEndValueFrom) {
+		this.warnEndValueFrom = warnEndValueFrom;
+	}
+
+	@Column(name="warn_end_value_to")
+	public Integer getWarnEndValueTo() {
+		return warnEndValueTo;
+	}
+
+	public void setWarnEndValueTo(Integer warnEndValueTo) {
+		this.warnEndValueTo = warnEndValueTo;
+	}
+
+	@Column(name="abnormal_end_value")
+	public Integer getAbnormalEndValue() {
+		return abnormalEndValue;
+	}
+
+	public void setAbnormalEndValue(Integer abnormalEndValue) {
+		this.abnormalEndValue = abnormalEndValue;
+	}
+
+	@Column(name="abnormal_end_value_from")
+	public Integer getAbnormalEndValueFrom() {
+		return abnormalEndValueFrom;
+	}
+
+	public void setAbnormalEndValueFrom(Integer abnormalEndValueFrom) {
+		this.abnormalEndValueFrom = abnormalEndValueFrom;
+	}
+
+	@Column(name="abnormal_end_value_to")
+	public Integer getAbnormalEndValueTo() {
+		return abnormalEndValueTo;
+	}
+
+	public void setAbnormalEndValueTo(Integer abnormalEndValueTo) {
+		this.abnormalEndValueTo = abnormalEndValueTo;
+	}
+
+	@Column(name="icon_id")
+	public String getIconId() {
+		return this.iconId;
+	}
+
+	public void setIconId(String iconId) {
+		this.iconId = iconId;
+	}
+
+	@Column(name="approval_req_role_id")
+	public String getApprovalReqRoleId() {
+		return approvalReqRoleId;
+	}
+
+	public void setApprovalReqRoleId(String approvalReqRoleId) {
+		this.approvalReqRoleId = approvalReqRoleId;
+	}
+
+	@Column(name="approval_req_user_id")
+	public String getApprovalReqUserId() {
+		return approvalReqUserId;
+	}
+
+	public void setApprovalReqUserId(String approvalReqUserId) {
+		this.approvalReqUserId = approvalReqUserId;
+	}
+
+	@Column(name="approval_req_sentence")
+	public String getApprovalReqSentence() {
+		return approvalReqSentence;
+	}
+
+	public void setApprovalReqSentence(String approvalReqSentence) {
+		this.approvalReqSentence = approvalReqSentence;
+	}
+
+	@Column(name="approval_req_mail_title")
+	public String getApprovalReqMailTitle() {
+		return approvalReqMailTitle;
+	}
+
+	public void setApprovalReqMailTitle(String approvalReqMailTitle) {
+		this.approvalReqMailTitle = approvalReqMailTitle;
+	}
+
+	@Column(name="approval_req_mail_body")
+	public String getApprovalReqMailBody() {
+		return approvalReqMailBody;
+	}
+
+	public void setApprovalReqMailBody(String approvalReqMailBody) {
+		this.approvalReqMailBody = approvalReqMailBody;
+	}
+
+	@Column(name="use_approval_req_sentence")
+	public Boolean isUseApprovalReqSentence() {
+		return useApprovalReqSentence;
+	}
+
+	public void setUseApprovalReqSentence(Boolean useApprovalReqSentence) {
+		this.useApprovalReqSentence = useApprovalReqSentence;
+	}
+
+	@Column(name="monitor_id")
+	public String getMonitorId() {
+		return this.monitorId;
+	}
+
+	public void setMonitorId(String monitorId) {
+		this.monitorId = monitorId;
+	}
+
+	@Column(name="monitor_info_end_value")
+	public Integer getMonitorInfoEndValue() {
+		return this.monitorInfoEndValue;
+	}
+
+	public void setMonitorInfoEndValue(Integer monitorInfoEndValue) {
+		this.monitorInfoEndValue = monitorInfoEndValue;
+	}
+
+	@Column(name="monitor_warn_end_value")
+	public Integer getMonitorWarnEndValue() {
+		return this.monitorWarnEndValue;
+	}
+
+	public void setMonitorWarnEndValue(Integer monitorWarnEndValue) {
+		this.monitorWarnEndValue = monitorWarnEndValue;
+	}
+
+	@Column(name="monitor_critical_end_value")
+	public Integer getMonitorCriticalEndValue() {
+		return this.monitorCriticalEndValue;
+	}
+
+	public void setMonitorCriticalEndValue(Integer monitorCriticalEndValue) {
+		this.monitorCriticalEndValue = monitorCriticalEndValue;
+	}
+
+	@Column(name="monitor_unknown_end_value")
+	public Integer getMonitorUnknownEndValue() {
+		return this.monitorUnknownEndValue;
+	}
+
+	public void setMonitorUnknownEndValue(Integer monitorUnknownEndValue) {
+		this.monitorUnknownEndValue = monitorUnknownEndValue;
+	}
+
+	@Column(name="monitor_wait_time")
+	public Integer getMonitorWaitTime() {
+		return this.monitorWaitTime;
+	}
+
+	public void setMonitorWaitTime(Integer monitorWaitTime) {
+		this.monitorWaitTime = monitorWaitTime;
+	}
+
+	@Column(name="monitor_wait_end_value")
+	public Integer getMonitorWaitEndValue() {
+		return this.monitorWaitEndValue;
+	}
+
+	public void setMonitorWaitEndValue(Integer monitorWaitEndValue) {
+		this.monitorWaitEndValue = monitorWaitEndValue;
 	}
 
 	//bi-directional many-to-one association to JobParamMstEntity
@@ -992,6 +1381,15 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 		this.jobParamMstEntities = jobParamMstEntities;
 	}
 
+	//bi-directional many-to-one association to JobParamMstEntity
+	@OneToMany(mappedBy="jobMstEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobEnvVariableMstEntity> getJobEnvVariableMstEntities() {
+		return this.jobEnvVariableMstEntities;
+	}
+
+	public void setJobEnvVariableMstEntities(List<JobEnvVariableMstEntity> jobEnvVariableMstEntities) {
+		this.jobEnvVariableMstEntities = jobEnvVariableMstEntities;
+	}
 
 	//bi-directional many-to-one association to JobStartJobMstEntity
 	@OneToMany(mappedBy="jobMstEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
@@ -1001,5 +1399,35 @@ public class JobMstEntity extends ObjectPrivilegeTargetEntity {
 
 	public void setJobStartJobMstEntities(List<JobStartJobMstEntity> jobStartJobMstEntities) {
 		this.jobStartJobMstEntities = jobStartJobMstEntities;
+	}
+
+	//bi-directional many-to-one association to JobCommandParamMstEntity
+	@OneToMany(mappedBy="jobMstEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobCommandParamMstEntity> getJobCommandParamEntities() {
+		return this.jobCommandParamEntities;
+	}
+
+	public void setJobCommandParamEntities(List<JobCommandParamMstEntity> jobCommandParamEntities) {
+		this.jobCommandParamEntities = jobCommandParamEntities;
+	}
+
+	//bi-directional many-to-one association to JobStartParamMstEntity
+	@OneToMany(mappedBy="jobMstEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobStartParamMstEntity> getJobStartParamMstEntities() {
+		return this.jobStartParamMstEntities;
+	}
+
+	public void setJobStartParamMstEntities(List<JobStartParamMstEntity> jobStartParamMstEntities) {
+		this.jobStartParamMstEntities = jobStartParamMstEntities;
+	}
+
+	//bi-directional many-to-one association to JobNextJobOrderMstEntity
+	@OneToMany(mappedBy="jobMstEntity", cascade=CascadeType.ALL, fetch=FetchType.LAZY)
+	public List<JobNextJobOrderMstEntity> getJobNextJobOrderMstEntities() {
+		return this.jobNextJobOrderMstEntities;
+	}
+
+	public void setJobNextJobOrderMstEntities(List<JobNextJobOrderMstEntity> jobNextJobOrderMstEntities) {
+		this.jobNextJobOrderMstEntities = jobNextJobOrderMstEntities;
 	}
 }

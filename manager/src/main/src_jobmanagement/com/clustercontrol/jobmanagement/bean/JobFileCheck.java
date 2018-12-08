@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2013 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -33,6 +26,9 @@ public class JobFileCheck extends JobKick implements Serializable {
 	/** ファシリティID */
 	private String m_facilityId;
 
+	/** スコープ */
+	private String m_scope;
+
 	/** ディレクトリ */
 	private String m_directory;
 
@@ -49,7 +45,7 @@ public class JobFileCheck extends JobKick implements Serializable {
 	 * ファイルチェック設定定義
 	 */
 	public JobFileCheck(){
-		this.m_type = JobTriggerTypeConstant.TYPE_FILECHECK;
+		this.m_type = JobKickConstant.TYPE_FILECHECK;
 	}
 	/**
 	 * ファイルチェック設定定義
@@ -65,7 +61,8 @@ public class JobFileCheck extends JobKick implements Serializable {
 			String directory, String fileName, String fileVariable,
 			int checkInterval, int eventType ,int modifyType) {
 		super();
-		this.m_type = JobTriggerTypeConstant.TYPE_FILECHECK;
+		
+		this.m_type = JobKickConstant.TYPE_FILECHECK;
 		this.m_facilityId = facilityId;
 		this.m_directory = directory;
 		this.m_fileName = fileName;
@@ -86,6 +83,21 @@ public class JobFileCheck extends JobKick implements Serializable {
 	 */
 	public void setFacilityId(String facilityId) {
 		this.m_facilityId = facilityId;
+	}
+
+	/**
+	 * スコープを返す<BR>
+	 * @return ファシリティID
+	 */
+	public String getScope() {
+		return m_scope;
+	}
+	/**
+	 * スコープを設定する<BR>
+	 * @param scope スコープ
+	 */
+	public void setScope(String scope) {
+		this.m_scope = scope;
 	}
 
 	/**

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.monitor.run.bean;
@@ -27,8 +20,10 @@ public class QuartzConstant {
 	 * Quartzから呼び出すメソッド名。<BR>
 	 * 監視の実行処理を行うメソッドの名前です。
 	 */
-	public static final String METHOD_NAME = "run";
-
+	public static final String MONITOR_METHOD_MONITOR_AGGREGATED = "runMonitorAggregatedMonitorId";
+	public static final String MONITOR_METHOD_FACILITY_AGGREGATED = "runMonitorAggregatedFacilityId";
+	
+	
 	/**
 	 * JobDetailの監視情報の有効／無効のキー名。
 	 */

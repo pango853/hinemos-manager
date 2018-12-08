@@ -1,19 +1,16 @@
 /*
-Copyright (C) 2010 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
+
 package com.clustercontrol.ws.notify;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 
 import javax.annotation.Resource;
@@ -24,7 +21,7 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.accesscontrol.bean.FunctionConstant;
 import com.clustercontrol.accesscontrol.bean.PrivilegeConstant.SystemPrivilegeMode;
-import com.clustercontrol.accesscontrol.bean.SystemPrivilegeInfo;
+import com.clustercontrol.accesscontrol.model.SystemPrivilegeInfo;
 import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
@@ -34,8 +31,9 @@ import com.clustercontrol.fault.InvalidUserPass;
 import com.clustercontrol.fault.NotifyDuplicate;
 import com.clustercontrol.fault.NotifyNotFound;
 import com.clustercontrol.notify.bean.NotifyCheckIdResultInfo;
-import com.clustercontrol.notify.bean.NotifyInfo;
+import com.clustercontrol.notify.model.NotifyInfo;
 import com.clustercontrol.notify.session.NotifyControllerBean;
+import com.clustercontrol.util.HinemosTime;
 import com.clustercontrol.ws.util.HttpAuthenticator;
 
 /**
@@ -183,7 +181,7 @@ public class NotifyEndpoint {
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
 		msg.append(", NotifyID=");
-		msg.append(notifyIds);
+		msg.append(Arrays.toString(notifyIds));
 
 		try {
 			ret = new NotifyControllerBean().deleteNotify(notifyIds);
@@ -304,7 +302,7 @@ public class NotifyEndpoint {
 		// 認証済み操作ログ
 		StringBuffer msg = new StringBuffer();
 		msg.append(", NotifyID=");
-		msg.append(notifyIds);
+		msg.append(Arrays.toString(notifyIds));
 		m_opelog.debug(HinemosModuleConstant.LOG_PREFIX_NOTIFY + " Check, Method=checkNotifyId, User="
 				+ HttpAuthenticator.getUserAccountString(wsctx)
 				+ msg.toString());
@@ -361,7 +359,6 @@ public class NotifyEndpoint {
 	 * @param generationDate 出力日時（エポック秒）
 	 * @param priority 重要度
 	 * @param application アプリケーション
-	 * @param messageId メッセージID
 	 * @param message メッセージ
 	 * @param messageOrg オリジナルメッセージ
 	 * @param notifyIdList 通知IDのリスト
@@ -380,12 +377,12 @@ public class NotifyEndpoint {
 			long generationDate,
 			int priority,
 			String application,
-			String messageId,
 			String message,
 			String messageOrg,
 			ArrayList<String> notifyIdList,
 			String srcId)  throws InvalidRole, InvalidUserPass, HinemosUnknown, NotifyNotFound, FacilityNotFound {
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+		sdf.setTimeZone(HinemosTime.getTimeZone());
 		String msg = ", pluginID=" + pluginId
 				+ ", monitorID=" + monitorId
 				+ ", facilityID=" + facilityId
@@ -393,7 +390,6 @@ public class NotifyEndpoint {
 				+ ", generationDate=" + sdf.format(new Date(generationDate))
 				+ ", priority=" + priority
 				+ ", application=" + application
-				+ ", messageID=" + messageId
 				+ ", message=" + message
 				+ ", messageOrg=" + messageOrg
 				+ ", srcID=" + srcId;
@@ -402,6 +398,9 @@ public class NotifyEndpoint {
 
 		// 認証済み操作ログ
 		try {
+			ArrayList<SystemPrivilegeInfo> systemPrivilegeList = new ArrayList<SystemPrivilegeInfo>();
+			systemPrivilegeList.add(new SystemPrivilegeInfo(FunctionConstant.NOTIFY, SystemPrivilegeMode.READ));
+			HttpAuthenticator.authCheck(wsctx, systemPrivilegeList);
 			new NotifyControllerBean().notify(
 					pluginId,
 					monitorId,
@@ -410,7 +409,6 @@ public class NotifyEndpoint {
 					generationDate,
 					priority,
 					application,
-					messageId,
 					message,
 					messageOrg,
 					notifyIdList,

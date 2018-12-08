@@ -7,8 +7,16 @@
 	<named-query name="NodeHostnameEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM NodeHostnameEntity a
+				SELECT a FROM NodeHostnameInfo a
 				ORDER BY a.id.facilityId, a.id.hostname
+			]]>
+		</query>
+	</named-query>
+	<!-- FacilityEntity -->
+	<named-query name="NodeEntity.findAll">
+		<query>
+			<![CDATA[
+				SELECT a FROM NodeInfo a
 			]]>
 		</query>
 	</named-query>
@@ -16,7 +24,7 @@
 	<named-query name="FacilityEntity.findByFacilityType">
 		<query>
 			<![CDATA[
-				SELECT a FROM FacilityEntity a
+				SELECT a FROM FacilityInfo a
 				WHERE a.facilityType = :facilityType
 				ORDER BY a.facilityId
 			]]>
@@ -25,8 +33,8 @@
 	<named-query name="FacilityEntity.findByIpAddressV4">
 		<query>
 			<![CDATA[
-				SELECT a FROM FacilityEntity a JOIN a.nodeEntity b
-				WHERE b.ipAddressV4 = :ipAddressV4
+				SELECT a FROM NodeInfo a
+				WHERE a.ipAddressV4 = :ipAddressV4
 				ORDER BY a.facilityId
 			]]>
 		</query>
@@ -34,8 +42,8 @@
 	<named-query name="FacilityEntity.findByIpAddressV6">
 		<query>
 			<![CDATA[
-				SELECT a FROM FacilityEntity a JOIN a.nodeEntity b
-				WHERE LOWER(b.ipAddressV6) = LOWER(:ipAddressV6)
+				SELECT a FROM NodeInfo a
+				WHERE LOWER(a.ipAddressV6) = LOWER(:ipAddressV6)
 				ORDER BY a.facilityId
 			]]>
 		</query>
@@ -43,8 +51,8 @@
 	<named-query name="FacilityEntity.findByNodename">
 		<query>
 			<![CDATA[
-				SELECT a FROM FacilityEntity a JOIN a.nodeEntity b
-				WHERE LOWER(b.nodeName) = :nodeName
+				SELECT a FROM NodeInfo a
+				WHERE LOWER(a.nodeName) = :nodeName
 				ORDER BY a.facilityId
 			]]>
 		</query>
@@ -52,7 +60,7 @@
 	<named-query name="FacilityEntity.findAll">
 		<query>
 			<![CDATA[
-				SELECT a FROM FacilityEntity a
+				SELECT a FROM FacilityInfo a
 				ORDER BY a.facilityId
 			]]>
 		</query>
@@ -60,8 +68,8 @@
 	<named-query name="FacilityEntity.findRootByFacilityType">
 		<query>
 			<![CDATA[
-				SELECT a FROM FacilityEntity a
-				WHERE NOT EXISTS (SELECT b FROM FacilityRelationEntity b WHERE b.id.childFacilityId = a.facilityId)
+				SELECT a FROM FacilityInfo a
+				WHERE NOT EXISTS (SELECT b FROM FacilityRelationEntity b WHERE b.childFacilityId = a.facilityId)
 				AND a.facilityType = :facilityType
 				ORDER BY a.facilityId
 			]]>
@@ -70,7 +78,7 @@
 	<named-query name="FacilityEntity.findByOwnerRoleId">
 		<query>
 			<![CDATA[
-				SELECT a FROM FacilityEntity a
+				SELECT a FROM FacilityInfo a
 				WHERE a.ownerRoleId = :ownerRoleId
 				ORDER BY a.facilityId
 			]]>
@@ -81,7 +89,7 @@
 		<query>
 			<![CDATA[
 				SELECT a FROM FacilityRelationEntity a
-				ORDER BY a.id.parentFacilityId, a.id.childFacilityId
+				ORDER BY a.parentFacilityId, a.childFacilityId
 			]]>
 		</query>
 	</named-query>
@@ -89,8 +97,8 @@
 		<query>
 			<![CDATA[
 				SELECT a FROM FacilityRelationEntity a
-				WHERE a.id.childFacilityId = :childFacilityId
-				ORDER BY a.id.parentFacilityId, a.id.childFacilityId
+				WHERE a.childFacilityId = :childFacilityId
+				ORDER BY a.parentFacilityId, a.childFacilityId
 			]]>
 		</query>
 	</named-query>
@@ -98,8 +106,8 @@
 		<query>
 			<![CDATA[
 				SELECT a FROM FacilityRelationEntity a
-				WHERE a.id.parentFacilityId = :parentFacilityId
-				ORDER BY a.id.parentFacilityId, a.id.childFacilityId
+				WHERE a.parentFacilityId = :parentFacilityId
+				ORDER BY a.parentFacilityId, a.childFacilityId
 			]]>
 		</query>
 	</named-query>

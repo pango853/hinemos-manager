@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2008 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.performance.operator;
@@ -31,8 +24,8 @@ import com.clustercontrol.performance.monitor.entity.CollectorPollingMstData;
 import com.clustercontrol.performance.monitor.model.CollectorPollingMstEntity;
 import com.clustercontrol.performance.monitor.util.QueryUtil;
 import com.clustercontrol.poller.bean.PollerProtocolConstant;
-import com.clustercontrol.sharedtable.DataTable;
-import com.clustercontrol.sharedtable.TableEntry;
+import com.clustercontrol.poller.util.DataTable;
+import com.clustercontrol.poller.util.TableEntry;
 
 abstract public class Operator {
 	private static Log m_log = LogFactory.getLog( Operator.class );
@@ -152,9 +145,18 @@ abstract public class Operator {
 						String value = null;
 						if(entry.getValue() instanceof String){
 							value = (String)entry.getValue();
+						}else if (entry.getValue() == null) {
+							m_log.debug("entry.getValue() == null");
+							continue;
 						}else{
 							value = entry.getValue().toString();
 						}
+						
+						if (value.length() > 128) {
+							// デバイス名が128文字までなので切り詰め
+							value = value.substring(0, 128);
+						}
+						
 						if( value.equals(deviceName) ){
 							currentIndex = entry.getKey().substring(entry.getKey().lastIndexOf("."));
 							break;
@@ -175,8 +177,16 @@ abstract public class Operator {
 						String value = null;
 						if(entry.getValue() instanceof String){
 							value = (String)entry.getValue();
+						}else if (entry.getValue() == null) {
+							m_log.debug("entry.getValue() == null.");
+							continue;
 						}else{
 							value = entry.getValue().toString();
+						}
+						
+						if (value.length() > 128) {
+							// デバイス名が128文字までなので切り詰め
+							value = value.substring(0, 128);
 						}
 						if( value.equals(deviceName) ){
 							previousIndex = entry.getKey().substring(entry.getKey().lastIndexOf("."));
@@ -208,7 +218,7 @@ abstract public class Operator {
 						// エラー処理
 						String message = "getDifferenceValue() deviceName : " + deviceName + ", previousIndex is null";
 						m_log.debug(message);
-						throw new CollectedDataNotFoundException(message);
+						throw new CollectedDataNotFoundWithNoPollingException(message);
 					}
 
 					// pollingTargetにTableEntryから取得するためのKeyを与える
@@ -351,15 +361,15 @@ abstract public class Operator {
 
 				try{
 					// 直近の取得時のデータテーブルからキーとなるデバイス名をすべて取得する
-					Set<TableEntry> entrys = table.getValueSetStartWith(PollerProtocolConstant.getEntryKey(getCollectMethod() ,pollingTarget));
-					if(entrys == null){
+					Set<TableEntry> entrySet = table.getValueSetStartWith(PollerProtocolConstant.getEntryKey(getCollectMethod() ,pollingTarget));
+					if(entrySet == null){
 						// エラー処理
-						String message = "getValue() entrys is null, entrys : " + entrys;
+						String message = "getValue() entrySet is null, entrySet : null";
 						m_log.debug(message);
 						throw new CollectedDataNotFoundException(message);
 					}
 
-					Iterator<TableEntry> itr = entrys.iterator();
+					Iterator<TableEntry> itr = entrySet.iterator();
 					while(itr.hasNext()) {
 						TableEntry entry = itr.next();
 						if(m_log.isDebugEnabled()){
@@ -368,11 +378,19 @@ abstract public class Operator {
 						}
 						// value はString で判定するため、念のためObjectのClass check
 						String value = null;
-						if(entry.getValue() instanceof String){
+						if (entry.getValue() == null) {
+							continue;
+						} else if(entry.getValue() instanceof String){
 							value = (String)entry.getValue();
 						}else{
 							value = entry.getValue().toString();
 						}
+						
+						if (value.length() > 128) {
+							// デバイス名が128文字までなので切り詰め
+							value = value.substring(0, 128);
+						}
+						
 						if( value.equals(deviceName) ){
 							index = entry.getKey().substring(entry.getKey().lastIndexOf("."));
 							break;
@@ -389,10 +407,10 @@ abstract public class Operator {
 						detailMsg.append("DeviceName " + deviceName + " is not exists\n");
 						detailMsg.append("Search Device Name is ...\n");
 
-						itr = entrys.iterator();
+						itr = entrySet.iterator();
 						while(itr.hasNext()) {
 							TableEntry entry = itr.next();
-							detailMsg.append(" [" + (String)entry.getValue() + "]\n");
+							detailMsg.append(" [" + entry.getValue() + "]\n");
 						}
 
 						String message = "getValue() deviceName : " + deviceName + ", index is null";
@@ -527,6 +545,17 @@ abstract public class Operator {
 			// 値取得失敗と判定し、値取得失敗時の返却値を返す
 			return Long.parseLong(data.getFailureValue());
 		} else {
+			// pollingでエラーが発生していないかチェックする
+			if (!entry.isValid()) {
+				// エラーなら値取得失敗と判定し、対応する設定があれば値取得失敗時の返却値を返す
+				if (data.getFailureValue() == null) {
+					String message = entry.getErrorDetail().getMessage();
+					m_log.debug(message);
+					throw new CollectedDataNotFoundException(message);
+				}
+				return Long.parseLong(data.getFailureValue());
+			}
+			
 			long value = (Long)entry.getValue();
 
 			//			// 負の値の場合
@@ -587,6 +616,12 @@ abstract public class Operator {
 
 		// return用の変数
 		double ret = 0;
+		
+		// 前回収集時の値がなく、今回収集時の値がある場合は、異常ではなく初回収集と判断する
+		if (previousTable.getValue(previousEntryKey) == null && currentTable.getValue(currentEntryKey) != null) {
+			m_log.info("getMibValueDiff() : polling have not done enough count.");
+			throw new CollectedDataNotFoundWithNoPollingException("previous data is null");
+		}
 
 		// 前回収集時の値を取得
 		long previousValue =  getMibValueLong(previousTable, data, previousEntryKey);
@@ -754,14 +789,26 @@ abstract public class Operator {
 		this.variables = variables;
 	}
 
-	public class InvalidValueException extends Exception {
+	public static class InvalidValueException extends Exception {
 		private static final long serialVersionUID = -1102457433444726271L;
+		
+		public InvalidValueException(String messages) {
+			super(messages);
+		}
 	}
 
 	public class CollectedDataNotFoundException extends Exception {
 		private static final long serialVersionUID = 6306555743811316089L;
 		
 		public CollectedDataNotFoundException(String messages) {
+			super(messages + ", itemcode=" + itemCode);
+		}
+	}
+	
+	public class CollectedDataNotFoundWithNoPollingException extends CollectedDataNotFoundException {
+		private static final long serialVersionUID = 9166324575275897346L;
+
+		public CollectedDataNotFoundWithNoPollingException(String messages) {
 			super(messages + ", itemcode=" + itemCode);
 		}
 	}

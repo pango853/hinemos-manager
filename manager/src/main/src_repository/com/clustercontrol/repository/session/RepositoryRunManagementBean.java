@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.repository.session;
@@ -29,10 +22,11 @@ import java.util.concurrent.TimeoutException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.JobInfoNotFound;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.repository.DeviceSearchTask;
+import com.clustercontrol.util.HinemosTime;
 
 
 /**
@@ -48,9 +42,24 @@ public class RepositoryRunManagementBean {
 
 	// 実行回数カウンタ
 	private static int execCount = 0;
+	
+	private static boolean countCheck() {
+		int interval = HinemosPropertyCommon.repository_device_search_interval.getIntegerValue();
+		if (interval <= 0) {
+			return false;
+		}
+		execCount ++;
+		boolean flag = false;
+		if (execCount >= interval) {
+			execCount = 0;
+			flag = true;
+		}
+		m_log.debug("execCount=" + execCount + " flag=" + flag + " interval=" + interval);
+		return flag;
+	}
 
 	private static final ExecutorService _executorService = Executors.newFixedThreadPool(
-			HinemosPropertyUtil.getHinemosPropertyNum("repository.device.search.threadpool.size", 5),
+			HinemosPropertyCommon.repository_device_search_threadpool_size.getIntegerValue(),
 			new ThreadFactory() {
 				private volatile int _count = 0;
 
@@ -75,13 +84,8 @@ public class RepositoryRunManagementBean {
 	public void run() {
 		if (duplicateExec.tryAcquire()) {
 			try {
-				int interval = HinemosPropertyUtil.getHinemosPropertyNum("repository.device.search.interval", 5);
-				if (interval <= 0) {
-					return;
-				}
-				int amari = execCount % interval;
-				if (amari == 0) {
-					long start = System.currentTimeMillis();
+				if (countCheck()) {
+					long start = HinemosTime.currentTimeMillis();
 					RepositoryControllerBean controller = new RepositoryControllerBean();
 					//ノード一覧を取得
 					try {
@@ -110,10 +114,8 @@ public class RepositoryRunManagementBean {
 						m_log.warn("run() : "
 								+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
 					}
-					m_log.info("auto device search : time=" + (System.currentTimeMillis() - start) + "ms");
+					m_log.info("auto device search : time=" + (HinemosTime.currentTimeMillis() - start) + "ms");
 				}
-				m_log.debug("execCount=" + execCount + " amari=" + amari + " interval=" + interval);
-				execCount = execCount>=interval ? 1 : ++execCount;
 			} finally {
 				duplicateExec.release();
 			}

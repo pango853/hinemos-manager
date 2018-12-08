@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
+ */
+
 package com.clustercontrol.port.protocol;
 
 import org.apache.commons.logging.Log;
@@ -5,7 +13,7 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.port.bean.PortRunCountConstant;
 import com.clustercontrol.port.bean.PortRunIntervalConstant;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.util.MessageConstant;
 
 public abstract class ReachAddressProtocol {
 
@@ -47,8 +55,8 @@ public abstract class ReachAddressProtocol {
 			addressText = nodeName;
 		} else {
 			m_log.debug("isReachable(): "
-					+ Messages.getString("message.port.5"));
-			m_message = Messages.getString("message.port.5");
+					+ MessageConstant.MESSAGE_NOT_REGISTER_IN_REPOSITORY_PORT.getMessage());
+			m_message = MessageConstant.MESSAGE_NOT_REGISTER_IN_REPOSITORY_PORT.getMessage();
 			m_messageOrg = null;
 			return false;
 		}

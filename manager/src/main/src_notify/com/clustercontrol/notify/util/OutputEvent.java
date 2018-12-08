@@ -1,21 +1,13 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.notify.util;
 
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,15 +16,20 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.HinemosManagerMain;
 import com.clustercontrol.bean.PriorityConstant;
-import com.clustercontrol.bean.YesNoConstant;
+import com.clustercontrol.commons.util.HinemosEntityManager;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
 import com.clustercontrol.commons.util.JdbcBatchExecutor;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.NotifyNotFound;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
 import com.clustercontrol.monitor.bean.ConfirmConstant;
+import com.clustercontrol.monitor.run.util.EventCacheModifyCallback;
 import com.clustercontrol.notify.bean.NotifyRequestMessage;
 import com.clustercontrol.notify.bean.OutputBasicInfo;
-import com.clustercontrol.notify.model.NotifyEventInfoEntity;
+import com.clustercontrol.notify.model.NotifyEventInfo;
 import com.clustercontrol.notify.monitor.model.EventLogEntity;
+import com.clustercontrol.notify.monitor.model.EventLogEntityPK;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 
 /**
@@ -63,8 +60,8 @@ public class OutputEvent implements DependDbNotifier {
 		outputEvent(message.getOutputInfo(), message.getNotifyId());
 	}
 
-	private void outputEvent(OutputBasicInfo outputInfo, String notifyId) {
-		outputEvent(outputInfo, notifyId, null, null);
+	public EventLogEntity outputEvent(OutputBasicInfo outputInfo, String notifyId) {
+		return outputEvent(outputInfo, notifyId, null, null);
 
 	}
 
@@ -79,7 +76,7 @@ public class OutputEvent implements DependDbNotifier {
 	 */
 	private EventLogEntity outputEvent(OutputBasicInfo outputInfo,
 			String notifyId, String ownerRoleId,
-			NotifyEventInfoEntity notifyEventInfoEntity) {
+			NotifyEventInfo notifyEventInfoEntity) {
 		m_log.debug("outputEvent() notifyId=" + notifyId + ", ownerRoleId=" + ownerRoleId);
 		// FIXME
 		if(notifyId == null || "SYS".equals(outputInfo.getPluginId())) {
@@ -103,7 +100,7 @@ public class OutputEvent implements DependDbNotifier {
 		return null;
 	}
 
-	private Integer getEventNormalState(NotifyEventInfoEntity notifyEventInfo, OutputBasicInfo outputInfo) {
+	private Integer getEventNormalState(NotifyEventInfo notifyEventInfo, OutputBasicInfo outputInfo) {
 		int priority = outputInfo.getPriority();
 		switch (priority) {
 		case PriorityConstant.TYPE_INFO:
@@ -118,7 +115,7 @@ public class OutputEvent implements DependDbNotifier {
 		default:
 			break;
 		}
-		m_log.warn("priority=" + priority + ", id=" + notifyEventInfo.getId() + ", output=" + outputInfo.getMonitorId());
+		m_log.warn("priority=" + priority + ", id=" + notifyEventInfo.getNotifyId() + ", output=" + outputInfo.getMonitorId());
 		return null;
 	}
 
@@ -139,52 +136,55 @@ public class OutputEvent implements DependDbNotifier {
 					+ ", facilityId=" + output.getFacilityId() + ", generationDate=" + output.getGenerationDate()
 					+ ", priority=" + output.getPriority() + ", message=" + output.getMessage() + ", ownerRoleId=" + ownerRoleId + ")");
 
-		// 出力日時を生成
-		Timestamp outputDate = createOutputDate();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 
-		// インスタンス生成
-		EventLogEntity entity = null;
-		if (ownerRoleId != null) {
-			entity = new EventLogEntity(output.getMonitorId(),
-					output.getSubKey(),
-					output.getPluginId(),
-					outputDate,
-					output.getFacilityId(),
-					ownerRoleId);
-		} else {
-			entity = new EventLogEntity(output.getMonitorId(),
+			// 出力日時を生成
+			Long outputDate = createOutputDate();
+
+			// インスタンス生成
+			EventLogEntity entity = null;
+			EventLogEntityPK pk = new EventLogEntityPK(
+					output.getMonitorId(),
 					output.getSubKey(),
 					output.getPluginId(),
 					outputDate,
 					output.getFacilityId());
+			entity = new EventLogEntity(pk);
+			if (ownerRoleId != null) {
+				entity.setOwnerRoleId(ownerRoleId);
+			} else {
+				entity.setOwnerRoleId(NotifyUtil.getOwnerRoleId(pk.getPluginId(), pk.getMonitorId(),
+						pk.getMonitorDetailId(), pk.getFacilityId(), true));
+				em.persist(entity);
+			}
+
+			entity.setApplication(output.getApplication());
+			entity.setComment("");
+			entity.setCommentDate(null);
+			entity.setCommentUser("");
+			entity.setConfirmDate(null);
+			entity.setConfirmFlg(confirmState);
+			entity.setConfirmUser("");
+			entity.setDuplicationCount(0l);
+			entity.setGenerationDate(output.getGenerationDate());
+			entity.setInhibitedFlg(false);
+			String message = output.getMessage();
+			entity.setMessage(getNotifyEventMessageMaxString(message));
+			entity.setMessageOrg(getNotifyEventMessageOrgMaxString(output.getMessageOrg()));
+			entity.setPriority(output.getPriority());
+			entity.setScopeText(output.getScopeText());
+			entity.setCollectGraphFlg(false);
+
+			if (m_log.isDebugEnabled())
+				m_log.debug("created event successfully. (monitorId=" + output.getMonitorId() + ", pluginId=" + output.getPluginId()
+						+ ", facilityId=" + output.getFacilityId() + ", generationDate=" + output.getGenerationDate()
+						+ ", priority=" + output.getPriority() + ", message=" + output.getMessage() + ")");
+
+			jtm.addCallback(new EventCacheModifyCallback(true, entity));
+
+			return entity;
 		}
-
-		entity.setApplication(output.getApplication());
-		entity.setComment("");
-		entity.setCommentDate(null);
-		entity.setCommentUser("");
-		entity.setConfirmDate(null);
-		entity.setConfirmFlg(new Integer(confirmState));
-		entity.setConfirmUser("");
-		entity.setDuplicationCount(new Long(0));
-		entity.setGenerationDate(new Timestamp(output.getGenerationDate()));
-		entity.setInhibitedFlg(new Integer(YesNoConstant.TYPE_NO));
-		String message = output.getMessage();
-		if (message == null) {
-			message = "";
-		}
-		entity.setMessage(getNotifyEventMessageMaxString(message));
-		entity.setMessageId(output.getMessageId());
-		entity.setMessageOrg(getNotifyEventMessageOrgMaxString(output.getMessageOrg()));
-		entity.setPriority(new Integer(output.getPriority()));
-		entity.setScopeText(output.getScopeText());
-
-		if (m_log.isDebugEnabled())
-			m_log.debug("created event successfully. (monitorId=" + output.getMonitorId() + ", pluginId=" + output.getPluginId()
-					+ ", facilityId=" + output.getFacilityId() + ", generationDate=" + output.getGenerationDate()
-					+ ", priority=" + output.getPriority() + ", message=" + output.getMessage() + ")");
-
-		return entity;
 	}
 
 	/**
@@ -193,9 +193,9 @@ public class OutputEvent implements DependDbNotifier {
 	 * 
 	 * @return 出力日時
 	 */
-	private static synchronized Timestamp createOutputDate(){
+	private static synchronized Long createOutputDate(){
 		// 現在時刻を取得
-		long now = System.currentTimeMillis();
+		long now = HinemosTime.currentTimeMillis();
 		now = now - now % HinemosManagerMain._instanceCount + HinemosManagerMain._instanceId;
 		long outputDateTime = 0;
 
@@ -212,7 +212,7 @@ public class OutputEvent implements DependDbNotifier {
 
 		_lastOutputDateTime = outputDateTime;
 
-		return new Timestamp(outputDateTime);
+		return Long.valueOf(outputDateTime);
 	}
 
 	/**
@@ -221,7 +221,7 @@ public class OutputEvent implements DependDbNotifier {
 	 * @return
 	 */
 	public static String getNotifyEventMessageOrgMaxString(String messageOrg) {
-		return getMaxString("notify.event.messageorg.max.length", 1024, messageOrg);
+		return getMaxString(HinemosPropertyCommon.notify_event_messageorg_max_length, messageOrg);
 	}
 
 	/**
@@ -230,21 +230,20 @@ public class OutputEvent implements DependDbNotifier {
 	 * @return
 	 */
 	public static String getNotifyEventMessageMaxString(String message) {
-		return getMaxString("notify.event.message.max.length", 255, message);
+		return getMaxString(HinemosPropertyCommon.notify_event_message_max_length, message);
 	}
 
 	/**
 	 * 指定された文字列がHinemosプロパティ上で定義されているサイズよりも長い場合に切断する。
-	 * @param key Hinemosプロパティのキー
-	 * @param defaultValue Hinemosプロパティのキーが見つからない場合のデフォルト値
+	 * @param hinemosPropertyCommon Hinemosプロパティ
 	 * @param targetString 対象文字列
 	 * @return
 	 */
-	private static String getMaxString(String key, Integer defaultValue, String targetString) {
+	private static String getMaxString(HinemosPropertyCommon hinemosPropertyCommon, String targetString) {
 		if (targetString == null) {
 			return targetString;
 		}
-		int maxLen = HinemosPropertyUtil.getHinemosPropertyNum(key, defaultValue);
+		int maxLen = hinemosPropertyCommon.getIntegerValue();
 		String returnString = null;
 		if (targetString.length() <= maxLen) {
 			returnString = targetString;
@@ -258,20 +257,20 @@ public class OutputEvent implements DependDbNotifier {
 	 * 通知失敗時の内部エラー通知を定義します
 	 */
 	@Override
-	public void internalErrorNotify(String notifyId, String msgID, String detailMsg) throws Exception {
+	public void internalErrorNotify(int priority, String notifyId, MessageConstant msgCode, String detailMsg) throws Exception {
 		//FIXME
 		// 何もしない
 	}
 
-	public void notify(List<NotifyRequestMessage> msgList) throws NotifyNotFound {
+	public List<EventLogEntity> notify(List<NotifyRequestMessage> msgList) throws NotifyNotFound {
 		if (msgList.isEmpty()) {
-			return;
+			return new ArrayList<EventLogEntity>();
 		}
 		
-		m_log.debug("227 ownerRoleId=" + NotifyUtil.getOwnerRoleId(msgList.get(0), true));
+		m_log.debug("notify() : ownerRoleId=" + NotifyUtil.getOwnerRoleId(msgList.get(0), true));
 		//一括通知で通知するメッセージは同一ロールなので、1個目のロールIDを利用する。
 		
-		NotifyEventInfoEntity notifyEvent = null;
+		NotifyEventInfo notifyEvent = null;
 		if (msgList.get(0).getNotifyId() != null) {
 			// NOTIFY_IDを保持しないイベントも通知される（HAにおけるセルフチェック通知など)
 			notifyEvent = getNotifyEventInfo(msgList.get(0));
@@ -279,11 +278,15 @@ public class OutputEvent implements DependDbNotifier {
 		
 		List<EventLogEntity> entities = collectEntities(msgList, NotifyUtil.getOwnerRoleId(msgList.get(0), true), notifyEvent);
 		JdbcBatchExecutor.execute(new EventLogEntityJdbcBatchInsert(entities));
+		for (EventLogEntity e : entities) {
+			new JpaTransactionManager().addCallback(new EventCacheModifyCallback(true, e));
+		}
+		return entities;
 	}
 
 	private List<EventLogEntity> collectEntities(
 			List<NotifyRequestMessage> msgList, String ownerRoleId,
-			NotifyEventInfoEntity notifyEventInfoEntity) {
+			NotifyEventInfo notifyEventInfoEntity) {
 		List<EventLogEntity> entities = new ArrayList<EventLogEntity>();
 		for (NotifyRequestMessage msg : msgList) {
 			entities.add(outputEvent(msg.getOutputInfo(), msg.getNotifyId(), ownerRoleId, notifyEventInfoEntity));
@@ -291,7 +294,7 @@ public class OutputEvent implements DependDbNotifier {
 		return entities;
 	}
 
-	private NotifyEventInfoEntity getNotifyEventInfo(
+	private NotifyEventInfo getNotifyEventInfo(
 			NotifyRequestMessage notifyRequestMessage) throws NotifyNotFound {
 		return QueryUtil.getNotifyEventInfoPK(notifyRequestMessage.getNotifyId());
 	}

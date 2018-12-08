@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2014 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jmx.session;
@@ -28,9 +21,8 @@ import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidSetting;
-import com.clustercontrol.jmx.bean.JmxMasterInfo;
-import com.clustercontrol.jmx.model.MonitorJmxMstEntity;
-import com.clustercontrol.util.Messages;
+import com.clustercontrol.jmx.model.JmxMasterInfo;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * JMX 監視項目マスタ情報を制御するSession Bean <BR>
@@ -52,23 +44,22 @@ public class JmxMasterControllerBean {
 	 * @throws InvalidSetting
 	 */
 	public boolean addJmxMasterList(List<JmxMasterInfo> datas) throws HinemosUnknown, InvalidSetting {
-		JpaTransactionManager jtm = null;
-
 		boolean ret = false;
 
 		for (JmxMasterInfo m: datas) {
 			validateJmxMasterInfo(m);
 		}
 
+		JpaTransactionManager jtm = new JpaTransactionManager();
+		HinemosEntityManager em = jtm.getEntityManager();
 		try {
-			jtm = new JpaTransactionManager();
 			jtm.begin();
 
 			// インスタンス生成
 			for (JmxMasterInfo data: datas) {
-				MonitorJmxMstEntity entity = new MonitorJmxMstEntity(data.getId(), data.getObjectName(), data.getAttributeName(), data.getKeys(), data.getName(), data.getMeasure());
 				// 重複チェック
-				jtm.checkEntityExists(MonitorJmxMstEntity.class, entity.getId());
+				jtm.checkEntityExists(JmxMasterInfo.class, data.getId());
+				em.persist(data);
 			}
 
 			jtm.commit();
@@ -106,8 +97,8 @@ public class JmxMasterControllerBean {
 			jtm.begin();
 
 			HinemosEntityManager em = jtm.getEntityManager();
-			List<MonitorJmxMstEntity> entities = em.createNamedQuery("MonitorJmxMstEntity.findList", MonitorJmxMstEntity.class).setParameter("ids", ids).getResultList();
-			for (MonitorJmxMstEntity entity : entities) {
+			List<JmxMasterInfo> entities = em.createNamedQuery("MonitorJmxMstEntity.findList", JmxMasterInfo.class).setParameter("ids", ids).getResultList();
+			for (JmxMasterInfo entity : entities) {
 				// 削除処理
 				em.remove(entity);
 			}
@@ -117,7 +108,8 @@ public class JmxMasterControllerBean {
 			ret = true;
 		} catch (Exception e) {
 			m_log.warn("deleteJmxMasterList() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
 			if (jtm != null) {
@@ -144,8 +136,8 @@ public class JmxMasterControllerBean {
 			jtm.begin();
 
 			HinemosEntityManager em = jtm.getEntityManager();
-			List<MonitorJmxMstEntity> entities = em.createNamedQuery("MonitorJmxMstEntity.findAll", MonitorJmxMstEntity.class).getResultList();
-			for (MonitorJmxMstEntity entity : entities) {
+			List<JmxMasterInfo> entities = em.createNamedQuery("MonitorJmxMstEntity.findAll", JmxMasterInfo.class).getResultList();
+			for (JmxMasterInfo entity : entities) {
 				// 削除処理
 				em.remove(entity);
 			}
@@ -155,7 +147,8 @@ public class JmxMasterControllerBean {
 			ret = true;
 		} catch (Exception e) {
 			m_log.warn("deleteJmxMasterAll() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
 			if (jtm != null) {
@@ -179,14 +172,12 @@ public class JmxMasterControllerBean {
 		try {
 			jtm = new JpaTransactionManager();
 			HinemosEntityManager em = jtm.getEntityManager();
-			List<MonitorJmxMstEntity> entities = em.createNamedQuery("MonitorJmxMstEntity.findAll", MonitorJmxMstEntity.class).getResultList();
-
-			for (MonitorJmxMstEntity entity: entities) {
-				ret.add(new JmxMasterInfo(entity.getId(), entity.getObjectName(), entity.getAttributeName(), entity.getKeys(), entity.getName(), entity.getMeasure()));
-			}
+			List<JmxMasterInfo> entities = em.createNamedQuery("MonitorJmxMstEntity.findAll", JmxMasterInfo.class).getResultList();
+			ret.addAll(entities);
 		} catch (Exception e) {
 			m_log.warn("getJmxMasterList() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
 			if (jtm != null) {
@@ -197,11 +188,11 @@ public class JmxMasterControllerBean {
 	}
 
 	private void validateJmxMasterInfo(JmxMasterInfo info) throws InvalidSetting {
-		CommonValidator.validateString(Messages.getString("monitor.jmx.master.id"), info.getId(), true, 1, 64);
-		CommonValidator.validateString(Messages.getString("monitor.jmx.master.objectname"), info.getObjectName(), true, 1, 512);
-		CommonValidator.validateString(Messages.getString("monitor.jmx.master.attributename"), info.getAttributeName(), true, 1, 256);
-		CommonValidator.validateString(Messages.getString("monitor.jmx.master.keys"), info.getKeys(), false, 0, 512);
-		CommonValidator.validateString(Messages.getString("monitor.jmx.master.name"), info.getName(), true, 1, 256);
-		CommonValidator.validateString(Messages.getString("monitor.jmx.master.measure"), info.getMeasure(), true, 1, 64);
+		CommonValidator.validateString(MessageConstant.MONITOR_JMX_MASTER_ID.getMessage(), info.getId(), true, 1, 64);
+		CommonValidator.validateString(MessageConstant.MONITOR_JMX_MASTER_OBJECTNAME.getMessage(), info.getObjectName(), true, 1, 512);
+		CommonValidator.validateString(MessageConstant.MONITOR_JMX_MASTER_ATTRIBUTENAME.getMessage(), info.getAttributeName(), true, 1, 256);
+		CommonValidator.validateString(MessageConstant.MONITOR_JMX_MASTER_KEYS.getMessage(), info.getKeys(), false, 0, 512);
+		CommonValidator.validateString(MessageConstant.MONITOR_JMX_MASTER_NAME.getMessage(), info.getName(), true, 1, 256);
+		CommonValidator.validateString(MessageConstant.MONITOR_JMX_MASTER_MEASURE.getMessage(), info.getMeasure(), true, 1, 64);
 	}
 }

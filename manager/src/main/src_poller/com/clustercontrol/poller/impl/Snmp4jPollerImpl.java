@@ -1,16 +1,9 @@
 /*
-
- Copyright (C) 2008 NTT DATA Corporation
-
- This program is free software; you can redistribute it and/or
- Modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation, version 2.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.poller.impl;
@@ -20,7 +13,9 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -50,12 +45,16 @@ import org.snmp4j.util.DefaultPDUFactory;
 
 import com.clustercontrol.bean.SnmpProtocolConstant;
 import com.clustercontrol.bean.SnmpSecurityLevelConstant;
-import com.clustercontrol.maintenance.util.HinemosPropertyUtil;
+import com.clustercontrol.commons.util.HinemosPropertyCommon;
+import com.clustercontrol.fault.SnmpResponseError;
 import com.clustercontrol.nodemap.util.SearchConnectionProperties;
-import com.clustercontrol.poller.SnmpPoller;
 import com.clustercontrol.poller.bean.PollerProtocolConstant;
+import com.clustercontrol.poller.util.DataTable;
+import com.clustercontrol.poller.util.TableEntry;
+import com.clustercontrol.poller.util.TableEntry.ErrorType;
 import com.clustercontrol.repository.util.SearchDeviceProperties;
-import com.clustercontrol.sharedtable.DataTable;
+import com.clustercontrol.util.HinemosTime;
+import com.clustercontrol.util.MessageConstant;
 
 /**
  * snmp4jライブラリを用いて実装したsnmpポーリングクラス
@@ -63,24 +62,17 @@ import com.clustercontrol.sharedtable.DataTable;
  * v3のユーザ作成について、下記のページを参照してください。
  * https://access.redhat.com/documentation/ja-JP/Red_Hat_Enterprise_Linux/6/html/Deployment_Guide/sect-System_Monitoring_Tools-Net-SNMP-Configuring.html
  */
-public class Snmp4jPollerImpl implements SnmpPoller {
+public class Snmp4jPollerImpl {
 
 	private final static Log log = LogFactory.getLog(Snmp4jPollerImpl.class);
 
-	private static final String PROP_DELETE_LABEL = "monitor.resource.delete.label";
-	private final static String PROP_NON_REPEATERS = "monitor.poller.snmp.bulk.nonrepeaters";
-	private final static String PROP_MAX_REPETITIONS = "monitor.poller.snmp.bulk.maxrepetitions";
-	private final static String PROP_NOT_V3_SNMP_POOL_SIZE = "monitor.poller.snmp.not.v3.snmp.pool.size";
-	public final static String LABEL_REPLACE_KEY = "monitor.resource.label.replace";
-	public final static String LABEL_REPLACE_DEFAULT = " Label:\\S*  Serial Number .*";
-
 	private final List<String> processOidList;
 
-	private final Integer maxRepetitions = HinemosPropertyUtil.getHinemosPropertyNum(PROP_MAX_REPETITIONS, 10);
-	private final Integer nonRepeaters  = HinemosPropertyUtil.getHinemosPropertyNum(PROP_NON_REPEATERS, 0);
-	private final boolean deleteLabel = HinemosPropertyUtil.getHinemosPropertyBool(PROP_DELETE_LABEL, true);
+	private final Integer maxRepetitions = HinemosPropertyCommon.monitor_poller_snmp_bulk_maxrepetitions.getIntegerValue();
+	private final Integer nonRepeaters  = HinemosPropertyCommon.monitor_poller_snmp_bulk_nonrepeaters.getIntegerValue();
+	private final boolean deleteLabel = HinemosPropertyCommon.monitor_resource_delete_label.getBooleanValue();
 	
-	private final int notV3SnmpPoolSize = HinemosPropertyUtil.getHinemosPropertyNum(PROP_NOT_V3_SNMP_POOL_SIZE, 32);
+	private final int notV3SnmpPoolSize = HinemosPropertyCommon.monitor_poller_snmp_not_v3_snmp_pool_size.getIntegerValue();
 	
 	private List<Snmp> notV3SnmpPool = new ArrayList<Snmp>(notV3SnmpPoolSize);
 	private int notV3SnmpPoolIndex = 0;
@@ -109,11 +101,23 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 		return instance;
 	}
 	
-	/*
-	 * (non-Javadoc)
-	 * @see com.clustercontrol.poller.impl.SnmpPoller#polling(java.lang.String, int, int, java.lang.String, int, int, java.util.List, boolean)
+	/**
+	 * SNMPでポーリングし、DataTableの形式で返す
+	 *
+	 * @param ipAddress IPアドレス
+	 * @param port ポート番号
+	 * @param version バージョン（0:SNMP V1 protocol, 1:SNMP V2 protocol, 3: SNMP V3 protocol）
+	 * @param community コミュニティ
+	 * @param retries １回のポーリングでのリトライ回数
+	 * @param timeout ポーリングのタイムアウト
+	 * @param oidSet 対象OIDのリスト
+	 * @param securityLevel セキュリティレベル（v3）
+	 * @param user ユーザ名（v3）
+	 * @param authPassword 認証パスワード（v3）
+	 * @param privPassword 暗号化パスワード（v3）
+	 * @param authProtocol 認証プロトコル（v3）
+	 * @param privProtocol 暗号化プロトコル（v3）
 	 */
-	@Override
 	public DataTable polling(
 			String ipAddress,
 			int port,
@@ -121,7 +125,7 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 			String community,
 			int retries,
 			int timeout,
-			List<String> oidList,
+			Set<String> oidSet,
 			String securityLevel,
 			String user,
 			String authPassword,
@@ -144,15 +148,18 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 					{"authProtocol", authProtocol},
 					{"privProtocol", privProtocol}
 			};
-			StringBuffer buffer = new StringBuffer();
-			for (String[] nameValue : nameValues) {
-				buffer.append(String.format("%s=%s, ", nameValue[0], nameValue[1]));
+			if (log.isDebugEnabled()) {
+				StringBuilder sb = new StringBuilder();
+				for (String[] nameValue : nameValues) {
+					sb.append(nameValue[0]).append("=").append(nameValue[1]).append(", ");
+				}
+				int i = 0;
+				for (final String oid : oidSet) {
+					sb.append("oidList[").append(i).append("]=").append(oid).append(", ");
+					i++;
+				}
+				log.debug(sb.toString());
 			}
-
-			for (int i = 0; i < oidList.size(); i++) {
-				buffer.append(String.format("oidList[%d]=%s, ", i, oidList.get(i)));
-			}
-			log.debug(buffer.toString());
 		}
 
 		//retriesは本当が試行回数だが、hinemosで実行回数になっているため、それに1を減らす。
@@ -160,7 +167,7 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 			retries =0;
 		}
 		
-		DataTable dataTable = new DataTable();
+		DataTable dataTable = null;
 
 		Snmp snmp = null;
 		try {
@@ -171,22 +178,22 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 				snmp = getNotV3SnmpFromPool();
 			}
 
-			oidList = formalizeOidList(oidList);
-			DefaultPDUFactory factory = createPduFactory(oidList, version);
+			oidSet = formalizeOidList(oidSet);
+			DefaultPDUFactory factory = createPduFactory(oidSet, version);
 			
 			Target target = createTarget(ipAddress, port, version,
 					community, retries, timeout, securityLevel, user);
 
 			MultipleOidsUtils utils = new MultipleOidsUtils(snmp, factory);
 			
-			int maxRetry = HinemosPropertyUtil.getHinemosPropertyNum("monitor.poller.snmp.max.retry", 3);
+			int maxRetry = HinemosPropertyCommon.monitor_poller_snmp_max_retry.getIntegerValue();
 			boolean errorFlag = true;
 			for (int i = 0; i < maxRetry; i++) {
-				Collection<VariableBinding> vbs = utils.query(target, createColumnOidList(oidList).toArray(new OID[0])); 
+				Collection<VariableBinding> vbs = utils.query(target, createColumnOidList(oidSet).toArray(new OID[0])); 
 				DataTable dataTableNotChecked = createDataTable(vbs);
 				
 				// 最後まで到達
-				if (isDataTableValid(oidList, dataTableNotChecked)) {
+				if (isDataTableValid(oidSet, dataTableNotChecked)) {
 					dataTable = dataTableNotChecked;
 					errorFlag = false;
 					break;
@@ -196,7 +203,12 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 				log.warn("reach max retry(" + maxRetry + ")");
 			}
 		} catch (IOException e) {
-			log.warn("polling : IOException message=" + e.getMessage());
+			// ポーリング処理自体が失敗した場合、全OIDについて失敗した情報を格納する
+			dataTable = new DataTable();
+			for (final String oid : oidSet) {
+				final String entryOid = getEntryKey(oid) +".0";
+				dataTable.putValue(new TableEntry(entryOid, HinemosTime.currentTimeMillis(), ErrorType.IO_ERROR, e));
+			}
 		} finally {
 			if (version == SnmpConstants.version3 && snmp != null) {
 				try {
@@ -206,7 +218,20 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 				}
 			}
 		}
-
+		
+		// ポーリングしたにもかかわらずデータが存在しない箇所については、データが存在しないエラーのデータを入れる
+		for (final String oid : oidSet) {
+			final String entryOid = getEntryKey(oid);
+			if (dataTable.containStartWith(entryOid) == false) {
+				dataTable.putValue(new TableEntry(entryOid+".0", HinemosTime.currentTimeMillis(), 
+						ErrorType.RESPONSE_NOT_FOUND, new SnmpResponseError(MessageConstant.MESSAGE_RESPONSE_NOT_FOUND.getMessage(new String[]{oid}))));
+			}
+		}
+		
+		if (log.isDebugEnabled()) {
+			log.debug("polling() : built DataTable");
+			log.debug(dataTable.toString());
+		}
 		return dataTable;
 	}
 
@@ -228,9 +253,9 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 		return SecurityLevel.NOAUTH_NOPRIV;
 	}
 
-	private List<OID> createColumnOidList(List<String> oidList) {
+	private List<OID> createColumnOidList(Set<String> oidSet) {
 		List<OID> columnOIDList = new ArrayList<OID>();
-		for (String oid : oidList) {
+		for (String oid : oidSet) {
 			columnOIDList.add(new OID(oid));
 		}
 		return columnOIDList;
@@ -239,7 +264,7 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 	private DataTable createDataTable(Collection<VariableBinding> vbs) {
 		DataTable dataTable = new DataTable();
 		
-		long time = System.currentTimeMillis();
+		long time = HinemosTime.currentTimeMillis();
 		for (VariableBinding binding : vbs) {
 			if (binding == null) {
 				continue;
@@ -266,11 +291,11 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 		return target;
 	}
 
-	private DefaultPDUFactory createPduFactory(List<String> oidList, int version) {
+	private DefaultPDUFactory createPduFactory(Set<String> oids, int version) {
 		DefaultPDUFactory factory = new DefaultPDUFactory();
 		
 		// SNMPv1以外のプロセス監視の場合はBULK
-		if (isProcessOidList(oidList) && version != SnmpConstants.version1) {
+		if (isProcessOidList(oids) && version != SnmpConstants.version1) {
 			factory.setPduType(PDU.GETBULK);
 			factory.setMaxRepetitions(maxRepetitions);
 			factory.setNonRepeaters(nonRepeaters);
@@ -345,18 +370,18 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 		return target;
 	}
 
-	private List<String> formalizeOidList(List<String> oidList) {
-		List<String> newOidList = new ArrayList<String>(oidList.size());
-		for (String oid : oidList) {
+	private Set<String> formalizeOidList(Set<String> oids) {
+		Set<String> newOids = new HashSet<String>(oids.size());
+		for (String oid : oids) {
 			//snmp4jのgetbulkが、末尾が0であるOIDを対応していないため、
 			//.XX.YY.0ようなOIDを.XX.YYに変換
 			if (oid.endsWith(".0")) {
 				oid = oid.substring(0, oid.length() - 2);
 			}
-			newOidList.add(oid);
+			newOids.add(oid);
 		}
 
-		return newOidList;
+		return newOids;
 	}
 
 	/**
@@ -372,7 +397,7 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 		switch (variable.getSyntax()) {
 		case SMIConstants.SYNTAX_OCTET_STRING:
 			OctetString octStr = (OctetString) variable;
-			String value = "";
+			StringBuilder value = new StringBuilder();
 			byte[] bytes = octStr.getValue();
 			if ((oidString.startsWith(SearchDeviceProperties.getOidNicMacAddress()) ||
 					oidString.startsWith(SearchConnectionProperties.DEFAULT_OID_ARP) ||
@@ -382,10 +407,10 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 				// 00:0A:1F:5F:30 という値として扱う
 				for (byte b : bytes) {
 					String part = String.format("%02x", b).toUpperCase();
-					if (value.equals("")) {
-						value += part;
+					if (value.length() == 0) {
+						value.append(part);
 					} else {
-						value += ":" + part;
+						value.append(":" + part);
 					}
 				}
 			} else {
@@ -397,7 +422,7 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 						break;
 					}
 				}
-				value = new String(bytes, 0, length);
+				value.append(new String(bytes, 0, length));
 			}
 
 			log.debug("SnmpPollerImpl deleteLabel=" + deleteLabel);
@@ -406,10 +431,12 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 			// C:\ Label:ABC  Serial Number 80f3e65c
 			// ↓
 			// C:\
+			String ret = value.toString();
 			if (deleteLabel && oidString.startsWith(SearchDeviceProperties.getOidFilesystemName())) {
-				value = value.replaceAll(HinemosPropertyUtil.getHinemosPropertyStr(LABEL_REPLACE_KEY, LABEL_REPLACE_DEFAULT), "");
+				ret = ret.replaceAll(HinemosPropertyCommon.monitor_resource_label_replace.getStringValue(), "");
 			}
-			return value;
+
+			return ret;
 
 		case SMIConstants.SYNTAX_OBJECT_IDENTIFIER:
 			return "."  + variable.toString();
@@ -419,23 +446,23 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 		}
 	}
 
-	private boolean isDataTableValid(List<String> oidList, DataTable dataTable) {
+	private boolean isDataTableValid(Set<String> oids, DataTable dataTable) {
 		//プロセス監視に関して、すべてoidの結果の数が同じであることをチェックする
-		if (isProcessOidList(oidList)) {
-			return isDataTableValidForProcess(oidList, dataTable);
+		if (isProcessOidList(oids)) {
+			return isDataTableValidForProcess(oids, dataTable);
 		}
 
 		return true;
 	}
 
-	private boolean isDataTableValidForProcess(List<String> oidList,
+	private boolean isDataTableValidForProcess(Set<String> oidSet,
 			DataTable dataTable) {
 		
 		int lastCount = -1;
-		ArrayList<ArrayList<String>> pidListList = new ArrayList();
+		ArrayList<ArrayList<String>> pidListList = new ArrayList<>();
 		
 		// プロセス監視の3つのOIDについて、取得したデータ長及び、PIDがそろっているかを確認する
-		for (String oid : oidList) {
+		for (String oid : oidSet) {
 			ArrayList<String> pidList = new ArrayList<String>();
 			
 			oid = getEntryKey(oid);
@@ -466,8 +493,9 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 			}
 		}
 		//全PID Listがそろっているかをチェックする
+		@SuppressWarnings("unchecked")
 		ArrayList<String>[] pidListArray = new ArrayList[3];
-		for(int i = 0; oidList.size() > i; i++){
+		for(int i = 0; oidSet.size() > i; i++){
 			pidListArray[i] = pidListList.get(i);
 		}
 		
@@ -499,7 +527,7 @@ public class Snmp4jPollerImpl implements SnmpPoller {
 		return true;
 	}
 
-	private boolean isProcessOidList(List<String> oidList) {
-		return oidList.size() == processOidList.size() && oidList.containsAll(processOidList);
+	private boolean isProcessOidList(Set<String> oids) {
+		return oids.size() == processOidList.size() && oids.containsAll(processOidList);
 	}
 }

@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2013 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.winevent.session;
@@ -23,10 +16,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.bean.HinemosModuleConstant;
-import com.clustercontrol.calendar.bean.CalendarInfo;
+import com.clustercontrol.calendar.model.CalendarInfo;
 import com.clustercontrol.calendar.session.CalendarControllerBean;
+import com.clustercontrol.commons.bean.SettingUpdateInfo;
 import com.clustercontrol.commons.util.AbstractCacheManager;
 import com.clustercontrol.commons.util.CacheManagerFactory;
+import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.HinemosSessionContext;
 import com.clustercontrol.commons.util.ICacheManager;
 import com.clustercontrol.commons.util.ILock;
@@ -36,11 +31,18 @@ import com.clustercontrol.commons.util.LockManagerFactory;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.monitor.run.bean.MonitorInfo;
+import com.clustercontrol.jobmanagement.bean.MonitorJobEndNode;
+import com.clustercontrol.jobmanagement.util.MonitorJobWorker;
+import com.clustercontrol.monitor.run.factory.SelectMonitor;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
+import com.clustercontrol.monitor.run.util.MonitorOnAgentUtil;
+import com.clustercontrol.notify.bean.OutputBasicInfo;
+import com.clustercontrol.notify.util.NotifyCallback;
 import com.clustercontrol.repository.session.RepositoryControllerBean;
+import com.clustercontrol.util.HinemosTime;
 import com.clustercontrol.winevent.bean.WinEventResultDTO;
 import com.clustercontrol.winevent.factory.RunMonitorWinEventString;
-import com.clustercontrol.winevent.factory.SelectMonitorWinEvent;
+import com.clustercontrol.winevent.util.WinEventManagerUtil;
 
 /**
  * 
@@ -99,21 +101,17 @@ public class MonitorWinEventControllerBean {
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
-			list = new SelectMonitorWinEvent().getMonitorListObjectPrivilegeModeNONE(HinemosModuleConstant.MONITOR_WINEVENT);
+			list = new SelectMonitor().getMonitorListObjectPrivilegeModeNONE(HinemosModuleConstant.MONITOR_WINEVENT);
 			jtm.commit();
-		} catch (MonitorNotFound e) {
-			jtm.rollback();
-			throw e;
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
 		} catch (Exception e) {
 			m_log.warn("getWinEventList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return list;
 	}
@@ -121,14 +119,16 @@ public class MonitorWinEventControllerBean {
 	public static void refreshCache() {
 		m_log.info("refreshCache()");
 		
-		long startTime = System.currentTimeMillis();
-		try {
+		long startTime = HinemosTime.currentTimeMillis();
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
 			_lock.writeLock();
 			
+			em.clear();
 			ArrayList<MonitorInfo> winEventCache = new MonitorWinEventControllerBean().getWinEventList();
 			storeCache(winEventCache);
 			
-			m_log.info("refresh winEventCache " + (System.currentTimeMillis() - startTime) +
+			m_log.info("refresh winEventCache " + (HinemosTime.currentTimeMillis() - startTime) +
 					"ms. size=" + winEventCache.size());
 		} catch (Exception e) {
 			m_log.warn("failed refreshing cache.", e);
@@ -181,19 +181,20 @@ public class MonitorWinEventControllerBean {
 			}
 
 			jtm.commit();
-		} catch (InvalidRole e) {
-			jtm.rollback();
-			throw e;
-		} catch (HinemosUnknown e) {
-			jtm.rollback();
+		} catch (InvalidRole | HinemosUnknown e) {
+			if (jtm != null){
+				jtm.rollback();
+			}
 			throw e;
 		} catch (Exception e) {
 			m_log.warn("getWinEventList() : "
 					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			jtm.rollback();
+			if (jtm != null)
+				jtm.rollback();
 			throw new HinemosUnknown(e.getMessage(), e);
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close();
 		}
 		return list;
 	}
@@ -206,16 +207,27 @@ public class MonitorWinEventControllerBean {
 	 */
 	public void run(String facilityId, List<WinEventResultDTO> results) throws HinemosUnknown {
 		JpaTransactionManager jtm = null;
+		List<MonitorJobEndNode> monitorJobEndNodeList = new ArrayList<>();
+		List<OutputBasicInfo> notifyInfoList = new ArrayList<>();
 		try {
 			jtm = new JpaTransactionManager();
 			jtm.begin();
 			
 			if (results != null) {
 				for (WinEventResultDTO result : results) {
-					new RunMonitorWinEventString().run(facilityId, result);
+					if (! MonitorOnAgentUtil.checkFacilityId(facilityId, result.runInstructionInfo, result.monitorInfo)) {
+						m_log.debug("skip to run because facilityId is not contained.");
+						continue;
+					}
+					RunMonitorWinEventString runMonitorWinEventString = new RunMonitorWinEventString();
+					notifyInfoList.add(runMonitorWinEventString.run(facilityId, result));
+					monitorJobEndNodeList.addAll(runMonitorWinEventString.getMonitorJobEndNodeList());
 				}
 			}
-			
+
+			// 通知設定
+			jtm.addCallback(new NotifyCallback(notifyInfoList));
+
 			jtm.commit();
 		} catch (HinemosUnknown e) {
 			m_log.warn("failed storeing result.", e);
@@ -223,7 +235,29 @@ public class MonitorWinEventControllerBean {
 			
 			throw e;
 		} finally {
-			jtm.close();
+			if (jtm != null)
+				jtm.close(this.getClass().getName());
+		}
+
+		// 監視ジョブEndNode処理
+		try {
+			if (monitorJobEndNodeList != null && monitorJobEndNodeList.size() > 0) {
+				for (MonitorJobEndNode monitorJobEndNode : monitorJobEndNodeList) {
+					MonitorJobWorker.endMonitorJob(
+							monitorJobEndNode.getRunInstructionInfo(),
+							monitorJobEndNode.getMonitorTypeId(),
+							monitorJobEndNode.getMessage(),
+							monitorJobEndNode.getErrorMessage(),
+							monitorJobEndNode.getStatus(),
+							monitorJobEndNode.getEndValue());
+				}
+				// 接続中のHinemosAgentに対する更新通知
+				SettingUpdateInfo.getInstance().setWinEventMonitorUpdateTime(HinemosTime.currentTimeMillis());
+				WinEventManagerUtil.broadcastConfigured();
+			}
+		} catch (Exception e) {
+			m_log.warn("run() MonitorJobWorker.endMonitorJob() : " + e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+			throw new HinemosUnknown(e.getMessage(), e);
 		}
 	}
 	

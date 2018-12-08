@@ -1,28 +1,22 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.winservice.factory;
 
+import com.clustercontrol.commons.util.HinemosEntityManager;
+import com.clustercontrol.commons.util.JpaTransactionManager;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.MonitorNotFound;
-import com.clustercontrol.monitor.run.factory.AddMonitor;
+import com.clustercontrol.monitor.run.factory.ModifyMonitor;
 import com.clustercontrol.monitor.run.factory.ModifyMonitorTruthValueType;
-import com.clustercontrol.monitor.run.model.MonitorInfoEntity;
+import com.clustercontrol.monitor.run.model.MonitorInfo;
 import com.clustercontrol.plugin.impl.SchedulerPlugin.TriggerType;
-import com.clustercontrol.winservice.bean.WinServiceCheckInfo;
-import com.clustercontrol.winservice.model.MonitorWinserviceInfoEntity;
+import com.clustercontrol.winservice.model.WinServiceCheckInfo;
 import com.clustercontrol.winservice.util.QueryUtil;
 
 /**
@@ -34,21 +28,39 @@ import com.clustercontrol.winservice.util.QueryUtil;
 public class ModifyMonitorWinService extends ModifyMonitorTruthValueType{
 
 	/* (非 Javadoc)
+	 * @see com.clustercontrol.monitor.run.factory.AddMonitor#addCheckInfo()
+	 */
+	@Override
+	protected boolean addCheckInfo() throws MonitorNotFound, InvalidRole {
+		try (JpaTransactionManager jtm = new JpaTransactionManager()) {
+			HinemosEntityManager em = jtm.getEntityManager();
+
+			// Windowsサービス監視情報を設定
+			WinServiceCheckInfo winService = m_monitorInfo.getWinServiceCheckInfo();
+
+			winService.setMonitorId(m_monitorInfo.getMonitorId());
+			em.persist(winService);
+
+			return true;
+		}
+	}
+	
+	/* (非 Javadoc)
 	 * @see com.clustercontrol.monitor.run.factory.ModifyMonitor#modifyCheckInfo()
 	 */
 	@Override
 	protected boolean modifyCheckInfo() throws MonitorNotFound, InvalidRole {
 
-		MonitorInfoEntity monitorEntity
+		MonitorInfo monitorEntity
 		= com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK(m_monitorInfo.getMonitorId());
 
 		// Windowsサービス監視情報を取得
-		MonitorWinserviceInfoEntity entity = QueryUtil.getMonitorWinserviceInfoPK(m_monitorInfo.getMonitorId());
+		WinServiceCheckInfo entity = QueryUtil.getMonitorWinserviceInfoPK(m_monitorInfo.getMonitorId());
 
 		// Windowsサービス監視情報を設定
 		WinServiceCheckInfo winService = m_monitorInfo.getWinServiceCheckInfo();
 		entity.setServiceName(winService.getServiceName());
-		monitorEntity.setMonitorWinserviceInfoEntity(entity);
+		monitorEntity.setWinServiceCheckInfo(entity);
 
 		return true;
 	}
@@ -58,7 +70,7 @@ public class ModifyMonitorWinService extends ModifyMonitorTruthValueType{
 	 */
 	@Override
 	protected int getDelayTime() {
-		return AddMonitor.getDelayTimeBasic(m_monitorInfo);
+		return ModifyMonitor.getDelayTimeBasic(m_monitorInfo);
 	}
 
 	/**

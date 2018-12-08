@@ -1,21 +1,16 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.xml.bind.annotation.XmlType;
 
@@ -38,21 +33,24 @@ public class RunInfo implements Serializable {
 	/** ジョブID */
 	private String jobId;
 	/** コマンドタイプ */
-	private Integer commandType = new Integer(0);
+	private Integer commandType = 0;
 	/** コマンド */
 	private String command;
 	/** ユーザ種別 */
-	private Integer specifyUser = new Integer(0);
+	private Boolean specifyUser = false;
 	/** 実行ユーザ */
 	private String user;
 	/** 停止種別 */
-	private Integer stopType = new Integer(0);
+	private Integer stopType = 0;
 
 	/** scp(ssh)公開鍵 */
 	private String publicKey;
 	/** チェックサム */
 	private String checkSum;
 
+	/** 環境変数情報 */
+	private List<JobEnvVariableInfo> jobEnvVariableInfoList = new ArrayList<JobEnvVariableInfo>();
+	
 	/**
 	 * コマンドを返します。
 	 * 
@@ -210,7 +208,7 @@ public class RunInfo implements Serializable {
 	 * 
 	 * @return ユーザ種別
 	 */
-	public Integer getSpecifyUser() {
+	public Boolean isSpecifyUser() {
 		return specifyUser;
 	}
 
@@ -219,7 +217,7 @@ public class RunInfo implements Serializable {
 	 * 
 	 * @param specifyUser ユーザ種別
 	 */
-	public void setSpecifyUser(Integer specifyUser) {
+	public void setSpecifyUser(Boolean specifyUser) {
 		this.specifyUser = specifyUser;
 	}
 
@@ -258,90 +256,122 @@ public class RunInfo implements Serializable {
 	public void setCheckSum(String checkSum) {
 		this.checkSum = checkSum;
 	}
+	
+	/**
+	 * 環境変数情報を返します。
+	 * 
+	 * @return 環境変数情報
+	 */
+	public List<JobEnvVariableInfo> getJobEnvVariableInfoList() {
+		return jobEnvVariableInfoList;
+	}
+
+	/**
+	 * 環境変数情報を設定します。
+	 * 
+	 * @param jobEnvVariableInfoList 環境変数情報
+	 */
+	public void setJobEnvVariableInfoList(List<JobEnvVariableInfo> jobEnvVariableInfoList) {
+		this.jobEnvVariableInfoList = jobEnvVariableInfoList;
+	}
 
 	@Override
-	public boolean equals(Object o) {
-		RunInfo other = (RunInfo)o;
-		if (facilityId != null && other.facilityId == null) {
-			return false;
-		}
-		if (facilityId == null && other.facilityId != null) {
-			return false;
-		}
-		if (sessionId != null && other.sessionId == null) {
-			return false;
-		}
-		if (sessionId == null && other.sessionId != null) {
-			return false;
-		}
-		if (jobunitId != null && other.jobunitId == null) {
-			return false;
-		}
-		if (jobunitId == null && other.jobunitId != null) {
-			return false;
-		}
-		if (jobId != null && other.jobId == null) {
-			return false;
-		}
-		if (jobId == null && other.jobId != null) {
-			return false;
-		}
-		if (command != null && other.command == null) {
-			return false;
-		}
-		if (command == null && other.command != null) {
-			return false;
-		}
-		if (user != null && other.user == null) {
-			return false;
-		}
-		if (user == null && other.user != null) {
-			return false;
-		}
-		if (publicKey != null && other.publicKey == null) {
-			return false;
-		}
-		if (publicKey == null && other.publicKey != null) {
-			return false;
-		}
-		if (checkSum != null && other.checkSum == null) {
-			return false;
-		}
-		if (checkSum == null && other.checkSum != null) {
-			return false;
-		}
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((checkSum == null) ? 0 : checkSum.hashCode());
+		result = prime * result + ((command == null) ? 0 : command.hashCode());
+		result = prime * result
+				+ ((commandType == null) ? 0 : commandType.hashCode());
+		result = prime * result
+				+ ((facilityId == null) ? 0 : facilityId.hashCode());
+		result = prime * result + ((jobId == null) ? 0 : jobId.hashCode());
+		result = prime * result
+				+ ((jobunitId == null) ? 0 : jobunitId.hashCode());
+		result = prime * result
+				+ ((publicKey == null) ? 0 : publicKey.hashCode());
+		result = prime * result
+				+ ((sessionId == null) ? 0 : sessionId.hashCode());
+		result = prime * result
+				+ ((specifyUser == null) ? 0 : specifyUser.hashCode());
+		result = prime * result
+				+ ((stopType == null) ? 0 : stopType.hashCode());
+		result = prime * result + ((user == null) ? 0 : user.hashCode());
+		result = prime * result
+				+ ((jobEnvVariableInfoList == null) ? 0 : jobEnvVariableInfoList.hashCode());
+		return result;
+	}
 
-		if (((facilityId == null && other.facilityId == null) ||
-				facilityId.equals(other.facilityId))
-				&&
-				((sessionId == null && other.sessionId == null) ||
-						sessionId.equals(other.sessionId))
-						&&
-						((jobunitId == null && other.jobunitId == null) ||
-								jobunitId.equals(other.jobunitId))
-								&&
-								((jobId == null && other.jobId == null) ||
-										jobId.equals(other.jobId))
-										&&
-										commandType.equals(other.commandType)
-										&&
-										((command == null && other.command == null) ||
-												command.equals(other.command))
-												&&
-												((user == null && other.user == null) ||
-														user.equals(other.user))
-														&&
-														((publicKey == null && other.publicKey == null) ||
-																publicKey.equals(other.publicKey))
-																&&
-																((checkSum == null && other.checkSum == null) ||
-																		checkSum.equals(other.checkSum))
-																		&&
-																		stopType == other.stopType
-																		&&
-																		specifyUser.equals(other.specifyUser)) {
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
 			return true;
-		}
-		return false;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		RunInfo other = (RunInfo) obj;
+		if (checkSum == null) {
+			if (other.checkSum != null)
+				return false;
+		} else if (!checkSum.equals(other.checkSum))
+			return false;
+		if (command == null) {
+			if (other.command != null)
+				return false;
+		} else if (!command.equals(other.command))
+			return false;
+		if (commandType == null) {
+			if (other.commandType != null)
+				return false;
+		} else if (!commandType.equals(other.commandType))
+			return false;
+		if (facilityId == null) {
+			if (other.facilityId != null)
+				return false;
+		} else if (!facilityId.equals(other.facilityId))
+			return false;
+		if (jobId == null) {
+			if (other.jobId != null)
+				return false;
+		} else if (!jobId.equals(other.jobId))
+			return false;
+		if (jobunitId == null) {
+			if (other.jobunitId != null)
+				return false;
+		} else if (!jobunitId.equals(other.jobunitId))
+			return false;
+		if (publicKey == null) {
+			if (other.publicKey != null)
+				return false;
+		} else if (!publicKey.equals(other.publicKey))
+			return false;
+		if (sessionId == null) {
+			if (other.sessionId != null)
+				return false;
+		} else if (!sessionId.equals(other.sessionId))
+			return false;
+		if (specifyUser == null) {
+			if (other.specifyUser != null)
+				return false;
+		} else if (!specifyUser.equals(other.specifyUser))
+			return false;
+		if (stopType == null) {
+			if (other.stopType != null)
+				return false;
+		} else if (!stopType.equals(other.stopType))
+			return false;
+		if (user == null) {
+			if (other.user != null)
+				return false;
+		} else if (!user.equals(other.user))
+			return false;
+		if (jobEnvVariableInfoList == null) {
+			if (other.jobEnvVariableInfoList != null)
+				return false;
+		} else if (!jobEnvVariableInfoList.equals(other.jobEnvVariableInfoList))
+			return false;
+		return true;
 	}
 }

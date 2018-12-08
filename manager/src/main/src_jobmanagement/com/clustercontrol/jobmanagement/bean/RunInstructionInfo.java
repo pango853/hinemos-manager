@@ -1,16 +1,9 @@
 /*
-
-Copyright (C) 2006 NTT DATA Corporation
-
-This program is free software; you can redistribute it and/or
-Modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation, version 2.
-
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.  See the GNU General Public License for more details.
-
+ * Copyright (c) 2018 NTT DATA INTELLILINK Corporation. All rights reserved.
+ *
+ * Hinemos (http://www.hinemos.info/)
+ *
+ * See the LICENSE file for licensing information.
  */
 
 package com.clustercontrol.jobmanagement.bean;
@@ -89,42 +82,45 @@ public class RunInstructionInfo extends RunInfo implements Serializable {
 		this.filePath = filePath;
 	}
 
-	@Override
-	public boolean equals(Object otherObject) {
-		if (otherObject == null || !(otherObject instanceof RunInstructionInfo)) {
-			return false;
-		}
-		RunInstructionInfo rInfo = (RunInstructionInfo) otherObject;
-		if (rInfo.runType != null && this.runType == null) {
-			return false;
-		}
-		if (rInfo.runType == null && this.runType != null) {
-			return false;
-		}
-		if (rInfo.inputFile != null && this.inputFile == null) {
-			return false;
-		}
-		if (rInfo.inputFile == null && this.inputFile != null) {
-			return false;
-		}
-		if (rInfo.filePath != null && this.filePath == null) {
-			return false;
-		}
-		if (rInfo.filePath == null && this.filePath != null) {
-			return false;
-		}
 
-		if ((rInfo.runType == null && this.runType == null) ||
-				(rInfo.runType.equals(this.runType))) {
-			if ((rInfo.inputFile == null && this.inputFile == null) ||
-					(rInfo.inputFile.equals(this.inputFile))) {
-				if ((rInfo.filePath == null && this.filePath == null) ||
-						(rInfo.filePath.equals(this.filePath))) {
-					return super.equals(rInfo);
-				}
-			}
-		}
-		return false;
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = super.hashCode();
+		result = prime * result
+				+ ((filePath == null) ? 0 : filePath.hashCode());
+		result = prime * result
+				+ ((inputFile == null) ? 0 : inputFile.hashCode());
+		result = prime * result + ((runType == null) ? 0 : runType.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (!super.equals(obj))
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		RunInstructionInfo other = (RunInstructionInfo) obj;
+		if (filePath == null) {
+			if (other.filePath != null)
+				return false;
+		} else if (!filePath.equals(other.filePath))
+			return false;
+		if (inputFile == null) {
+			if (other.inputFile != null)
+				return false;
+		} else if (!inputFile.equals(other.inputFile))
+			return false;
+		if (runType == null) {
+			if (other.runType != null)
+				return false;
+		} else if (!runType.equals(other.runType))
+			return false;
+		return true;
 	}
 
 	public static void main(String args[]) {
