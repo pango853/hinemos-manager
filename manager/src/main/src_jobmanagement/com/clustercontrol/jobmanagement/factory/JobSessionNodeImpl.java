@@ -200,12 +200,13 @@ public class JobSessionNodeImpl {
 			}
 
 			// 上限を超えたときは、待機、実行、終了のいずれか。
-			int status = sessionJob.getJobInfoEntity().getMultiplicityOperation();
+			int statusInt = sessionJob.getJobInfoEntity().getMultiplicityOperation();
+			StatusConstant.Status status = StatusConstant.Status.fromInt(statusInt);
 			switch (status) {
-			case StatusConstant.TYPE_WAIT:
+			case TYPE_WAIT:
 				startFlag = true;
 				break;
-			case StatusConstant.TYPE_END:
+			case TYPE_END:
 				//実行状態を終了にする
 				startFlag = false;
 				sessionNode.setStatus(StatusConstant.TYPE_END);

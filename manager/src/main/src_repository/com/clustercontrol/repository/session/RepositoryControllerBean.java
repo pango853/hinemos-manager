@@ -2156,30 +2156,33 @@ public class RepositoryControllerBean {
 	 * @since 3.2.0
 	 * @return ArrayList
 	 * @throws HinemosUnknown
+	 * @deprecated Gotta implement in another way
 	 */
-	public ArrayList<String> getVmProtocolMstList() throws HinemosUnknown {
-		JpaTransactionManager jtm = null;
-		ArrayList<String> list = new ArrayList<String>();
-		try {
-			jtm = new JpaTransactionManager();
-			jtm.begin();
-
-			List<String> ct = com.clustercontrol.vm.util.QueryUtil.getVmProtocolMstDistinctProtocol();
-			for (String protocol : ct) {
-				list.add(protocol);
-			}
-			jtm.commit();
-		} catch (Exception e) {
-			m_log.warn("getVmProtocolMstList() : "
-					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
-			if (jtm != null)
-				jtm.rollback();
-			throw new HinemosUnknown(e.getMessage(), e);
-		} finally {
-			if (jtm != null)
-				jtm.close();
-		}
-		return list;
+	@Deprecated public ArrayList<String> getVmProtocolMstList() throws HinemosUnknown {
+		// TODO FIXME
+		throw new UnsupportedOperationException("Currently unavailable!");
+//		JpaTransactionManager jtm = null;
+//		ArrayList<String> list = new ArrayList<String>();
+//		try {
+//			jtm = new JpaTransactionManager();
+//			jtm.begin();
+//
+//			List<String> ct = com.clustercontrol.vm.util.QueryUtil.getVmProtocolMstDistinctProtocol();
+//			for (String protocol : ct) {
+//				list.add(protocol);
+//			}
+//			jtm.commit();
+//		} catch (Exception e) {
+//			m_log.warn("getVmProtocolMstList() : "
+//					+ e.getClass().getSimpleName() + ", " + e.getMessage(), e);
+//			if (jtm != null)
+//				jtm.rollback();
+//			throw new HinemosUnknown(e.getMessage(), e);
+//		} finally {
+//			if (jtm != null)
+//				jtm.close();
+//		}
+//		return list;
 	}
 	/**
 	 * リポジトリの最終更新時刻を取得

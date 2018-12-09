@@ -40,7 +40,7 @@ import com.clustercontrol.bean.HinemosModuleConstant;
 @Table(name="cc_hub_transfer", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.HUB_TRANSFER,
+		objectType=HinemosModuleConstant.ModuleType.HUB_TRANSFER,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="transfer_id", insertable=false, updatable=false))

@@ -516,7 +516,7 @@ public class HinemosEntityManager implements EntityManager {
 		}
 
 		// オブジェクト権限テーブルを確認する
-		String objectType = hinemosObjectPrivilege.objectType();
+		String objectType = hinemosObjectPrivilege.objectType().toString();
 		// オブジェクト権限テーブルに所属ロールのデータが存在するかの確認
 		ObjectPrivilegeInfoPK objectPrivilegeEntityPK
 		= new ObjectPrivilegeInfoPK(objectType, ((ObjectPrivilegeTargetInfo)before_entity).getObjectId(), ownerRoleId, mode.name());
@@ -597,7 +597,7 @@ public class HinemosEntityManager implements EntityManager {
 			}
 		}
 
-		String objectType = hinemosObjectPrivilege.objectType();
+		String objectType = hinemosObjectPrivilege.objectType().toString();
 		// オブジェクト権限テーブルにデータが存在するかの確認
 		// 所属ロールが設定されている場合はオブジェクト権限有り
 		boolean existsflg = false;
@@ -697,7 +697,7 @@ public class HinemosEntityManager implements EntityManager {
 		String rtnString = "";
 		try {
 			HinemosObjectPrivilege hinemosObjectPrivilege = entityClass.getAnnotation(HinemosObjectPrivilege.class);
-			String objectType = hinemosObjectPrivilege.objectType();
+			String objectType = hinemosObjectPrivilege.objectType().toString();
 
 			// JPQLの構文解析
 			JpqlParser jpqlParser = new JpqlParser();

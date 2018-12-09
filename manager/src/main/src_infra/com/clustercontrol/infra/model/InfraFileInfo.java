@@ -27,7 +27,7 @@ import com.clustercontrol.bean.HinemosModuleConstant;
 @XmlType(namespace = "http://infra.ws.clustercontrol.com")
 @Entity
 @Table(name="cc_infra_file", schema="setting")
-@HinemosObjectPrivilege(objectType=HinemosModuleConstant.INFRA_FILE, isModifyCheck=true)
+@HinemosObjectPrivilege(objectType=HinemosModuleConstant.ModuleType.INFRA_FILE, isModifyCheck=true)
 @AttributeOverride(name="objectId", column=@Column(name="file_id", insertable=false, updatable=false))
 @Cacheable(true)
 public class InfraFileInfo extends ObjectPrivilegeTargetInfo {

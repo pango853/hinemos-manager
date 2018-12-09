@@ -17,7 +17,7 @@ import javax.persistence.Table;
 
 import com.clustercontrol.accesscontrol.annotation.HinemosObjectPrivilege;
 import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetInfo;
-
+import com.clustercontrol.bean.HinemosModuleConstant;
 
 /**
  * The persistent class for the cc_reporting_info database table.
@@ -27,7 +27,7 @@ import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetInfo;
 @Table(name="cc_reporting_info", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType="REPORTING",
+		objectType=HinemosModuleConstant.ModuleType.REPORTING,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="report_schedule_id", insertable=false, updatable=false))

@@ -166,7 +166,7 @@ public class QueryUtil {
 				sbJpql.append(" AND a.id.facilityId IN (" + HinemosEntityManager.getParamNameString("facilityId", facilityIds) + ")");
 			}
 			// 重要度設定
-			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.PRIORITY_LIST.length) {
+			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.getPriorityList().length) {
 				sbJpql.append(" AND a.priority IN (" + HinemosEntityManager.getParamNameString("priority", new String[priorityList.length]) + ")");
 			}
 			// 受信日時（自）設定
@@ -253,7 +253,7 @@ public class QueryUtil {
 				query = HinemosEntityManager.appendParam(query, "facilityId", facilityIds);
 			}
 			// 重要度設定
-			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.PRIORITY_LIST.length){
+			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.getPriorityList().length){
 				int count = priorityList.length;
 				if (count > 0) {
 					for (int i = 0 ; i < count ; i++) {
@@ -378,7 +378,7 @@ public class QueryUtil {
 				sbJpql.append(" AND a.id.facilityId IN (" + HinemosEntityManager.getParamNameString("facilityId", facilityIds) + ")");
 			}
 			// 重要度設定
-			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.PRIORITY_LIST.length) {
+			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.getPriorityList().length) {
 				sbJpql.append(" AND a.priority IN (" + HinemosEntityManager.getParamNameString("priority", new String[priorityList.length]) + ")");
 			}
 			// 受信日時（自）設定
@@ -490,7 +490,7 @@ public class QueryUtil {
 				typedQuery = HinemosEntityManager.appendParam(typedQuery, "facilityId", facilityIds);
 			}
 			// 重要度設定
-			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.PRIORITY_LIST.length){
+			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.getPriorityList().length){
 				int count = priorityList.length;
 				if (count > 0) {
 					for (int i = 0 ; i < count ; i++) {
@@ -739,7 +739,7 @@ public class QueryUtil {
 				sbJpql.append(" AND a.id.facilityId IN (" + HinemosEntityManager.getParamNameString("facilityId", facilityIds) + ")");
 			}
 			// 重要度設定
-			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.PRIORITY_LIST.length) {
+			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.getPriorityList().length) {
 				sbJpql.append(" AND a.priority IN (" + HinemosEntityManager.getParamNameString("priority", new String[priorityList.length]) + ")"); 
 			}
 			// 受信日時（自）設定
@@ -811,7 +811,7 @@ public class QueryUtil {
 				typedQuery = HinemosEntityManager.appendParam(typedQuery, "facilityId", facilityIds);
 			}
 			// 重要度設定
-			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.PRIORITY_LIST.length){
+			if (priorityList != null && priorityList.length>0 && priorityList.length != PriorityConstant.getPriorityList().length){
 				int count = priorityList.length;
 				if (count > 0) {
 					for (int i = 0 ; i < count ; i++) {

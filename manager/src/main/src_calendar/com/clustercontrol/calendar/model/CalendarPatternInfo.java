@@ -43,7 +43,7 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 @Table(name="cc_cal_pattern_info", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.PLATFORM_CALENDAR_PATTERN,
+		objectType=HinemosModuleConstant.ModuleType.PLATFORM_CALENDAR_PATTERN,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="calendar_pattern_id", insertable=false, updatable=false))

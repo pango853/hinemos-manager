@@ -44,7 +44,7 @@ import com.clustercontrol.repository.session.RepositoryControllerBean;
 @XmlType(namespace = "http://infra.ws.clustercontrol.com")
 @Entity
 @Table(name="cc_infra_management_info", schema="setting")
-@HinemosObjectPrivilege(objectType=HinemosModuleConstant.INFRA, isModifyCheck=true)
+@HinemosObjectPrivilege(objectType=HinemosModuleConstant.ModuleType.INFRA, isModifyCheck=true)
 @AttributeOverride(name="objectId", column=@Column(name="management_id", insertable=false, updatable=false))
 @Cacheable(true)
 public class InfraManagementInfo extends ObjectPrivilegeTargetInfo {

@@ -43,9 +43,7 @@ import com.clustercontrol.fault.FacilityNotFound;
 import com.clustercontrol.fault.HinemosUnknown;
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.nodemap.bean.ReservedFacilityIdConstant;
-import com.clustercontrol.plugin.impl.OsScopeInitializerPlugin;
 import com.clustercontrol.repository.bean.FacilityConstant;
-import com.clustercontrol.repository.bean.FacilityTreeAttributeConstant;
 import com.clustercontrol.repository.bean.FacilityTreeItem;
 import com.clustercontrol.repository.bean.NodeConstant;
 import com.clustercontrol.repository.model.FacilityInfo;
@@ -57,9 +55,9 @@ import com.clustercontrol.repository.util.FacilityTreeCache;
 import com.clustercontrol.repository.util.FacilityUtil;
 import com.clustercontrol.repository.util.FacilityValidator;
 import com.clustercontrol.repository.util.QueryUtil;
+import com.clustercontrol.util.BuiltInScopeUtil;
 import com.clustercontrol.util.HinemosTime;
 import com.clustercontrol.util.MessageConstant;
-import com.clustercontrol.xcloud.common.CloudConstants;
 
 public class FacilitySelector {
 
@@ -1428,18 +1426,14 @@ public class FacilitySelector {
 			return false;
 		}
 
-		Set<String> buildInScopeFacilityIdSet = new HashSet<String>();
-		buildInScopeFacilityIdSet.add(FacilityTreeAttributeConstant.INTERNAL_SCOPE);
-		buildInScopeFacilityIdSet.add(FacilityTreeAttributeConstant.REGISTERED_SCOPE);
-		buildInScopeFacilityIdSet.add(FacilityTreeAttributeConstant.UNREGISTERED_SCOPE);
-		buildInScopeFacilityIdSet.add(FacilityTreeAttributeConstant.OWNER_SCOPE);
-		buildInScopeFacilityIdSet.add(FacilityTreeAttributeConstant.OS_PARENT_SCOPE);
-		
+		Set<String> buildInScopeFacilityIdSet = BuiltInScopeUtil.getBuiltInScopeIDs();
+
 		// クラウドのルートスコープは、初期は存在しないが、作成されるとビルトインになる。
-		buildInScopeFacilityIdSet.add(CloudConstants.privateRootId);
-		buildInScopeFacilityIdSet.add(CloudConstants.publicRootId);
-		
-		buildInScopeFacilityIdSet.addAll(OsScopeInitializerPlugin.getOsScopeIdSet());
+		//buildInScopeFacilityIdSet.add(CloudConstants.privateRootId);
+		//buildInScopeFacilityIdSet.add(CloudConstants.publicRootId);
+
+		//buildInScopeFacilityIdSet.addAll(OsScopeInitializerPlugin.getOsScopeIdSet());
+
 		if (buildInScopeFacilityIdSet.contains(facility.getFacilityId())) {
 			return true;
 		} else {

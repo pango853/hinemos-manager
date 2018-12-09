@@ -43,7 +43,7 @@ import com.clustercontrol.notify.model.NotifyRelationInfo;
 @Table(name="cc_maintenance_info", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.SYSYTEM_MAINTENANCE,
+		objectType=HinemosModuleConstant.ModuleType.SYSYTEM_MAINTENANCE,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="maintenance_id", insertable=false, updatable=false))

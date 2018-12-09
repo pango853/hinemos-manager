@@ -33,7 +33,7 @@ import com.clustercontrol.bean.HinemosModuleConstant;
 @Table(name="cc_hub_log_format", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.HUB_LOGFORMAT,
+		objectType=HinemosModuleConstant.ModuleType.HUB_LOGFORMAT,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="log_format_id", insertable=false, updatable=false))

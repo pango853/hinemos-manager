@@ -75,7 +75,7 @@ import com.clustercontrol.winservice.model.WinServiceCheckInfo;
 @Table(name="cc_monitor_info", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.MONITOR,
+		objectType=HinemosModuleConstant.ModuleType.MONITOR,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="monitor_id", insertable=false, updatable=false))

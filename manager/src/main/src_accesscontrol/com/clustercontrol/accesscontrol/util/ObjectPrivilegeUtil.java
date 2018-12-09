@@ -65,7 +65,7 @@ public class ObjectPrivilegeUtil {
 					try {
 						HinemosObjectPrivilege hinemosObjectPrivilege
 						= clazz.getAnnotation(HinemosObjectPrivilege.class);
-						String objectType = hinemosObjectPrivilege.objectType();
+						String objectType = hinemosObjectPrivilege.objectType().toString();
 						if (hinemosObjectPrivilege.isModifyCheck()) {
 							str += "[" + objectType + "," + clazz + "] ";
 							
@@ -112,7 +112,7 @@ public class ObjectPrivilegeUtil {
 				// HinemosObjectPrivilegeアノテーションが設定されていない場合はnullを返す
 				return null;
 			}
-			String objectType = hinemosObjectPrivilege.objectType();
+			String objectType = hinemosObjectPrivilege.objectType().toString();
 			return em.createNamedQuery("ObjectPrivilegeInfo.findByObjectIdTypeRoleId", ObjectPrivilegeInfo.class)
 					.setParameter("objectType", objectType)
 					.setParameter("objectId", objectId)

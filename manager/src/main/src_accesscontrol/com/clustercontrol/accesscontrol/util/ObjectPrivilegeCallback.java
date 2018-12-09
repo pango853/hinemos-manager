@@ -126,7 +126,7 @@ public class ObjectPrivilegeCallback implements JpaTransactionCallback {
 						}
 
 						// オブジェクト権限テーブルにデータが存在するかの確認
-						String objectType = hinemosObjectPrivilege.objectType();
+						String objectType = hinemosObjectPrivilege.objectType().toString();
 						for (String roleId : roleIdList) {
 							// 所属ロールで設定されている場合は変更可
 							ObjectPrivilegeInfoPK objectPrivilegeEntityPK 

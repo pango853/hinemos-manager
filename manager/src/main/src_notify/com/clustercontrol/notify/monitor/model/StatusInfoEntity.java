@@ -26,7 +26,7 @@ import com.clustercontrol.bean.HinemosModuleConstant;
 @Entity
 @Table(name="cc_status_info", schema="log")
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.MONITOR)
+		objectType=HinemosModuleConstant.ModuleType.MONITOR)
 @AttributeOverride(name="objectId",
 column=@Column(name="monitor_id", insertable=false, updatable=false))
 public class StatusInfoEntity extends ObjectPrivilegeTargetInfo {

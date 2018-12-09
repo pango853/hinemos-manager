@@ -15,7 +15,7 @@ import java.util.Date;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.HinemosModuleConstant.ModuleType;
 import com.clustercontrol.commons.scheduler.TriggerSchedulerException;
 import com.clustercontrol.commons.util.EmptyJpaTransactionCallback;
 import com.clustercontrol.commons.util.HinemosPropertyCommon;
@@ -163,9 +163,10 @@ public class ModifySchedule {
 
 			m_log.debug("Schedule SimpleTrigger. monitorId = " + monitorId);
 
-			switch (monitorTypeId) {
-			case HinemosModuleConstant.MONITOR_PROCESS:
-			case HinemosModuleConstant.MONITOR_PERFORMANCE:
+			ModuleType moduleType = ModuleType.fromString(monitorTypeId);
+			switch (moduleType) {
+			case MONITOR_PROCESS:
+			case MONITOR_PERFORMANCE:
 				// プロセス監視・リソース監視などのノード集約型監視については、ノード単位でQuartz登録をするためここでは何も行なわない
 				break;
 			default:

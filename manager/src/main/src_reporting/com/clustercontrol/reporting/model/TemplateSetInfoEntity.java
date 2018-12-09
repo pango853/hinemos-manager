@@ -23,6 +23,7 @@ import javax.persistence.Table;
 
 import com.clustercontrol.accesscontrol.annotation.HinemosObjectPrivilege;
 import com.clustercontrol.accesscontrol.model.ObjectPrivilegeTargetInfo;
+import com.clustercontrol.bean.HinemosModuleConstant;
 import com.clustercontrol.commons.util.HinemosEntityManager;
 import com.clustercontrol.commons.util.JpaTransactionManager;
 
@@ -35,7 +36,7 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 @Table(name="cc_reporting_template_set_info", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType="REPORTING",
+		objectType=HinemosModuleConstant.ModuleType.REPORTING,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="template_set_id", insertable=false, updatable=false))

@@ -34,7 +34,7 @@ import com.clustercontrol.bean.HinemosModuleConstant;
 @Table(name="cc_job_mst", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.JOB,
+		objectType=HinemosModuleConstant.ModuleType.JOB,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="jobunit_id", insertable=false, updatable=false))

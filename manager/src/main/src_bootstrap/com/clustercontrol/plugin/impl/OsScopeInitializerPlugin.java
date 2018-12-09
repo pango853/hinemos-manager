@@ -26,6 +26,7 @@ import com.clustercontrol.repository.model.FacilityRelationEntity;
 import com.clustercontrol.repository.model.ScopeInfo;
 import com.clustercontrol.repository.util.QueryUtil;
 import com.clustercontrol.repository.util.FacilityTreeCache;
+import com.clustercontrol.util.BuiltInScopeUtil;
 import com.clustercontrol.util.HinemosTime;
 
 public class OsScopeInitializerPlugin implements HinemosPlugin {
@@ -172,6 +173,9 @@ public class OsScopeInitializerPlugin implements HinemosPlugin {
 				jtm.close();
 			}
 		}
+
+		// Update built-in scope set
+		BuiltInScopeUtil.addAll(osScopeIdSet);
 	}
 
 	@Override

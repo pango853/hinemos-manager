@@ -1,3 +1,5 @@
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+
 plugins {
 	id 'application'
 	id 'org.sonarqube' version '2.6'
@@ -38,7 +40,7 @@ dependencies{
 	implementation group: 'org.sblim.wbem', name: 'sblimCIMClient', version: '1.3.9.3'
 	// Originated from https://sourceforge.net/projects/sblim/files/sblim-cim-client/1.3.9.3/sblim-cim-client-1.3.9.3-bin.zip
 
-	implementation group: 'info.hinemos', name: 'hinemos-common', version: version
+	//implementation group: 'info.hinemos', name: 'hinemos-common', version: version
 
 	// According to the release-notes, Java 11 removed the Java EE modules
 	// @see http://jdk.java.net/11/release-notes#JDK-8190378
@@ -59,6 +61,16 @@ dependencies{
 eclipse{
 	project{
 		name = theJarName 
+	}
+	classpath{
+		file.whenMerged {
+			entries.each { entry -> 
+				if (entry.kind == 'con' && entry.path.startsWith('org.eclipse.jdt.launching.JRE_CONTAINER')) {
+					// 0 = accessible; 1 = nonaccessible; 2 = discouraged
+					entry.accessRules.add(new AccessRule('discouraged', 'com/sun/net/httpserver/*'))
+				}
+			}
+		}
 	}
 }
 

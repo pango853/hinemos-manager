@@ -8,7 +8,7 @@
 
 package com.clustercontrol.monitor.run.util;
 
-import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.HinemosModuleConstant.ModuleType;
 import com.clustercontrol.binary.session.BinaryControllerBean;
 import com.clustercontrol.binary.util.BinaryManagerUtil;
 import com.clustercontrol.commons.bean.SettingUpdateInfo;
@@ -40,15 +40,15 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 
 	@Override
 	public void postCommit() {
-		
-		switch (monitorTypeId) {
-		case HinemosModuleConstant.MONITOR_SYSTEMLOG :
+		ModuleType moduleType = ModuleType.fromString(monitorTypeId);
+		switch (moduleType) {
+		case MONITOR_SYSTEMLOG :
 			SettingUpdateInfo.getInstance().setSystemLogMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			break;
-		case HinemosModuleConstant.MONITOR_SNMPTRAP :
+		case MONITOR_SNMPTRAP :
 			SettingUpdateInfo.getInstance().setSnmptrapMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			break;
-		case HinemosModuleConstant.MONITOR_LOGFILE :
+		case MONITOR_LOGFILE :
 			MonitorLogfileControllerBean.refreshCache();
 			
 			SettingUpdateInfo.getInstance().setLogFileMonitorUpdateTime(HinemosTime.currentTimeMillis());
@@ -56,8 +56,8 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 			// 接続中のHinemosAgentに対する更新通知
 			LogfileManagerUtil.broadcastConfigured();
 			break;
-		case HinemosModuleConstant.MONITOR_BINARYFILE_BIN:
-		case HinemosModuleConstant.MONITOR_PCAP_BIN:
+		case MONITOR_BINARYFILE_BIN:
+		case MONITOR_PCAP_BIN:
 			BinaryControllerBean.refreshCache();
 
 			SettingUpdateInfo.getInstance().setBinaryMonitorUpdateTime(HinemosTime.currentTimeMillis());
@@ -65,7 +65,7 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 			// 接続中のHinemosAgentに対する更新通知
 			BinaryManagerUtil.broadcastConfigured();
 			break;
-		case HinemosModuleConstant.MONITOR_CUSTOM_N :
+		case MONITOR_CUSTOM_N :
 			SelectCustom.refreshCache();
 			
 			SettingUpdateInfo.getInstance().setCustomMonitorUpdateTime(HinemosTime.currentTimeMillis());
@@ -73,7 +73,7 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 			// 接続中のHinemosAgentに対する更新通知
 			CustomManagerUtil.broadcastConfigured();
 			break;
-		case HinemosModuleConstant.MONITOR_CUSTOM_S :
+		case MONITOR_CUSTOM_S :
 			SelectCustom.refreshCache();
 			
 			SettingUpdateInfo.getInstance().setCustomMonitorUpdateTime(HinemosTime.currentTimeMillis());
@@ -81,7 +81,7 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 			// 接続中のHinemosAgentに対する更新通知
 			CustomManagerUtil.broadcastConfigured();
 			break;
-		case HinemosModuleConstant.MONITOR_WINEVENT :
+		case MONITOR_WINEVENT :
 			MonitorWinEventControllerBean.refreshCache();
 			
 			SettingUpdateInfo.getInstance().setWinEventMonitorUpdateTime(HinemosTime.currentTimeMillis());
@@ -89,8 +89,8 @@ public class MonitorChangedNotificationCallback implements JpaTransactionCallbac
 			// 接続中のHinemosAgentに対する更新通知
 			WinEventManagerUtil.broadcastConfigured();
 			break;
-		case HinemosModuleConstant.MONITOR_CUSTOMTRAP_N :
-		case HinemosModuleConstant.MONITOR_CUSTOMTRAP_S :
+		case MONITOR_CUSTOMTRAP_N :
+		case MONITOR_CUSTOMTRAP_S :
 			SettingUpdateInfo.getInstance().setCustomTrapMonitorUpdateTime(HinemosTime.currentTimeMillis());
 			break;
 		default :

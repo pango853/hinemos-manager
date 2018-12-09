@@ -22,6 +22,7 @@ import org.apache.log4j.Logger;
 
 import com.clustercontrol.fault.InvalidRole;
 import com.clustercontrol.fault.InvalidUserPass;
+import com.clustercontrol.util.BuiltInScopeUtil;
 import com.clustercontrol.ws.xcloud.CloudEndpointImpl;
 import com.clustercontrol.ws.xcloud.MethodRestriction;
 import com.clustercontrol.xcloud.CloudManagerException;
@@ -121,9 +122,13 @@ public class CloudManagerService extends CloudPlugin {
 		for (CloudPlugin cloudPlugin: pluginList) {
 			cloudPlugin.initialize();
 		}
-		
+
+		// クラウドのルートスコープは、初期は存在しないが、作成されるとビルトインになる。
+		BuiltInScopeUtil.add(CloudConstants.privateRootId);
+		BuiltInScopeUtil.add(CloudConstants.publicRootId);
+
 		CloudTaskService.singleton().startService();
-		
+
 		logger.info("successful in activating " + this.getClass().getSimpleName() + "...");
 	}
 	@Override

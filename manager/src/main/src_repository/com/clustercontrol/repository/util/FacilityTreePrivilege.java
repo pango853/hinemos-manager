@@ -33,7 +33,7 @@ public class FacilityTreePrivilege implements Serializable, Cloneable {
 		private static final long serialVersionUID = 3796378834769263419L;
 
 		{
-			for (ObjectPrivilegeMode mode : PrivilegeConstant.objectPrivilegeModes) {
+			for (ObjectPrivilegeMode mode : PrivilegeConstant.getObjectPrivilegeModes()) {
 				super.put(mode, false);
 			}
 		}

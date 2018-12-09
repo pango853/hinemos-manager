@@ -38,7 +38,7 @@ import com.clustercontrol.util.HinemosTime;
 @Table(name="cc_cfg_facility", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.PLATFORM_REPOSITORY,
+		objectType=HinemosModuleConstant.ModuleType.PLATFORM_REPOSITORY,
 		isModifyCheck=true)
 @DiscriminatorColumn(name="facility_type", discriminatorType=DiscriminatorType.INTEGER)
 @DiscriminatorValue(value="2")

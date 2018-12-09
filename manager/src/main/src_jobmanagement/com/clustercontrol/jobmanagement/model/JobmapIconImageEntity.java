@@ -29,7 +29,7 @@ import com.clustercontrol.bean.HinemosModuleConstant;
 @Table(name="cc_jobmap_icon_image", schema="binarydata")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.JOBMAP_IMAGE_FILE,
+		objectType=HinemosModuleConstant.ModuleType.JOBMAP_IMAGE_FILE,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="icon_id", insertable=false, updatable=false))

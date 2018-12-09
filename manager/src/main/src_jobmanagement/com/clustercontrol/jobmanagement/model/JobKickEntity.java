@@ -39,7 +39,7 @@ import com.clustercontrol.commons.util.JpaTransactionManager;
 @Table(name="cc_job_kick", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.JOB_KICK,
+		objectType=HinemosModuleConstant.ModuleType.JOB_KICK,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="jobkick_id", insertable=false, updatable=false))

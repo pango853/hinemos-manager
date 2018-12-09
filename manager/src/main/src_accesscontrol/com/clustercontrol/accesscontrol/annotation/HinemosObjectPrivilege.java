@@ -14,10 +14,12 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import com.clustercontrol.bean.HinemosModuleConstant;
+
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 @Inherited
 public @interface HinemosObjectPrivilege {
-	String objectType();
+	HinemosModuleConstant.ModuleType objectType();
 	boolean isModifyCheck() default false;
 }

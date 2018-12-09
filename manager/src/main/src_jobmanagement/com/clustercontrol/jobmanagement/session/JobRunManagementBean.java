@@ -21,6 +21,7 @@ import org.apache.commons.logging.LogFactory;
 
 import com.clustercontrol.analytics.factory.RunMonitorLogcount;
 import com.clustercontrol.bean.HinemosModuleConstant;
+import com.clustercontrol.bean.HinemosModuleConstant.ModuleType;
 import com.clustercontrol.bean.PriorityConstant;
 import com.clustercontrol.bean.StatusConstant;
 import com.clustercontrol.commons.util.HinemosEntityManager;
@@ -863,79 +864,80 @@ public class JobRunManagementBean {
 			monitorInfo = com.clustercontrol.monitor.run.util.QueryUtil.getMonitorInfoPK_OR(
 					jobInfoEntity.getMonitorId(), sessionJob.getOwnerRoleId());
 
-			switch (monitorInfo.getMonitorTypeId()) {
-			case HinemosModuleConstant.MONITOR_AGENT:
+			ModuleType moduleType = ModuleType.fromString(monitorInfo.getMonitorTypeId());
+			switch (moduleType) {
+			case MONITOR_AGENT:
 				runMonitor = new RunMonitorAgent();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_HTTP_N:
+			case MONITOR_HTTP_N:
 				runMonitor = new RunMonitorHttp();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_HTTP_S:
+			case MONITOR_HTTP_S:
 				runMonitor = new RunMonitorHttpString();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_HTTP_SCENARIO:
+			case MONITOR_HTTP_SCENARIO:
 				runMonitor = new RunMonitorHttpScenario();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_JMX:
+			case MONITOR_JMX:
 				runMonitor = new RunMonitorJmx();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_PING:
+			case MONITOR_PING:
 				runMonitor = new RunMonitorPing();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_PORT:
+			case MONITOR_PORT:
 				runMonitor = new RunMonitorPort();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_SQL_N:
+			case MONITOR_SQL_N:
 				runMonitor = new RunMonitorSql();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_SQL_S:
+			case MONITOR_SQL_S:
 				runMonitor = new RunMonitorSqlString();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_SNMP_S:
+			case MONITOR_SNMP_S:
 				runMonitor = new RunMonitorSnmpString();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_SNMP_N:
+			case MONITOR_SNMP_N:
 				runMonitor = new RunMonitorSnmp();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_WINSERVICE:
+			case MONITOR_WINSERVICE:
 				runMonitor = new RunMonitorWinService();
 				break;
 				
-			case HinemosModuleConstant.MONITOR_PERFORMANCE:
+			case MONITOR_PERFORMANCE:
 				runMonitor = new RunMonitorPerformance();
 				break;
 
-			case HinemosModuleConstant.MONITOR_PROCESS:
+			case MONITOR_PROCESS:
 				runMonitor = new RunMonitorProcess();
 				break;
 
-			case HinemosModuleConstant.MONITOR_LOGCOUNT:
+			case MONITOR_LOGCOUNT:
 				runMonitor = new RunMonitorLogcount();
 				break;
 
-			case HinemosModuleConstant.MONITOR_INTEGRATION:
-			case HinemosModuleConstant.MONITOR_CORRELATION:
-			case HinemosModuleConstant.MONITOR_LOGFILE:
-			case HinemosModuleConstant.MONITOR_BINARYFILE_BIN:
-			case HinemosModuleConstant.MONITOR_PCAP_BIN:
-			case HinemosModuleConstant.MONITOR_SNMPTRAP:
-			case HinemosModuleConstant.MONITOR_SYSTEMLOG:
-			case HinemosModuleConstant.MONITOR_CUSTOM_N:
-			case HinemosModuleConstant.MONITOR_CUSTOM_S:
-			case HinemosModuleConstant.MONITOR_CUSTOMTRAP_N:
-			case HinemosModuleConstant.MONITOR_CUSTOMTRAP_S:
-			case HinemosModuleConstant.MONITOR_WINEVENT:
+			case MONITOR_INTEGRATION:
+			case MONITOR_CORRELATION:
+			case MONITOR_LOGFILE:
+			case MONITOR_BINARYFILE_BIN:
+			case MONITOR_PCAP_BIN:
+			case MONITOR_SNMPTRAP:
+			case MONITOR_SYSTEMLOG:
+			case MONITOR_CUSTOM_N:
+			case MONITOR_CUSTOM_S:
+			case MONITOR_CUSTOMTRAP_N:
+			case MONITOR_CUSTOMTRAP_S:
+			case MONITOR_WINEVENT:
 				// 処置対象外
 				break;
 			default:

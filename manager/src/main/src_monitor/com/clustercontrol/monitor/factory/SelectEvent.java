@@ -460,7 +460,7 @@ public class SelectEvent {
 		}
 
 		// 重要度のリストを取得する
-		int[] priorityList = PriorityConstant.PRIORITY_LIST;
+		int[] priorityList = PriorityConstant.getPriorityList();
 		for(int i=0; i<priorityList.length; i++){
 			// イベントログ情報一覧から重要度が危険のもので、最近出力されたイベントを取得する。
 			List<EventLogEntity> ct = QueryUtil.getEventLogByHighPriorityFilter(

@@ -26,7 +26,7 @@ import com.clustercontrol.bean.HinemosModuleConstant;
 @Entity
 @Table(name="cc_event_log", schema="log")
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.MONITOR)
+		objectType=HinemosModuleConstant.ModuleType.MONITOR)
 @AttributeOverride(name="objectId",
 column=@Column(name="monitor_id", insertable=false, updatable=false))
 public class EventLogEntity extends ObjectPrivilegeTargetInfo implements Cloneable{

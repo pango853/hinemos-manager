@@ -39,7 +39,7 @@ import com.clustercontrol.notify.mail.model.MailTemplateInfo;
 @Table(name="cc_notify_info", schema="setting")
 @Cacheable(true)
 @HinemosObjectPrivilege(
-		objectType=HinemosModuleConstant.PLATFORM_NOTIFY,
+		objectType=HinemosModuleConstant.ModuleType.PLATFORM_NOTIFY,
 		isModifyCheck=true)
 @AttributeOverride(name="objectId",
 column=@Column(name="notify_id", insertable=false, updatable=false))

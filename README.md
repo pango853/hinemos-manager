@@ -7,7 +7,11 @@ This branch, **grable**, is going to convert this existing project to build usin
 
 # HOW-TO
 
-.. Build
-	$ ./gradlew build
+	> gradle -q projects
 
-	$ ./gradlew manager:run
+.. Build
+	> ./gradlew build
+
+	> ./gradlew manager:run
+
+	> gradlew -q :modules:vm:build

@@ -446,7 +446,7 @@ public class ParameterUtil {
 			// ジョブ変数（システム）
 			if (paramValue == null) {
 				if (!disableParam(paramId, disableStrAry)) {
-					if (Arrays.asList(SystemParameterConstant.SYSTEM_ID_LIST_JOB_SESSION).contains(paramId)) {
+					if (Arrays.asList(SystemParameterConstant.getSystemIDListJobSession()).contains(paramId)) {
 						// ジョブセッション情報
 						paramValue = getJobSessionValue(paramId, sessionId, jobSessionEntity);
 					} else {

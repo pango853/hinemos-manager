@@ -26,7 +26,7 @@ public class PrivilegeConstant {
 		ObjectPrivilegeMode.MODIFY,
 		ObjectPrivilegeMode.EXEC,
 	};
-	public static final ObjectPrivilegeMode[] getObjectPrivilegeMode() {
+	public static final ObjectPrivilegeMode[] getObjectPrivilegeModes() {
 		return objectPrivilegeModes.clone();
 	}
 
